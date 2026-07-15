@@ -10,7 +10,8 @@
         "directory": "projects/solercia/ui"
     },
     "publishConfig": {
-        "registry": "https://npm.pkg.github.com"
+        "access": "public",
+        "registry": "https://registry.npmjs.org"
     },
     "schematics": "./schematics/collection.json",
     "ng-update": {
