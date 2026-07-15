@@ -3,5 +3,6 @@
   "dest": "../../../dist/solercia/ui",
   "lib": {
     "entryFile": "src/public-api.ts"
-  }
+  },
+  "assets": ["LICENSE", "NOTICE", "CHANGELOG.md"]
 }

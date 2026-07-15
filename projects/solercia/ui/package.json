@@ -1,6 +1,17 @@
 {
     "name": "@solercia/ui",
-    "version": "0.0.1",
+    "version": "0.1.0",
+    "description": "Design system Solercia (componentes sol-*, theming agnóstico por puertos, contrato i18n y schematics ng add/ng generate) para proyectos Angular del ecosistema Solercia.",
+    "license": "Apache-2.0",
+    "author": "Solercia Solutions SAS",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/camilocalderont/boki-front.git",
+        "directory": "projects/solercia/ui"
+    },
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
+    },
     "schematics": "./schematics/collection.json",
     "ng-update": {
         "migrations": "./schematics/migrations.json"

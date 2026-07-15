@@ -57,20 +57,35 @@ ng build ui
 
 This command will compile your project, and the build artifacts will be placed in the `dist/` directory.
 
-### Publishing the Library
+### Publicación del paquete
 
-Once the project is built, you can publish your library by following these steps:
+`@solercia/ui` se publica en GitHub Packages (registry privado, `publishConfig.registry` en
+este `package.json`). El PROYECTO Angular se construye con `ng build @solercia/ui` (NO
+`ng build ui`), que emite `dist/solercia/ui` (fesm2022 + `index.d.ts` + schematics + `LICENSE`
++ `NOTICE`).
 
-1. Navigate to the `dist` directory:
+1. Construir el paquete completo (lib + schematics):
 
    ```bash
-   cd dist/ui
+   npm run build
    ```
 
-2. Run the `npm publish` command to publish your library to the npm registry:
+2. Validar el empaquetado sin publicar de verdad (`--dry-run`, no requiere token ni red hacia
+   el registry):
+
    ```bash
-   npm publish
+   cd dist/solercia/ui
+   npm publish --dry-run
    ```
+
+3. La publicación **real** está automatizada por tag (`v*`) en
+   `.github/workflows/publish-packages.yml` y bloqueada hoy por la decisión D1 del fundador
+   (owner/organización del scope `@solercia`, repositorio de alojamiento, método de
+   autenticación) — ver `openspec/07-e9-extraccion-solercia-ui/tasks.md`, PR4.
+
+## Licencia
+
+`Apache-2.0` © 2026 Solercia Solutions SAS. Ver [`LICENSE`](./LICENSE) y [`NOTICE`](./NOTICE).
 
 ## Running unit tests
 
