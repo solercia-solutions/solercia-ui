@@ -1,6 +1,37 @@
-# Ui
+# @solercia/ui
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.0.
+Shared Angular design system for the Solercia platform. This project was
+generated using [Angular CLI](https://github.com/angular/angular-cli) version
+22.0.0.
+
+## Theming & i18n (agnostic by design)
+
+The library is a **shareable, host-agnostic** design system: theming and i18n are
+fully decoupled from any host and injected in. Components emit only `--sol-*` CSS
+variables and depend on tiny injection contracts — never on an HTTP endpoint or
+a specific i18n engine.
+
+- **Theming** — the host implements two ports: `SOL_TENANT_RESOLVER` (who the
+  active tenant is) and `THEME_SOURCE` (how to load its `ThemeFile`). The library
+  resolves that JSON into 95 `--sol-*` custom properties on `:root`. Three
+  degradation levels, best to worst: **(1)** tenant theme via the host's
+  `THEME_SOURCE` → **(2)** `SOL_DEFAULT_THEME` (the bundled "Vértice" theme, works
+  with **no host wiring**) → **(3)** inline `:root` CSS in the host's `styles.css`
+  (last resort). A project that wires nothing renders on Vértice and works
+  identically.
+- **i18n** — the library defines `SOL_I18N` (a `SolI18n` contract:
+  `t` / `translate` / `activeLang` / `tMany`) with a built-in identity default
+  (returns the key). The host binds its own engine (boki-front uses Transloco),
+  mirroring Angular Material's `*Intl` services.
+
+Docs:
+
+- [`docs/THEMING.md`](./docs/THEMING.md) — ports, the full `ThemeFile` contract,
+  degradation levels, and how to implement a `ThemeSource`.
+- [`docs/I18N.md`](./docs/I18N.md) — the `SOL_I18N` contract and how to provide an
+  engine (Transloco, ngx-translate, or the identity default).
+- [`docs/MULTITENANT_SETUP.md`](./docs/MULTITENANT_SETUP.md) — step-by-step wiring
+  for a new starter project and for an existing project adopting `@solercia/ui`.
 
 ## Code scaffolding
 
