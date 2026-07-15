@@ -188,6 +188,59 @@ describe('rich-editor-serializer — canonicalización TCPDF-safe', () => {
     });
   });
 
+  describe('chips de mención (@) / enlace de tarea (#) — opt-in', () => {
+    it('preserva un span con data-mention-id como chip canónico', () => {
+      expect(clean('<p><span data-mention-id="u1">@Ana</span></p>'))
+        .toBe('<p><span data-mention-id="u1">@Ana</span></p>');
+    });
+
+    it('preserva un span con data-task-key como chip canónico', () => {
+      expect(clean('<p><span data-task-key="SDM-12">SDM-12</span></p>'))
+        .toBe('<p><span data-task-key="SDM-12">SDM-12</span></p>');
+    });
+
+    it('en un chip descarta TODO menos el data-* (class, style, on*, contenteditable)', () => {
+      expect(
+        clean(
+          '<p><span class="c" style="color:red" contenteditable="false" onclick="x()" data-mention-id="u1">@Ana</span></p>',
+        ),
+      ).toBe('<p><span data-mention-id="u1">@Ana</span></p>');
+    });
+
+    it('escapa el valor del data-* y el texto del chip (anti-XSS)', () => {
+      const host = document.createElement('div');
+      const span = document.createElement('span');
+      span.setAttribute('data-mention-id', 'a"b');
+      span.textContent = '@<b>';
+      host.append(span);
+      expect(serializeElementToTcpdfHtml(host))
+        .toBe('<p><span data-mention-id="a&quot;b">@&lt;b&gt;</span></p>');
+    });
+
+    it('un span SIN data de chip se sigue desanidando como antes', () => {
+      expect(clean('<p><span style="font-weight:bold">B</span> normal</p>'))
+        .toBe('<p><strong>B</strong> normal</p>');
+    });
+
+    it('descarta el chip cuyo data-* está vacío (conserva el texto)', () => {
+      expect(clean('<p><span data-mention-id="">x</span>y</p>')).toBe('<p>xy</p>');
+    });
+
+    it('span es un tag permitido de salida (para chips)', () => {
+      expect(TCPDF_ALLOWED_TAGS).toContain('span');
+    });
+
+    it('sanitizeHtmlToTcpdf conserva el chip y descarta lo peligroso', () => {
+      const out = sanitizeHtmlToTcpdf(
+        '<span data-mention-id="u1">@Ana</span><script>alert(1)</script><span data-task-key="SDM-9">SDM-9</span>',
+      );
+      expect(out).toBe(
+        '<p><span data-mention-id="u1">@Ana</span><span data-task-key="SDM-9">SDM-9</span></p>',
+      );
+      expect(out).not.toContain('script');
+    });
+  });
+
   describe('sanitizeHtmlToTcpdf (entrada no confiable vía DOMParser)', () => {
     it('produce la misma salida canónica que el recorrido del DOM vivo', () => {
       expect(sanitizeHtmlToTcpdf('<div style="color:red"><b>hola</b></div>'))
