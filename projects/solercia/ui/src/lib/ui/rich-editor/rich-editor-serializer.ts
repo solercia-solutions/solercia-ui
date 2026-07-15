@@ -10,7 +10,17 @@
  * ── Allowlist de TAGS de salida ──────────────────────────────────────────
  *   Bloque:  <p> <h1> <h2> <h3> <ul> <ol> <li> <table><tbody><tr><td> <br>
  *   Inline:  <strong> <em> <u> <s> <a> <img>
+ *   Chip:    <span data-mention-id="…"> / <span data-task-key="…">  (OPT-IN)
  *   Nada más. Todo lo demás se desanida (unwrap), se convierte o se descarta.
+ *
+ * ── Chips de mención (@) y enlace de tarea (#) — OPT-IN ───────────────────
+ *   Un `<span>` se PRESERVA en la salida SOLO si porta `data-mention-id` o
+ *   `data-task-key`. En ese caso se emite un span canónico con EXACTAMENTE ese
+ *   único atributo data-* (valor escapado) y su texto; cualquier otro atributo
+ *   del span de entrada (class, style, on*, contenteditable, href…) se DESCARTA
+ *   —no hay passthrough—. Un `<span>` normal (sin data de chip) se desanida
+ *   como siempre. Esto no abre XSS: solo el atributo data-* controlado y el
+ *   texto escapado sobreviven; el span nunca lleva estilos ni handlers.
  *
  * ── Conversión de tags de entrada ────────────────────────────────────────
  *   <b>/<strong>       → <strong>
@@ -51,10 +61,14 @@
  *   `href="javascript:"` y `src` no permitidos se descartan.
  */
 
-/** Tags permitidos en la salida (para documentación/validación externa). */
+/**
+ * Tags permitidos en la salida (para documentación/validación externa).
+ * `span` SOLO se emite para chips de mención/tarea (`data-mention-id` /
+ * `data-task-key`); un `<span>` normal se sigue desanidando.
+ */
 export const TCPDF_ALLOWED_TAGS = [
   'p', 'h1', 'h2', 'h3', 'strong', 'em', 'u', 's',
-  'ul', 'ol', 'li', 'table', 'tbody', 'tr', 'td', 'a', 'img', 'br',
+  'ul', 'ol', 'li', 'table', 'tbody', 'tr', 'td', 'a', 'img', 'br', 'span',
 ] as const;
 
 /**
@@ -233,6 +247,28 @@ function hasBlockChild(el: Element): boolean {
 
 // ── Serialización inline ─────────────────────────────────────────────────
 
+/**
+ * Chip OPT-IN de mención (@) o enlace de tarea (#).
+ *
+ * Devuelve el span canónico con EXACTAMENTE un atributo data-* (escapado) y el
+ * texto escapado; descarta cualquier otro atributo (class, style, on*, …). Un
+ * span con el data de chip pero sin texto se descarta (''). Un span SIN data de
+ * chip devuelve `null` para que el recorrido lo desanide como span normal.
+ */
+function serializeMentionChip(el: HTMLElement): string | null {
+  const mentionId = (el.getAttribute('data-mention-id') ?? '').trim();
+  if (mentionId) {
+    const text = escapeText(collapseWs(el.textContent ?? '')).trim();
+    return text ? `<span data-mention-id="${escapeAttr(mentionId)}">${text}</span>` : '';
+  }
+  const taskKey = (el.getAttribute('data-task-key') ?? '').trim();
+  if (taskKey) {
+    const text = escapeText(collapseWs(el.textContent ?? '')).trim();
+    return text ? `<span data-task-key="${escapeAttr(taskKey)}">${text}</span>` : '';
+  }
+  return null;
+}
+
 function serializeImg(el: HTMLElement): string {
   const src = (el.getAttribute('src') ?? '').trim();
   if (!isSafeImgSrc(src)) return '';
@@ -260,6 +296,12 @@ function serializeInline(node: Node, ctx: Ctx): string {
   if (DROP_TAGS.has(tag)) return '';
   if (tag === 'br') return '<br />';
   if (tag === 'img') return serializeImg(el);
+
+  // Chip de mención/tarea (opt-in): se preserva; un span normal → null (unwrap).
+  if (tag === 'span') {
+    const chip = serializeMentionChip(el);
+    if (chip !== null) return chip;
+  }
 
   if (tag === 'a') {
     const inner = serializeInlineChildren(el, { ...ctx, marks: new Set(ctx.marks) });

@@ -23,6 +23,26 @@ import {
 /** Hook opcional para subir una imagen y devolver su URL definitiva. */
 export type SolRichImageUploader = (file: File) => Promise<string>;
 
+/**
+ * Usuario mencionable con `@` (opt-in). Al elegirlo se inserta un chip
+ * `<span data-mention-id="id">@name</span>` y se emite su `id` en
+ * `mentionsChange`.
+ */
+export interface MentionUser {
+  id: string;
+  name: string;
+}
+
+/**
+ * Tarea enlazable con `#` (opt-in). Al elegirla se inserta un chip
+ * `<span data-task-key="key">key</span>` y se emite su `key` en
+ * `taskLinksChange`.
+ */
+export interface LinkableTask {
+  key: string;
+  title: string;
+}
+
 /** Estado de los formatos activos bajo el cursor (para resaltar la toolbar). */
 interface ActiveFormats {
   bold: boolean;
@@ -44,6 +64,13 @@ const EMPTY_FORMATS: ActiveFormats = {
 
 /** Tamaño máximo de la rejilla del selector de tablas. */
 const TABLE_GRID_MAX = 8;
+
+/** Máximo de resultados listados en el popover de menciones/tareas. */
+const MENTION_MAX_RESULTS = 8;
+/** Longitud máxima de la consulta tras `@`/`#` antes de descartar el trigger. */
+const MENTION_QUERY_MAX = 30;
+/** Ancho de referencia del popover (px) para acotar su posición horizontal. */
+const POPOVER_WIDTH = 208;
 
 /**
  * `sol-rich-editor` — editor de texto enriquecido PROPIO del design system.
@@ -269,10 +296,51 @@ const TABLE_GRID_MAX = 8;
         [style.max-height]="maxHeight() || null"
         (input)="onInput()"
         (blur)="onBlur()"
+        (keydown)="onKeyDown($event)"
         (keyup)="scheduleActiveUpdate()"
         (mouseup)="scheduleActiveUpdate()"
         (paste)="onPaste($event)"
       ></div>
+
+      <!-- ── Popover de menciones (@) — opt-in ──────────────────────────── -->
+      @if (showMentionPopover() && filteredUsers().length > 0) {
+        <div
+          class="sol-rich-editor__popover" role="listbox"
+          [attr.aria-label]="labels().mentionList"
+          [style.top.px]="popoverTop()" [style.left.px]="popoverLeft()"
+        >
+          @for (user of filteredUsers(); track user.id; let i = $index) {
+            <button
+              type="button" role="option" class="sol-rich-editor__popover-item"
+              [class.is-active]="i === activeIndex()" [attr.aria-selected]="i === activeIndex()"
+              (mousedown)="selectMention($event, i)" (mouseenter)="activeIndex.set(i)"
+            >
+              <span class="sol-rich-editor__avatar" aria-hidden="true">{{ initial(user.name) }}</span>
+              <span class="sol-rich-editor__popover-label">{{ user.name }}</span>
+            </button>
+          }
+        </div>
+      }
+
+      <!-- ── Popover de tareas (#) — opt-in ─────────────────────────────── -->
+      @if (showTaskPopover() && filteredTasks().length > 0) {
+        <div
+          class="sol-rich-editor__popover sol-rich-editor__popover--task" role="listbox"
+          [attr.aria-label]="labels().taskList"
+          [style.top.px]="popoverTop()" [style.left.px]="popoverLeft()"
+        >
+          @for (task of filteredTasks(); track task.key; let i = $index) {
+            <button
+              type="button" role="option" class="sol-rich-editor__popover-item"
+              [class.is-active]="i === activeIndex()" [attr.aria-selected]="i === activeIndex()"
+              (mousedown)="selectTask($event, i)" (mouseenter)="activeIndex.set(i)"
+            >
+              <span class="sol-rich-editor__task-key" aria-hidden="true">{{ task.key }}</span>
+              <span class="sol-rich-editor__popover-label sol-rich-editor__popover-label--truncate">{{ task.title }}</span>
+            </button>
+          }
+        </div>
+      }
 
       @if (imageError()) {
         <p class="sol-rich-editor__error" role="alert">{{ imageError() }}</p>
@@ -306,6 +374,7 @@ const TABLE_GRID_MAX = 8;
     }
 
     .sol-rich-editor {
+      position: relative; /* contexto de posicionamiento del popover de menciones */
       display: flex;
       flex-direction: column;
       border: var(--sol-input-border, var(--sol-border-width-default, 1px) solid var(--sre-border));
@@ -496,7 +565,94 @@ const TABLE_GRID_MAX = 8;
       overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
     }
 
+    /* ── Popover de menciones (@) / tareas (#) — opt-in ───────────────── */
+    .sol-rich-editor__popover {
+      position: absolute;
+      z-index: var(--sol-z-dropdown, 1000);
+      min-width: 12rem;
+      max-width: 18rem;
+      max-height: 14rem;
+      overflow-y: auto;
+      padding: 0.25rem;
+      background: var(--sol-bg-surface, #ffffff);
+      border: 1px solid var(--sre-border);
+      border-radius: var(--sol-border-radius-md, 0.5rem);
+      box-shadow: var(--sol-shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.12));
+    }
+    .sol-rich-editor__popover--task { min-width: 16rem; }
+
+    .sol-rich-editor__popover-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.375rem 0.5rem;
+      border: none;
+      border-radius: var(--sol-border-radius-sm, 0.375rem);
+      background: transparent;
+      color: var(--sre-text);
+      font-family: var(--sre-font);
+      font-size: var(--sol-font-size-base, 0.9375rem);
+      text-align: left;
+      cursor: pointer;
+    }
+    .sol-rich-editor__popover-item:hover,
+    .sol-rich-editor__popover-item.is-active { background: var(--sre-btn-hover); }
+
+    .sol-rich-editor__popover-label { flex: 1; min-width: 0; }
+    .sol-rich-editor__popover-label--truncate {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sol-rich-editor__avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      flex-shrink: 0;
+      border-radius: 9999px;
+      background: color-mix(in srgb, var(--sol-color-primary, #6366f1) 20%, transparent);
+      color: var(--sol-color-primary, #6366f1);
+      font-size: var(--sol-font-size-sm, 0.75rem);
+      font-weight: 600;
+    }
+
+    .sol-rich-editor__task-key {
+      flex-shrink: 0;
+      padding: 0.0625rem 0.375rem;
+      border-radius: var(--sol-border-radius-sm, 0.375rem);
+      background: color-mix(in srgb, var(--sol-color-success, #10b981) 14%, transparent);
+      color: var(--sol-color-success, #10b981);
+      font-family: var(--sol-font-family-mono, ui-monospace, monospace);
+      font-size: var(--sol-font-size-sm, 0.75rem);
+      font-weight: 600;
+    }
+
     /* ── Estilos del CONTENIDO renderizado (nodos inyectados) ─────────── */
+    /* Chips de mención (@) y tarea (#) insertados en el contenido. */
+    .sol-rich-editor__content ::ng-deep span[data-mention-id] {
+      display: inline-block;
+      padding: 0 0.375rem;
+      border-radius: var(--sol-border-radius-sm, 0.375rem);
+      background: color-mix(in srgb, var(--sol-color-primary, #6366f1) 12%, transparent);
+      color: var(--sol-color-primary, #6366f1);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .sol-rich-editor__content ::ng-deep span[data-task-key] {
+      display: inline-block;
+      padding: 0 0.375rem;
+      border-radius: var(--sol-border-radius-sm, 0.375rem);
+      background: color-mix(in srgb, var(--sol-color-success, #10b981) 14%, transparent);
+      color: var(--sol-color-success, #10b981);
+      font-family: var(--sol-font-family-mono, ui-monospace, monospace);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
     .sol-rich-editor__content ::ng-deep h1 { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; line-height: 1.25; }
     .sol-rich-editor__content ::ng-deep h2 { font-size: 1.25rem; font-weight: 700; margin: 0.5rem 0; line-height: 1.3; }
     .sol-rich-editor__content ::ng-deep h3 { font-size: 1.0625rem; font-weight: 600; margin: 0.5rem 0; line-height: 1.35; }
@@ -538,10 +694,24 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
   readonly imageMaxBytes = input<number>(5 * 1024 * 1024);
   /** Hook opcional para subir la imagen y usar su URL en vez del data URL. */
   readonly imageUpload = input<SolRichImageUploader | null>(null);
+  /**
+   * Usuarios mencionables con `@` (opt-in). Vacío ⇒ menciones DESACTIVADAS:
+   * el editor se comporta exactamente igual que sin esta capacidad.
+   */
+  readonly mentionableUsers = input<MentionUser[]>([]);
+  /**
+   * Tareas enlazables con `#` (opt-in). Vacío ⇒ enlaces DESACTIVADOS: el
+   * editor se comporta exactamente igual que sin esta capacidad.
+   */
+  readonly linkableTasks = input<LinkableTask[]>([]);
 
   // ── Outputs ─────────────────────────────────────────────────────────
   /** Emite el HTML limpio en cada cambio (además del flujo CVA). */
   readonly valueChange = output<string>();
+  /** IDs únicos (orden de documento) de los usuarios mencionados en el contenido. */
+  readonly mentionsChange = output<string[]>();
+  /** Keys únicas (orden de documento) de las tareas enlazadas en el contenido. */
+  readonly taskLinksChange = output<string[]>();
 
   // ── Referencias del template ────────────────────────────────────────
   private readonly editable = viewChild.required<ElementRef<HTMLDivElement>>('editable');
@@ -560,6 +730,41 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
   readonly tableCols = signal<number>(1);
   readonly linkUrl = signal<string>('');
   readonly imageError = signal<string>('');
+
+  // ── Estado de menciones (@) / tareas (#) — opt-in ───────────────────
+  readonly showMentionPopover = signal<boolean>(false);
+  readonly showTaskPopover = signal<boolean>(false);
+  readonly activeIndex = signal<number>(0);
+  readonly popoverTop = signal<number>(0);
+  readonly popoverLeft = signal<number>(0);
+  private readonly mentionQuery = signal<string>('');
+  private readonly taskQuery = signal<string>('');
+  /** Rango que abarca `@query`/`#query`; se reemplaza por el chip al elegir. */
+  private triggerRange: Range | null = null;
+
+  /** Menciones activas solo si hay usuarios; si no, el trigger `@` se ignora. */
+  readonly mentionsEnabled = computed(() => this.mentionableUsers().length > 0);
+  /** Enlaces activos solo si hay tareas; si no, el trigger `#` se ignora. */
+  readonly tasksEnabled = computed(() => this.linkableTasks().length > 0);
+
+  readonly filteredUsers = computed(() => {
+    const query = this.mentionQuery().toLowerCase();
+    return this.mentionableUsers()
+      .filter((user) => !query || user.name.toLowerCase().includes(query))
+      .slice(0, MENTION_MAX_RESULTS);
+  });
+
+  readonly filteredTasks = computed(() => {
+    const query = this.taskQuery().toLowerCase();
+    return this.linkableTasks()
+      .filter(
+        (task) =>
+          !query ||
+          task.key.toLowerCase().includes(query) ||
+          task.title.toLowerCase().includes(query),
+      )
+      .slice(0, MENTION_MAX_RESULTS);
+  });
 
   readonly isDisabled = computed(() => this.disabled() || this._disabledByForm());
   readonly isEmpty = computed(() => this._value().trim().length === 0);
@@ -588,6 +793,7 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
       tablePicker: t('tablePicker'),
       linkPlaceholder: t('linkPlaceholder'), linkConfirm: t('linkConfirm'),
       editorAria: t('editorAria'), imageTooLarge: t('imageTooLarge'),
+      mentionList: t('mentionList'), taskList: t('taskList'),
     };
   });
 
@@ -614,10 +820,13 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
     };
     document.addEventListener('selectionchange', onSelectionChange);
 
-    // Cierra los menús al hacer clic fuera del componente.
+    // Cierra los menús y popovers al hacer clic fuera del componente.
     const onDocClick = (event: MouseEvent) => {
       const host = this.editable().nativeElement.closest('.sol-rich-editor');
-      if (host && !host.contains(event.target as Node)) this.closeMenus();
+      if (host && !host.contains(event.target as Node)) {
+        this.closeMenus();
+        this.closePopovers();
+      }
     };
     document.addEventListener('click', onDocClick);
 
@@ -644,11 +853,45 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
 
   // ── Manejo de eventos del área editable ─────────────────────────────
   onInput(): void {
+    if (this.mentionsEnabled() || this.tasksEnabled()) this.detectAutocomplete();
     this.emitChange();
     this.scheduleActiveUpdate();
   }
 
   onBlur(): void { this.onTouched(); }
+
+  /** Navegación del popover de menciones/tareas (solo cuando está abierto). */
+  onKeyDown(event: KeyboardEvent): void {
+    if (!this.showMentionPopover() && !this.showTaskPopover()) return;
+    const length = this.showMentionPopover()
+      ? this.filteredUsers().length
+      : this.filteredTasks().length;
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        this.activeIndex.update((i) => Math.min(i + 1, length - 1));
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        this.activeIndex.update((i) => Math.max(i - 1, 0));
+        break;
+      case 'Enter':
+        event.preventDefault();
+        if (this.showMentionPopover()) this.selectMention(null, this.activeIndex());
+        else this.selectTask(null, this.activeIndex());
+        break;
+      case 'Escape':
+        event.preventDefault();
+        this.closePopovers();
+        break;
+    }
+  }
+
+  /** Inicial en mayúscula para el avatar del popover de menciones. */
+  initial(name: string): string {
+    return (name.trim().charAt(0) || '?').toUpperCase();
+  }
 
   /** Recalcula el estado de la toolbar de forma diferida (tras el DOM). */
   scheduleActiveUpdate(): void {
@@ -816,6 +1059,175 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
     this.errorHandle = setTimeout(() => this.imageError.set(''), 4000);
   }
 
+  // ── Menciones (@) / tareas (#) — opt-in ─────────────────────────────
+  /**
+   * Analiza el texto anterior al cursor: si hay un trigger `@`/`#` activo (al
+   * inicio o precedido por espacio) y su lista está habilitada, abre el popover
+   * respectivo; si no, lo cierra.
+   */
+  private detectAutocomplete(): void {
+    const found = this.getQueryBeforeCursor();
+    if (!found) { this.closePopovers(); return; }
+
+    const { trigger, query, range } = found;
+    if (trigger === '@' && !this.mentionsEnabled()) { this.closePopovers(); return; }
+    if (trigger === '#' && !this.tasksEnabled()) { this.closePopovers(); return; }
+
+    this.triggerRange = range;
+    this.activeIndex.set(0);
+    if (trigger === '@') {
+      this.mentionQuery.set(query);
+      this.showMentionPopover.set(true);
+      this.showTaskPopover.set(false);
+    } else {
+      this.taskQuery.set(query);
+      this.showTaskPopover.set(true);
+      this.showMentionPopover.set(false);
+    }
+    this.positionPopover();
+  }
+
+  /** Trigger + consulta inmediatamente antes del cursor colapsado (o null). */
+  private getQueryBeforeCursor(): { trigger: '@' | '#'; query: string; range: Range } | null {
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+
+    const range = selection.getRangeAt(0);
+    if (!range.collapsed) return null;
+
+    const container = range.startContainer;
+    if (container.nodeType !== Node.TEXT_NODE) return null;
+    if (!this.editable().nativeElement.contains(container)) return null;
+
+    const text = container.textContent ?? '';
+    const offset = range.startOffset;
+    const before = text.slice(0, offset);
+
+    let triggerIdx = -1;
+    let trigger: '@' | '#' | null = null;
+    for (let i = before.length - 1; i >= 0; i--) {
+      const ch = before[i];
+      if (ch === '@' || ch === '#') {
+        if (i === 0 || /\s/.test(before[i - 1])) { triggerIdx = i; trigger = ch; }
+        break;
+      }
+      if (/\s/.test(ch)) break; // espacio antes del trigger ⇒ no hay match
+    }
+    if (triggerIdx === -1 || !trigger) return null;
+
+    const query = before.slice(triggerIdx + 1);
+    if (query.length > MENTION_QUERY_MAX) return null;
+
+    const triggerRange = document.createRange();
+    triggerRange.setStart(container, triggerIdx);
+    triggerRange.setEnd(container, offset);
+    return { trigger, query, range: triggerRange };
+  }
+
+  /** Ubica el popover bajo el caret (cálculo manual; sin librerías de posición). */
+  private positionPopover(): void {
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const host = this.editable().nativeElement.closest('.sol-rich-editor') as HTMLElement | null;
+    if (!host || typeof host.getBoundingClientRect !== 'function') return;
+
+    const caret = selection.getRangeAt(0).cloneRange();
+    caret.collapse(true);
+    // `Range.getBoundingClientRect` no existe en jsdom (tests): sin medidas de
+    // viewport se conserva la posición por defecto (0,0) sin romper el flujo.
+    if (typeof caret.getBoundingClientRect !== 'function') return;
+    const caretRect = caret.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+
+    const count = this.showMentionPopover()
+      ? this.filteredUsers().length
+      : this.filteredTasks().length;
+    const estHeight = Math.min(count, 6) * 36 + 8;
+    const below = caretRect.bottom - hostRect.top + 4;
+    const roomBelow = hostRect.bottom - caretRect.bottom;
+    // Si no cabe abajo pero sí arriba, se abre hacia arriba (flip).
+    const top =
+      roomBelow < estHeight && caretRect.top - hostRect.top > estHeight
+        ? caretRect.top - hostRect.top - estHeight - 4
+        : below;
+    const left = Math.max(
+      0,
+      Math.min(caretRect.left - hostRect.left, hostRect.width - POPOVER_WIDTH),
+    );
+    this.popoverTop.set(Math.max(0, top));
+    this.popoverLeft.set(left);
+  }
+
+  closePopovers(): void {
+    this.showMentionPopover.set(false);
+    this.showTaskPopover.set(false);
+    this.triggerRange = null;
+  }
+
+  selectMention(event: Event | null, index: number): void {
+    event?.preventDefault();
+    const user = this.filteredUsers()[index];
+    if (!user) return;
+    this.insertChip(`@${user.name}`, 'data-mention-id', user.id);
+    this.closePopovers();
+    this.emitChange();
+  }
+
+  selectTask(event: Event | null, index: number): void {
+    event?.preventDefault();
+    const task = this.filteredTasks()[index];
+    if (!task) return;
+    this.insertChip(task.key, 'data-task-key', task.key);
+    this.closePopovers();
+    this.emitChange();
+  }
+
+  /**
+   * Reemplaza el rango `@query`/`#query` por un chip `<span>` no editable con
+   * el atributo data-* dado, y deja el cursor tras él con un espacio.
+   */
+  private insertChip(label: string, attr: string, value: string): void {
+    if (!this.triggerRange) return;
+    const selection = document.getSelection();
+    if (!selection) return;
+
+    const chip = document.createElement('span');
+    chip.setAttribute('contenteditable', 'false');
+    chip.textContent = label;
+    chip.setAttribute(attr, value);
+
+    this.triggerRange.deleteContents();
+    this.triggerRange.insertNode(chip);
+
+    const after = document.createRange();
+    after.setStartAfter(chip);
+    after.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(after);
+    // Espacio para poder seguir escribiendo fuera del chip.
+    this.safeExec('insertText', ' ');
+    this.triggerRange = null;
+  }
+
+  /** Marca los chips como no editables tras (re)pintar el contenido. */
+  private hardenChips(): void {
+    this.editable()
+      .nativeElement.querySelectorAll<HTMLElement>('[data-mention-id],[data-task-key]')
+      .forEach((el) => { el.setAttribute('contenteditable', 'false'); });
+  }
+
+  /** IDs/keys únicos (orden de documento) de los chips presentes en el DOM. */
+  private collectChipValues(attr: string): string[] {
+    const seen = new Set<string>();
+    this.editable()
+      .nativeElement.querySelectorAll(`[${attr}]`)
+      .forEach((el) => {
+        const value = el.getAttribute(attr)?.trim();
+        if (value) seen.add(value);
+      });
+    return [...seen];
+  }
+
   // ── Pegado (saneado SIEMPRE por el serializador) ────────────────────
   onPaste(event: ClipboardEvent): void {
     const data = event.clipboardData;
@@ -946,6 +1358,8 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
     this._value.set(clean);
     this.onChange(clean);
     this.valueChange.emit(clean);
+    this.mentionsChange.emit(this.collectChipValues('data-mention-id'));
+    this.taskLinksChange.emit(this.collectChipValues('data-task-key'));
   }
 
   private applyPending(): void {
@@ -953,6 +1367,7 @@ export class SolRichEditorComponent implements ControlValueAccessor, AfterViewIn
     const clean = sanitizeHtmlToTcpdf(this.pendingValue);
     const editable = this.editable().nativeElement;
     if (editable.innerHTML !== clean) editable.innerHTML = clean;
+    this.hardenChips();
     this._value.set(clean);
   }
 

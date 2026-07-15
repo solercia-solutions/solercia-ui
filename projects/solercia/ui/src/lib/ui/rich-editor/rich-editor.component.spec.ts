@@ -52,6 +52,21 @@ describe('SolRichEditorComponent', () => {
     selection.addRange(range);
   }
 
+  /** Escribe `text` en el editor con el caret al final y dispara `input`. */
+  function typeInEditor(text: string): void {
+    const el = content();
+    el.focus();
+    el.textContent = text;
+    const node = el.firstChild!;
+    const range = document.createRange();
+    range.setStart(node, text.length);
+    range.collapse(true);
+    const selection = document.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    el.dispatchEvent(new Event('input'));
+  }
+
   describe('CVA — writeValue / getHtml', () => {
     it('writeValue sanea el HTML entrante a canónico y lo pinta en el editable', () => {
       component.writeValue('<div style="color:red"><b>hola</b></div>');
@@ -215,6 +230,98 @@ describe('SolRichEditorComponent', () => {
       expect(() => component.cmd('bold')).not.toThrow();
       expect(() => component.align('center')).not.toThrow();
       expect(() => component.removeFormat()).not.toThrow();
+    });
+  });
+
+  describe('menciones (@) / tareas (#) — DESACTIVADAS por defecto', () => {
+    it('sin listas, mentionsEnabled/tasksEnabled son false', () => {
+      expect(component.mentionsEnabled()).toBe(false);
+      expect(component.tasksEnabled()).toBe(false);
+    });
+
+    it('teclear @ o # no abre popover y el HTML sale como texto plano', () => {
+      typeInEditor('hola @todos');
+      expect(component.showMentionPopover()).toBe(false);
+      expect(component.showTaskPopover()).toBe(false);
+      expect(component.getHtml()).toBe('<p>hola @todos</p>');
+    });
+  });
+
+  describe('menciones (@) / tareas (#) — opt-in (con listas)', () => {
+    const USERS = [
+      { id: 'u1', name: 'Ana Gómez' },
+      { id: 'u2', name: 'Andrés Ruiz' },
+      { id: 'u3', name: 'Beatriz Díaz' },
+    ];
+    const TASKS = [
+      { key: 'SDM-12', title: 'Ajustar el login' },
+      { key: 'SDM-15', title: 'Corregir el header' },
+    ];
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('mentionableUsers', USERS);
+      fixture.componentRef.setInput('linkableTasks', TASKS);
+      fixture.detectChanges();
+    });
+
+    it('teclear @ abre el popover de menciones filtrado por nombre', () => {
+      typeInEditor('@An');
+      expect(component.showMentionPopover()).toBe(true);
+      expect(component.filteredUsers().map((u) => u.name)).toEqual(['Ana Gómez', 'Andrés Ruiz']);
+    });
+
+    it('teclear # abre el popover de tareas filtrado por key/título', () => {
+      typeInEditor('#SDM-12');
+      expect(component.showTaskPopover()).toBe(true);
+      expect(component.filteredTasks().map((t) => t.key)).toEqual(['SDM-12']);
+    });
+
+    it('elegir una mención inserta el chip y emite mentionsChange', () => {
+      const emitted: string[][] = [];
+      component.mentionsChange.subscribe((v) => emitted.push(v));
+
+      typeInEditor('@An');
+      component.selectMention(null, 0); // Ana Gómez
+
+      const html = component.getHtml();
+      expect(html).toContain('<span data-mention-id="u1">@Ana Gómez</span>');
+      expect(html).not.toContain('contenteditable');
+      expect(component.showMentionPopover()).toBe(false);
+      expect(emitted.at(-1)).toEqual(['u1']);
+    });
+
+    it('elegir una tarea inserta el chip y emite taskLinksChange', () => {
+      const emitted: string[][] = [];
+      component.taskLinksChange.subscribe((v) => emitted.push(v));
+
+      typeInEditor('#SDM-12');
+      component.selectTask(null, 0);
+
+      const html = component.getHtml();
+      expect(html).toContain('<span data-task-key="SDM-12">SDM-12</span>');
+      expect(emitted.at(-1)).toEqual(['SDM-12']);
+    });
+
+    it('ArrowDown mueve la selección y Escape cierra el popover', () => {
+      typeInEditor('@An');
+      expect(component.activeIndex()).toBe(0);
+      component.onKeyDown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      expect(component.activeIndex()).toBe(1);
+      component.onKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(component.showMentionPopover()).toBe(false);
+    });
+
+    it('writeValue con chips los conserva y los deja no editables (round-trip)', () => {
+      component.writeValue(
+        '<p>Hola <span data-mention-id="u1">@Ana</span> y <span data-task-key="SDM-12">SDM-12</span></p>',
+      );
+      fixture.detectChanges();
+
+      expect(component.getHtml()).toBe(
+        '<p>Hola <span data-mention-id="u1">@Ana</span> y <span data-task-key="SDM-12">SDM-12</span></p>',
+      );
+      const chip = content().querySelector('[data-mention-id]') as HTMLElement;
+      expect(chip.getAttribute('contenteditable')).toBe('false');
     });
   });
 });

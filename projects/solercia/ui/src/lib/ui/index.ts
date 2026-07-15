@@ -41,7 +41,16 @@ export { SolChartComponent, SOL_CHART_ENGINE } from './chart/chart.component';
 export type { SolChartEngineFactory, SolChartEngineHandle } from './chart/chart.component';
 export type { SolChartType, SolChartData, SolChartSeries, SolChartOptions } from './chart/chart-theme';
 export { SolRichEditorComponent } from './rich-editor/rich-editor.component';
-export type { SolRichImageUploader } from './rich-editor/rich-editor.component';
+export type {
+  SolRichImageUploader,
+  MentionUser,
+  LinkableTask,
+} from './rich-editor/rich-editor.component';
+export { SolPageHeaderComponent } from './page-header/page-header.component';
+export { SolIconButtonComponent } from './icon-button/icon-button.component';
+export type { SolIconButtonVariant, SolIconButtonSize } from './icon-button/icon-button.component';
+export { SolDataTableComponent } from './data-table/data-table.component';
+export type { DataTableColumn, SolDataTableRow } from './data-table/data-table.component';
 export {
   serializeElementToTcpdfHtml,
   sanitizeHtmlToTcpdf,

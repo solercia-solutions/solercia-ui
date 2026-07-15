@@ -6,6 +6,27 @@ Todos los cambios notables de este paquete se documentan en este archivo. El for
 paquete tiene solo dos consumidores potenciales — `boki-front` y, próximamente, `gestion_proyectos`
 — y puede admitir cambios incompatibles en versiones `minor`).
 
+## [0.1.1] - 2026-07-15
+
+### Agregado
+
+- `sol-data-table`: tabla genérica dirigida por columnas (`DataTableColumn`), con búsqueda, paginación,
+  ordenamiento, estados loading/empty, modo móvil colapsable y slot `#rowActions` para acciones por fila
+  (edit/delete de conveniencia). Autocontenida (sin dependencias de dominio ni de utilidades del host).
+- `sol-page-header`: encabezado de página (`title` requerido, `subtitle` opcional, slot de acciones).
+- `sol-icon-button`: botón de solo ícono sobre el registro de íconos de la librería, con `ariaLabel`
+  requerido, variantes (`default`/`danger`/`ghost`), tamaños y output `clicked`.
+- `sol-rich-editor`: menciones (`@`) y task-linking (`#`) **opt-in** — inputs `mentionableUsers`/`linkableTasks`
+  y outputs `mentionsChange`/`taskLinksChange` (tipos `MentionUser`/`LinkableTask`). Aditivo: con listas
+  vacías el editor mantiene su comportamiento previo (imágenes, serialización TCPDF). El sanitizador
+  preserva solo los chips `data-mention-id`/`data-task-key` (whitelist estricta, anti-XSS).
+
+### Notas
+
+- Componentes surgidos del segundo consumidor (`gestion_proyectos`): reemplazan sus stopgaps locales, de
+  modo que el consumidor no mantenga design system propio.
+- 277 tests de la librería en verde (246 base + 31 nuevos).
+
 ## [0.1.0] - 2026-07-14
 
 ### Agregado
