@@ -1,0 +1,16 @@
+/**
+ * Modelo de dominio de <%= className %>, generado por
+ * `ng g @solercia/ui:entity <%= name %>`.
+ *
+ * Los nombres de campo siguen el contrato PascalCase que expone el backend
+ * (.NET) — ajusta a la forma real del DTO (ver `src/entities/tag/model/` en
+ * boki-front para un ejemplo completo con validators).
+ */
+export interface <%= className %> {
+  Id: number;
+  VcName: string;
+}
+
+export interface Create<%= className %>Request {
+  VcName: string;
+}

@@ -1,0 +1,26 @@
+/* Compila la colección de schematics de @solercia/ui (Node/CommonJS) — NUNCA
+   se procesa con ng-packagr (eso es solo para el runtime Angular del paquete,
+   ver tsconfig.lib.json). Emite directo a dist/solercia/ui/schematics/, junto
+   a los assets (collection.json, migrations.json, cada schema.json y las
+   plantillas files/) que copia `schematics/build-assets.mjs` después de tsc.
+*/
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../../dist/solercia/ui/schematics",
+    "rootDir": "./schematics",
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"],
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "paths": {}
+  },
+  "include": ["schematics/**/*.ts"],
+  "exclude": ["schematics/**/*.spec.ts"]
+}

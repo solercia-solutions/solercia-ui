@@ -1,0 +1,2 @@
+export { <%= className %>PageComponent } from './ui/<%= name %>-page.component';
+export { <%= camelName %>Routes } from './<%= name %>.routes';

@@ -1,0 +1,51 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { APP_CONSTANTS } from '@shared/config';
+import { ApiSuccessResponse, CustomError } from '@shared/api';
+import { <%= className %>, Create<%= className %>Request } from '../model/<%= name %>.model';
+
+/**
+ * Cliente REST de <%= className %>, generado por
+ * `ng g @solercia/ui:entity <%= name %>`. CRUD mínimo contra
+ * `${APP_CONSTANTS.apiBaseUrl}/<%= pluralName %>` — calcado del molde real
+ * (`src/entities/tag/api/tag-api.service.ts`).
+ */
+@Injectable({ providedIn: 'root' })
+export class <%= className %>ApiService {
+  private http = inject(HttpClient);
+  private baseUrl = `${APP_CONSTANTS.apiBaseUrl}/<%= pluralName %>`;
+
+  getAll(): Observable<ApiSuccessResponse<<%= className %>[]>> {
+    return this.http
+      .get<ApiSuccessResponse<<%= className %>[]>>(this.baseUrl)
+      .pipe(catchError(this.handleError));
+  }
+
+  create(data: Create<%= className %>Request): Observable<ApiSuccessResponse<<%= className %>>> {
+    return this.http
+      .post<ApiSuccessResponse<<%= className %>>>(this.baseUrl, data)
+      .pipe(catchError(this.handleError));
+  }
+
+  update(id: number, data: Partial<Create<%= className %>Request>): Observable<ApiSuccessResponse<<%= className %>>> {
+    return this.http
+      .put<ApiSuccessResponse<<%= className %>>>(`${this.baseUrl}/${id}`, data)
+      .pipe(catchError(this.handleError));
+  }
+
+  delete(id: number): Observable<ApiSuccessResponse<void>> {
+    return this.http
+      .delete<ApiSuccessResponse<void>>(`${this.baseUrl}/${id}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  private handleError(error: HttpErrorResponse): Observable<never> {
+    const customError: CustomError = new Error(error.error?.message ?? 'Error desconocido') as CustomError;
+    customError.code = error.error?.errors?.[0]?.code ?? 'UNKNOWN';
+    customError.status = error.status;
+    customError.originalError = error;
+    return throwError(() => customError);
+  }
+}

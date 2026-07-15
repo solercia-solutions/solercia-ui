@@ -1,0 +1,31 @@
+import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
+import { I18nService } from '@shared/i18n';
+
+/**
+ * Page generada por `ng g @solercia/ui:page <%= name %>`.
+ *
+ * Standalone + `OnPush` + textos por clave i18n (`pages.<%= camelName %>.*`),
+ * calcado del molde de `@solercia/ui` (ver `src/pages/login/` en boki-front).
+ * Ajusta el template/estilos al contenido real de la página.
+ */
+@Component({
+  standalone: true,
+  selector: '<%= selector %>',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <section class="<%= name %>-page">
+      <h1>{{ titleLabel() }}</h1>
+    </section>
+  `,
+  styles: [`
+    .<%= name %>-page {
+      display: block;
+      padding: var(--sol-space-lg, 24px);
+    }
+  `],
+})
+export class <%= className %>PageComponent {
+  private readonly i18n = inject(I18nService);
+
+  readonly titleLabel = this.i18n.t('pages.<%= camelName %>.title');
+}

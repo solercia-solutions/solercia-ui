@@ -1,0 +1,1 @@
+export { <%= className %>Component } from './ui/<%= name %>.component';

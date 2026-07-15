@@ -1,0 +1,6 @@
+import { Routes } from '@angular/router';
+import { <%= className %>PageComponent } from './ui/<%= name %>-page.component';
+
+export const <%= camelName %>Routes: Routes = [
+  { path: '', component: <%= className %>PageComponent },
+];

@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../../node_modules/@angular-devkit/schematics/collection-schema.json",
+  "schematics": {
+    "ng-add": {
+      "description": "Scaffoldea el andamiaje FSD (carpetas + index.ts, path aliases, tokens + estilos, providers de los puertos de theming/i18n, @solercia/eslint-config y Husky) en un proyecto Angular consumidor.",
+      "factory": "./ng-add/index#ngAdd",
+      "schema": "./ng-add/schema.json"
+    },
+    "page": {
+      "aliases": ["p"],
+      "description": "Genera una page FSD (standalone, OnPush, claves i18n) en <sourceRoot>/pages/.",
+      "factory": "./page/index#page",
+      "schema": "./page/schema.json"
+    },
+    "feature": {
+      "aliases": ["f"],
+      "description": "Genera una feature FSD (standalone, OnPush, signals input()/output(), claves i18n) en <sourceRoot>/features/.",
+      "factory": "./feature/index#feature",
+      "schema": "./feature/schema.json"
+    },
+    "entity": {
+      "aliases": ["e"],
+      "description": "Genera una entity FSD (model + api) en <sourceRoot>/entities/.",
+      "factory": "./entity/index#entity",
+      "schema": "./entity/schema.json"
+    },
+    "widget": {
+      "aliases": ["w"],
+      "description": "Genera un widget FSD (standalone, OnPush, signals, claves i18n) en <sourceRoot>/widgets/.",
+      "factory": "./widget/index#widget",
+      "schema": "./widget/schema.json"
+    }
+  }
+}

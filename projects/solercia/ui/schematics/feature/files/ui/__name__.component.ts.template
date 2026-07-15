@@ -1,0 +1,41 @@
+import { Component, ChangeDetectionStrategy, input, output, inject } from '@angular/core';
+import { I18nService } from '@shared/i18n';
+
+/**
+ * Feature generada por `ng g @solercia/ui:feature <%= name %>`.
+ *
+ * Standalone + `OnPush` + signals (`input()`/`output()`) + textos por clave
+ * i18n (`features.<%= camelName %>.*`), calcado del molde de `@solercia/ui`
+ * (ver `src/features/auth/ui/login-form.component.ts` en boki-front).
+ */
+@Component({
+  standalone: true,
+  selector: '<%= selector %>',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="<%= name %>">
+      <span>{{ titleLabel() }}</span>
+      @if (value()) {
+        <span class="<%= name %>__value">{{ value() }}</span>
+      }
+    </div>
+  `,
+  styles: [`
+    .<%= name %> {
+      display: flex;
+      align-items: center;
+      gap: var(--sol-space-sm, 8px);
+      font-family: var(--sol-font-family);
+      color: var(--sol-color-text-primary);
+    }
+  `],
+})
+export class <%= className %>Component {
+  private readonly i18n = inject(I18nService);
+
+  /** Ajusta el tipo/valor por defecto al contrato real de la feature. */
+  readonly value = input<string>('');
+  readonly changed = output<string>();
+
+  readonly titleLabel = this.i18n.t('features.<%= camelName %>.title');
+}

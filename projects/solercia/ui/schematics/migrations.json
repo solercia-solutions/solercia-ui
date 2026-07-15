@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../../node_modules/@angular-devkit/schematics/collection-schema.json",
+  "schematics": {
+    "migration-0-1-0-noop": {
+      "version": "0.1.0",
+      "description": "Andamiaje de migraciones para `ng update @solercia/ui`. No-op: sienta la convención para futuros renombres de tokens/inputs propagables (ver design.md, Decisión B — herencia por dependencia).",
+      "factory": "./migrations/1-noop/index#migrate"
+    }
+  }
+}

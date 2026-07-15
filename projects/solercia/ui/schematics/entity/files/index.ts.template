@@ -1,0 +1,2 @@
+export type { <%= className %>, Create<%= className %>Request } from './model/<%= name %>.model';
+export { <%= className %>ApiService } from './api/<%= name %>-api.service';

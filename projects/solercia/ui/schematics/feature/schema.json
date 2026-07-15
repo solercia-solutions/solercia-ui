@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "SolerciaUiFeature",
+  "title": "Solercia UI feature schematic",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre de la feature (kebab-case recomendado, ej. \"manage-tags\").",
+      "$default": { "$source": "argv", "index": 0 }
+    },
+    "project": {
+      "type": "string",
+      "description": "Proyecto Angular objetivo. Por defecto, el proyecto de tipo application del workspace.",
+      "$default": { "$source": "projectName" }
+    }
+  },
+  "required": ["name"]
+}
