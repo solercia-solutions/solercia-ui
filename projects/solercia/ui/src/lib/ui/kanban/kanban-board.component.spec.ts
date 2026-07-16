@@ -376,6 +376,48 @@ describe('SolKanbanBoardComponent', () => {
       // nada pospuesto que aplicar → la actualización optimista se conserva.
       expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
     });
+
+    it('[corrección quirúrgica] AMBOS ocurren en el MISMO gesto (refresh externo + drop real) → el DROP gana; el refresh pospuesto se descarta', () => {
+      fixture.componentRef.setInput('columns', [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ]);
+      fixture.detectChanges();
+
+      const moved: KanbanItemMoved<DemoItem>[] = [];
+      fixture.componentInstance.itemMoved.subscribe((e) => moved.push(e));
+
+      const drag = firstCardDrag();
+      drag.started.emit({ source: drag, event: new MouseEvent('mousedown') } as CdkDragStart);
+
+      // (a) Refresh externo MIENTRAS se arrastra: queda pospuesto (pendingColumnsSeed).
+      fixture.componentRef.setInput('columns', [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A (refresh)', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ]);
+      fixture.detectChanges();
+      expect(cardTitlesIn(0)).toEqual(['Tarea A']); // pospuesto, aún no aplicado
+
+      // (b) Drop real en el MISMO gesto: en CDK real, `cdkDropListDropped` Y
+      // `cdkDrag.ended` disparan SINCRÓNICAMENTE, uno tras otro, ANTES de
+      // que Angular reconcilie el `@for` (que recién ocurre en el próximo
+      // `detectChanges()`). Por eso NO se llama `detectChanges()` entre
+      // ambos emits acá — si se llamara, el `@for` destruiría el card
+      // (se mueve de columna) y `takeUntilDestroyed()` desuscribiría
+      // `cdkDrag.ended` ANTES de emitirlo, ocultando el bug real.
+      dropListOf('todo').dropped.emit(mockDrop(0, 1, 'todo', 'done'));
+      drag.ended.emit({
+        source: drag,
+        distance: { x: 0, y: 0 },
+        dropPoint: { x: 0, y: 0 },
+        event: new MouseEvent('mouseup'),
+      } as CdkDragEnd);
+      fixture.detectChanges();
+
+      expect(moved.length).toBe(1); // itemMoved emitido UNA sola vez
+      expect(cardTitlesIn(0)).toEqual([]);
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+    });
   });
 
   describe('[corrección 4R CRITICAL] mover una tarjeta SOLO con teclado (extremo a extremo, sin drag) — Tests requeridos por el 4R', () => {

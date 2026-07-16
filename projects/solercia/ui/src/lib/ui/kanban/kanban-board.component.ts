@@ -72,6 +72,20 @@ import { countIds, safeTrackKey } from './kanban-track';
  * caso normal de cada drag-and-drop sin refresh en vivo). El `effect` solo
  * debe reaccionar cuando `columns()` mismo cambia.
  *
+ * CORRECCIÓN QUIRÚRGICA (re-gate post-4R) — el drop GANA sobre un refresh
+ * pospuesto del MISMO gesto: en CDK real, `cdkDropListDropped` dispara ANTES
+ * que `cdkDrag.ended` para un mismo gesto. Si en ese gesto ocurrieron AMBOS
+ * — un refresh externo (queda en `pendingColumnsSeed`) Y un drop real
+ * (`onItemDropped` ya actualizó `mirroredColumns` de forma optimista y
+ * emitió `itemMoved`) —, aplicar el `pendingColumnsSeed` al terminar el
+ * drag SOBRESCRIBIRÍA el resultado del drop, perdiendo el reorden del
+ * usuario en silencio (aunque el consumidor ya recibió `itemMoved`). Fix:
+ * `droppedThisGesture` marca que hubo drop; `onCardDragActiveChanged(false)`
+ * DESCARTA el `pendingColumnsSeed` si hubo drop (no lo pierde de verdad: se
+ * re-reflejará en el PRÓXIMO cambio real de `columns()`, y el consumidor es
+ * la fuente de verdad al persistir el `itemMoved` que ya recibió). Decisión
+ * consciente: el drop optimista del usuario gana en SU PROPIO gesto.
+ *
  * Mecanismo alternativo accesible por teclado (corrección 4R CRITICAL):
  * `cdkDrag` de CDK no soporta teclado — `sol-kanban-column` ofrece un
  * `<select>` nativo por tarjeta que emite el MISMO `itemDropped`. El board
@@ -179,6 +193,21 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
   /** Seed diferido: `columns()` que llegó mientras `isDragging()` era `true`, pendiente de aplicar al terminar el drag. `null` = nada pendiente. */
   private pendingColumnsSeed: KanbanColumn<T>[] | null = null;
 
+  /**
+   * `true` si `onItemDropped` aplicó un drop DENTRO del gesto de drag actual
+   * (corrección quirúrgica, re-gate post-4R). En CDK real, `dropped` dispara
+   * ANTES que `ended` para el MISMO gesto — si TAMBIÉN hubo un refresh
+   * externo pospuesto (`pendingColumnsSeed`) durante ese gesto, aplicarlo al
+   * terminar el drag (`onCardDragActiveChanged(false)`) SOBRESCRIBIRÍA el
+   * resultado del drop que el usuario acaba de hacer (aunque `itemMoved` ya
+   * se emitió) — el reorden se perdería en silencio. Decisión: el drop
+   * optimista del usuario GANA dentro de su propio gesto; el refresh externo
+   * pospuesto se DESCARTA (no se pierde de verdad: se re-reflejará en el
+   * PRÓXIMO cambio real de `columns()`, y el consumidor es la fuente de
+   * verdad de todos modos al persistir el `itemMoved` que ya recibió).
+   */
+  private droppedThisGesture = false;
+
   /** Anuncio `aria-live` del último movimiento (drag real o select accesible) — corrección 4R CRITICAL. */
   protected readonly announcement = signal('');
 
@@ -225,6 +254,8 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
     this.mirroredColumns.set(result.columns);
     this.itemMoved.emit(result.moved);
     this.announceMove(result.moved);
+    // Marca el gesto como "con drop" — ver doc de `droppedThisGesture`.
+    this.droppedThisGesture = true;
   }
 
   /**
@@ -251,10 +282,18 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
    */
   protected onCardDragActiveChanged(active: boolean): void {
     this.isDragging.set(active);
-    if (!active && this.pendingColumnsSeed) {
-      this.mirroredColumns.set(this.pendingColumnsSeed);
-      this.pendingColumnsSeed = null;
+    if (active) {
+      // Nuevo gesto: limpia cualquier rastro de un gesto ANTERIOR (defensivo).
+      this.droppedThisGesture = false;
+      return;
     }
+    // Fin del gesto: si hubo un drop, GANA sobre cualquier refresh pospuesto
+    // (ver doc de `droppedThisGesture`) — se descarta sin aplicar.
+    if (this.pendingColumnsSeed && !this.droppedThisGesture) {
+      this.mirroredColumns.set(this.pendingColumnsSeed);
+    }
+    this.pendingColumnsSeed = null;
+    this.droppedThisGesture = false;
   }
 
   /** Anuncia el movimiento por `aria-live` (corrección 4R CRITICAL) — mismo texto venga del drag o del select accesible. */
