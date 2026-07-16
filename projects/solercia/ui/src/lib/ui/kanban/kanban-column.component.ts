@@ -6,12 +6,15 @@ import {
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { TONE_COLOR } from '../tone/sol-tone';
 import { SolKanbanCardComponent, type KanbanCardTemplateContext } from './kanban-card.component';
 import { KANBAN_ADD_ACTION, type KanbanColumn, type KanbanColumnAction, type KanbanItem } from './kanban.model';
+import type { KanbanRawDropEvent } from './kanban-reorder.service';
 import { countIds, safeTrackKey } from './kanban-track';
 
 /** Resuelve el título de una columna: `titleKey` (i18n) > `title` (crudo) > `''`. Tolera `column` inválido/no-string. */
@@ -24,8 +27,18 @@ function resolveColumnTitle(column: KanbanColumn | null | undefined, translate: 
 
 /**
  * `sol-kanban-column` — una columna con su lista de tarjetas, contador,
- * header y empty-state (spec: solercia-ui-kanban). Renderiza ESTÁTICO en el
- * PR5a (sin `cdkDropList` todavía — eso es PR5b).
+ * header y empty-state (spec: solercia-ui-kanban).
+ *
+ * `cdkDropList` (PR5b, D1/T38): el contenedor de items es un drop-list de
+ * CDK — `[id]` (= `column.id`, usado por el board para resolver
+ * origen/destino sin filtrar tipos de CDK), `[cdkDropListData]` (los items
+ * actuales) y `[cdkDropListDisabled]` (respeta `column.droppable === false`).
+ * `(cdkDropListDropped)` se traduce a un `KanbanRawDropEvent` CDK-free antes
+ * de reenviarse al board vía `itemDropped` — este archivo y
+ * `kanban-card.component.ts` son los ÚNICOS autorizados a importar
+ * `@angular/cdk/drag-drop` (gate ESLint T40). `(cdkDropListEntered)`/
+ * `(cdkDropListExited)` alimentan el anillo de columna-destino activa
+ * (spec#UX de arrastre del vocero).
  *
  * `terminalAnchor` + `anchorTemplate` proyectado: la columna NUNCA conoce el
  * significado de negocio de un ancla (ganada/perdida/etc.) — solo renderiza
@@ -41,10 +54,15 @@ function resolveColumnTitle(column: KanbanColumn | null | undefined, translate: 
 @Component({
   selector: 'sol-kanban-column',
   standalone: true,
-  imports: [NgTemplateOutlet, SolKanbanCardComponent],
+  imports: [NgTemplateOutlet, SolKanbanCardComponent, CdkDropList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="sol-kanban-column" [style.border-top-color]="accentColor()" [attr.aria-label]="columnAria()">
+    <section
+      class="sol-kanban-column"
+      [class.sol-kanban-column--drop-active]="isDropTargetActive()"
+      [style.border-top-color]="accentColor()"
+      [attr.aria-label]="columnAria()"
+    >
       <header class="sol-kanban-column__header">
         @if (headerTemplate(); as tpl) {
           <ng-container *ngTemplateOutlet="tpl; context: { $implicit: column() }" />
@@ -61,7 +79,16 @@ function resolveColumnTitle(column: KanbanColumn | null | undefined, translate: 
         <span class="sol-kanban-column__count" [attr.aria-label]="itemCountAria()">{{ items().length }}</span>
       </header>
 
-      <div class="sol-kanban-column__items">
+      <div
+        class="sol-kanban-column__items"
+        cdkDropList
+        [id]="columnId()"
+        [cdkDropListData]="items()"
+        [cdkDropListDisabled]="column()?.droppable === false"
+        (cdkDropListDropped)="onCdkDropped($event)"
+        (cdkDropListEntered)="onCdkEntered()"
+        (cdkDropListExited)="onCdkExited()"
+      >
         @for (item of items(); track trackItem(item, $index)) {
           <sol-kanban-card [item]="item" [cardTemplate]="cardTemplate()" />
         }
@@ -167,6 +194,11 @@ function resolveColumnTitle(column: KanbanColumn | null | undefined, translate: 
       border-color: var(--sol-color-primary, #6366f1);
       color: var(--sol-color-primary, #6366f1);
     }
+
+    /* Anillo de columna-destino activa (PR5b/T39, spec#UX de arrastre del vocero). */
+    .sol-kanban-column--drop-active {
+      box-shadow: 0 0 0 2px var(--sol-color-primary, #6366f1);
+    }
   `,
 })
 export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
@@ -188,7 +220,22 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
 
   readonly action = output<KanbanColumnAction>();
 
+  /**
+   * Reenvío CDK-free del drop (PR5b/T38): el board arma el reorden completo
+   * (necesita ver TODAS las columnas para un move cross-columna); esta
+   * columna solo conoce la suya, así que traduce el `CdkDragDrop` real a un
+   * `KanbanRawDropEvent` plano ANTES de emitir — el tipo de CDK nunca sale
+   * de este archivo hacia el board.
+   */
+  readonly itemDropped = output<KanbanRawDropEvent>();
+
   readonly items = computed<T[]>(() => this.column()?.items ?? []);
+
+  /** `id` del drop-list — string vacío si la columna es `null`/`undefined` o no trae `id` (degrade, no lanza). */
+  readonly columnId = computed(() => this.column()?.id ?? '');
+
+  /** Anillo de columna-destino activa mientras el cursor de arrastre está sobre esta columna (spec#UX de arrastre). */
+  protected readonly isDropTargetActive = signal(false);
 
   /** Frecuencia de `id` entre los items actuales — soporte de `trackItem` (fix NG0955 con id duplicado/ausente). */
   private readonly itemIdFrequency = computed(() => countIds(this.items()));
@@ -237,5 +284,32 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
     const columnId = this.column()?.id;
     if (!columnId) return;
     this.action.emit({ columnId, action: KANBAN_ADD_ACTION });
+  }
+
+  /**
+   * Traduce el `CdkDragDrop` real a `KanbanRawDropEvent` (sin tipos de CDK) y
+   * lo reenvía al board. Descarta el caso trivial (soltar en el MISMO
+   * índice, MISMO contenedor) — no hay reorden real que aplicar.
+   */
+  protected onCdkDropped(event: CdkDragDrop<T[]>): void {
+    // El anillo se enciende al ENTRAR (onCdkEntered) pero CDK solo emite
+    // `exited` cuando el item se retira SIN soltar — un drop exitoso en esta
+    // misma columna nunca dispara `exited`, así que se apaga acá también.
+    this.isDropTargetActive.set(false);
+    if (event.previousContainer === event.container && event.previousIndex === event.currentIndex) return;
+    this.itemDropped.emit({
+      fromColumnId: event.previousContainer.id,
+      toColumnId: event.container.id,
+      previousIndex: event.previousIndex,
+      currentIndex: event.currentIndex,
+    });
+  }
+
+  protected onCdkEntered(): void {
+    this.isDropTargetActive.set(true);
+  }
+
+  protected onCdkExited(): void {
+    this.isDropTargetActive.set(false);
   }
 }

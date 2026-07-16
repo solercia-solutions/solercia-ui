@@ -1,9 +1,12 @@
 import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { CdkDropList, type CdkDragDrop, type CdkDragEnter, type CdkDragExit } from '@angular/cdk/drag-drop';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import { SolKanbanColumnComponent } from './kanban-column.component';
 import type { KanbanColumn, KanbanColumnAction } from './kanban.model';
+import type { KanbanRawDropEvent } from './kanban-reorder.service';
 
 interface DemoItem {
   id: string;
@@ -33,6 +36,25 @@ describe('SolKanbanColumnComponent', () => {
 
   function host(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
+  }
+
+  /** Instancia REAL de la directiva `CdkDropList` cableada en el template (spec: no simula drag real en jsdom). */
+  function dropList(): CdkDropList {
+    return fixture.debugElement.query(By.directive(CdkDropList)).injector.get(CdkDropList);
+  }
+
+  function mockDrop(previousIndex: number, currentIndex: number, previousContainerId: string, containerId: string): CdkDragDrop<DemoItem[]> {
+    return {
+      previousIndex,
+      currentIndex,
+      container: { id: containerId },
+      previousContainer: { id: previousContainerId },
+      item: {},
+      isPointerOverContainer: true,
+      distance: { x: 0, y: 0 },
+      dropPoint: { x: 0, y: 0 },
+      event: new MouseEvent('mouseup'),
+    } as unknown as CdkDragDrop<DemoItem[]>;
   }
 
   beforeEach(() => {
@@ -193,5 +215,104 @@ describe('SolKanbanColumnComponent', () => {
 
     expect(host().querySelector('.sol-kanban-column__count')?.getAttribute('aria-label')).toBe('{{count}} tarjetas');
     expect(fixture.componentInstance.items().length).toBe(0);
+  });
+
+  describe('DnD (PR5b, T38) — cablea el `cdkDropList` de la columna, sin filtrar tipos de CDK hacia el board', () => {
+    beforeEach(() => {
+      fixture.componentRef.setInput('column', {
+        id: 'A',
+        title: 'Columna A',
+        items: [
+          { id: '1', title: 'Uno', status: 'active' },
+          { id: '2', title: 'Dos', status: 'active' },
+        ],
+      });
+      fixture.detectChanges();
+    });
+
+    it('[spec] `cdkDropListDropped` (cross-columna) reenvía `itemDropped` como `KanbanRawDropEvent` CDK-free', () => {
+      const emitted: KanbanRawDropEvent[] = [];
+      fixture.componentInstance.itemDropped.subscribe((e) => emitted.push(e));
+
+      dropList().dropped.emit(mockDrop(0, 1, 'A', 'B'));
+
+      expect(emitted).toEqual([{ fromColumnId: 'A', toColumnId: 'B', previousIndex: 0, currentIndex: 1 }]);
+    });
+
+    it('[spec] `cdkDropListDropped` (misma columna) reenvía `itemDropped` con fromColumnId === toColumnId', () => {
+      const emitted: KanbanRawDropEvent[] = [];
+      fixture.componentInstance.itemDropped.subscribe((e) => emitted.push(e));
+
+      dropList().dropped.emit(mockDrop(0, 1, 'A', 'A'));
+
+      expect(emitted).toEqual([{ fromColumnId: 'A', toColumnId: 'A', previousIndex: 0, currentIndex: 1 }]);
+    });
+
+    it('un drop trivial (mismo contenedor, mismo índice) NO emite `itemDropped`', () => {
+      const emitted: KanbanRawDropEvent[] = [];
+      fixture.componentInstance.itemDropped.subscribe((e) => emitted.push(e));
+
+      const trivial = mockDrop(0, 0, 'A', 'A');
+      // El handler compara `previousContainer === container` por REFERENCIA — mismo objeto en ambos campos.
+      trivial.container = trivial.previousContainer;
+      dropList().dropped.emit(trivial);
+
+      expect(emitted).toEqual([]);
+    });
+
+    it('[spec] UX de arrastre: `cdkDropListEntered` enciende el anillo de columna-destino activa (clase CSS)', () => {
+      expect(host().querySelector('.sol-kanban-column--drop-active')).toBeNull();
+
+      dropList().entered.emit({ container: dropList(), item: {}, currentIndex: 0 } as unknown as CdkDragEnter<DemoItem[]>);
+      fixture.detectChanges();
+
+      expect(host().querySelector('.sol-kanban-column--drop-active')).not.toBeNull();
+    });
+
+    it('`cdkDropListExited` apaga el anillo de columna-destino activa', () => {
+      dropList().entered.emit({ container: dropList(), item: {}, currentIndex: 0 } as unknown as CdkDragEnter<DemoItem[]>);
+      fixture.detectChanges();
+      expect(host().querySelector('.sol-kanban-column--drop-active')).not.toBeNull();
+
+      dropList().exited.emit({ container: dropList(), item: {} } as unknown as CdkDragExit<DemoItem[]>);
+      fixture.detectChanges();
+      expect(host().querySelector('.sol-kanban-column--drop-active')).toBeNull();
+    });
+
+    it('un drop exitoso apaga el anillo también (CDK no emite `exited` cuando el drop es en la MISMA columna)', () => {
+      dropList().entered.emit({ container: dropList(), item: {}, currentIndex: 0 } as unknown as CdkDragEnter<DemoItem[]>);
+      fixture.detectChanges();
+      expect(host().querySelector('.sol-kanban-column--drop-active')).not.toBeNull();
+
+      dropList().dropped.emit(mockDrop(0, 1, 'A', 'A'));
+      fixture.detectChanges();
+
+      expect(host().querySelector('.sol-kanban-column--drop-active')).toBeNull();
+    });
+
+    it('`droppable: false` deshabilita el drop-list (`cdkDropListDisabled`)', () => {
+      fixture.componentRef.setInput('column', {
+        id: 'A',
+        title: 'No droppable',
+        items: [{ id: '1', title: 'Uno', status: 'active' }],
+        droppable: false,
+      });
+      fixture.detectChanges();
+
+      expect(dropList().disabled).toBe(true);
+    });
+
+    it('sin `droppable` explícito (undefined), el drop-list queda HABILITADO por defecto', () => {
+      expect(dropList().disabled).toBe(false);
+    });
+
+    it('[robustez] `column` null no impide que el drop-list exista con id vacío, sin lanzar', () => {
+      expect(() => {
+        fixture.componentRef.setInput('column', null);
+        fixture.detectChanges();
+      }).not.toThrow();
+
+      expect(dropList().id).toBe('');
+    });
   });
 });

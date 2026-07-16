@@ -97,3 +97,19 @@ export {
   defaultStatusToken,
 } from './timeline/timeline-position';
 export type { PositionedTimelineRow, SolTimelineAxisTick } from './timeline/timeline-position';
+
+// sol-kanban (11-a-solercia-ui, PR5a/PR5b)
+export { SolKanbanBoardComponent } from './kanban/kanban-board.component';
+export { SolKanbanColumnComponent } from './kanban/kanban-column.component';
+export { SolKanbanCardComponent } from './kanban/kanban-card.component';
+export type { KanbanCardTemplateContext } from './kanban/kanban-card.component';
+export {
+  KANBAN_ADD_ACTION,
+} from './kanban/kanban.model';
+export type {
+  KanbanItem,
+  KanbanColumn,
+  KanbanItemMoved,
+  KanbanColumnAction,
+} from './kanban/kanban.model';
+export { KanbanReorderService } from './kanban/kanban-reorder.service';

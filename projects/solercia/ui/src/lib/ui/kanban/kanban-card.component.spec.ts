@@ -1,5 +1,6 @@
 import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { CdkDrag } from '@angular/cdk/drag-drop';
 import { SolKanbanCardComponent, type KanbanCardTemplateContext } from './kanban-card.component';
 
 interface DemoItem {
@@ -46,13 +47,39 @@ describe('SolKanbanCardComponent', () => {
     expect(host.querySelector('.demo-card-status')?.textContent).toBe('active');
   });
 
-  it('sin cdkDrag todavía (PR5a): el host no expone ningún atributo/directiva de arrastre', () => {
-    fixture = TestBed.createComponent<SolKanbanCardComponent<DemoItem>>(SolKanbanCardComponent);
-    fixture.componentRef.setInput('item', { id: '2', title: 'Otra tarea', status: 'done' });
-    fixture.componentRef.setInput('cardTemplate', createTemplate());
-    fixture.detectChanges();
+  describe('DnD (PR5b, T38/T39) — `cdkDrag` vía hostDirectives, sin que el consumidor lo escriba', () => {
+    beforeEach(() => {
+      fixture = TestBed.createComponent<SolKanbanCardComponent<DemoItem>>(SolKanbanCardComponent);
+      fixture.componentRef.setInput('item', { id: '2', title: 'Otra tarea', status: 'done' });
+      fixture.componentRef.setInput('cardTemplate', createTemplate());
+    });
 
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.hasAttribute('cdkdrag')).toBe(false);
+    it('[spec] `cdkDrag` está aplicado al host (vía hostDirectives) sin que ningún template de consumidor lo escriba', () => {
+      fixture.detectChanges();
+      expect(() => fixture.debugElement.injector.get(CdkDrag)).not.toThrow();
+    });
+
+    it('el `data` del `CdkDrag` se sincroniza reactivamente con el `item` actual', () => {
+      fixture.detectChanges();
+      const drag = fixture.debugElement.injector.get(CdkDrag);
+      expect(drag.data).toEqual({ id: '2', title: 'Otra tarea', status: 'done' });
+
+      fixture.componentRef.setInput('item', { id: '3', title: 'Tarea nueva', status: 'active' });
+      fixture.detectChanges();
+
+      expect(drag.data).toEqual({ id: '3', title: 'Tarea nueva', status: 'active' });
+    });
+
+    it('`previewClass` queda fijo en "sol-kanban-card__drag-preview" (overlay rotado 2°+sombra, spec#UX de arrastre)', () => {
+      fixture.detectChanges();
+      const drag = fixture.debugElement.injector.get(CdkDrag);
+      expect(drag.previewClass).toBe('sol-kanban-card__drag-preview');
+    });
+
+    it('el host NO expone ningún atributo `cdkdrag` literal (hostDirectives no lo agrega al DOM, a diferencia de escribirlo en un template)', () => {
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.hasAttribute('cdkdrag')).toBe(false);
+    });
   });
 });
