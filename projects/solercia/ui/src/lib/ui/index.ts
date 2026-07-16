@@ -113,3 +113,27 @@ export type {
   KanbanColumnAction,
 } from './kanban/kanban.model';
 export { KanbanReorderService } from './kanban/kanban-reorder.service';
+
+// sol-calendar (11-a-solercia-ui, PR6)
+export { SolCalendarComponent } from './calendar/calendar.component';
+export { SolCalendarHeaderComponent } from './calendar/calendar-header.component';
+export { SolCalendarGridComponent } from './calendar/calendar-grid.component';
+export type { SolCalendarEventTemplateContext } from './calendar/calendar-grid.component';
+export type {
+  SolCalendarEvent,
+  SolCalendarView,
+  SolCalendarLegendItem,
+  StateColorSet,
+} from './calendar/calendar.model';
+export { SOL_CALENDAR_COLOR } from './calendar/calendar-color';
+export type { SolCalendarColorStrategy } from './calendar/calendar-color';
+export {
+  buildDayColumns,
+  computeEventHeight,
+  computeEventTop,
+  computeNowTop,
+  dayKey,
+  getWeekStart,
+  parseEventDate,
+} from './calendar/calendar-layout';
+export type { CalendarDayColumn } from './calendar/calendar-layout';
