@@ -352,24 +352,39 @@ function scaffoldEslintConfig(context: SchematicContext): Rule {
 
 /** Husky + lint-staged + commitlint, calcados 1:1 del cableado real de
  * `boki-front` (07-e9 PR2, T21): `pre-commit` → lint-staged (eslint --fix +
- * tsc --noEmit sobre staged); `commit-msg` → commitlint (conventional commits). */
+ * tsc --noEmit sobre staged); `commit-msg` → commitlint (conventional commits).
+ *
+ * Fix ESM (coherente con `scaffoldEslintConfig`): ambos configs usan sintaxis
+ * CommonJS (`module.exports`). Si el `package.json` anfitrión declara
+ * `"type": "module"`, Node interpreta cualquier `.js` como ESM y `module` deja
+ * de existir en ese scope (`ReferenceError: module is not defined in ES
+ * module scope`), reventando los hooks de Husky. commitlint y lint-staged
+ * soportan `.cjs` explícito para forzar CommonJS sin tocar el contenido — se
+ * usa esa extensión cuando el host ya es ESM; en caso contrario se mantiene
+ * `.js` (comportamiento previo, sin cambios para el caso por defecto). */
 function scaffoldHusky(context: SchematicContext): Rule {
   return (tree: Tree) => {
+    const commonJsExt = packageDeclaresEsm(tree) ? 'cjs' : 'js';
+
     if (!tree.exists('/.husky/pre-commit')) {
       tree.create('/.husky/pre-commit', 'npx lint-staged\n');
     }
     if (!tree.exists('/.husky/commit-msg')) {
       tree.create('/.husky/commit-msg', 'npx --no -- commitlint --edit "$1"\n');
     }
-    if (!tree.exists('/commitlint.config.js')) {
+
+    const commitlintPath = `/commitlint.config.${commonJsExt}`;
+    if (!tree.exists('/commitlint.config.js') && !tree.exists('/commitlint.config.cjs')) {
       tree.create(
-        '/commitlint.config.js',
+        commitlintPath,
         `module.exports = {\n  extends: ['@commitlint/config-conventional'],\n};\n`,
       );
     }
-    if (!tree.exists('/lint-staged.config.js')) {
+
+    const lintStagedPath = `/lint-staged.config.${commonJsExt}`;
+    if (!tree.exists('/lint-staged.config.js') && !tree.exists('/lint-staged.config.cjs')) {
       tree.create(
-        '/lint-staged.config.js',
+        lintStagedPath,
         `// tsc --noEmit corre UNA vez contra todo el proyecto (no archivo por archivo):\n` +
           `// TypeScript necesita el grafo completo para chequear tipos correctamente.\n` +
           `module.exports = {\n` +

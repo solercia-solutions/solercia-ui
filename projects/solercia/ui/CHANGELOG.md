@@ -29,11 +29,19 @@ paquete tiene solo dos consumidores potenciales — `boki-front` y, próximament
   5. **`eslint.config.js` sin `"type":"module"`**: se generaba en sintaxis ESM (`import ... from`)
      sobre un `package.json` de `ng new` por defecto CommonJS, produciendo `ERR_REQUIRE_ESM`. Ahora
      el archivo se emite como `eslint.config.mjs` cuando el `package.json` anfitrión no declara
-     `"type":"module"` (evita romper los `module.exports` de `commitlint.config.js`/
-     `lint-staged.config.js` que el mismo schematic scaffoldea vía Husky).
-- Cobertura: 5 casos nuevos/actualizados en `ng-add.spec.ts` con `SchematicTestRunner` sobre un
-  árbol `ng new` simulado (sin red), uno por fix. 281 tests de la librería en verde (277 base + 4
-  netos nuevos).
+     `"type":"module"`.
+- Configs de Husky en `.cjs` para hosts ESM: hallazgo del lente `review-reliability` sobre el fix 5
+  — si el `package.json` anfitrión SÍ declara `"type":"module"` (por ejemplo, a mano o por un futuro
+  default), Node interpretaba `commitlint.config.js`/`lint-staged.config.js` (ambos en sintaxis
+  CommonJS, `module.exports`) como ESM y los hooks de Husky reventaban con
+  `ReferenceError: module is not defined in ES module scope`. Ahora `scaffoldHusky` emite ambos
+  archivos con extensión `.cjs` (mismo contenido CommonJS, sin cambios) cuando el host ya es ESM; en
+  el caso por defecto (CommonJS) se mantiene `.js` sin cambios de comportamiento.
+- Cobertura: 7 casos nuevos/actualizados en `ng-add.spec.ts` con `SchematicTestRunner` sobre un
+  árbol `ng new` simulado (sin red) — 5 por fix + 2 de la corrección posterior al review
+  (`review-reliability`: versión exacta de `@solercia/eslint-config`, Husky en `.cjs` para hosts
+  ESM, y cobertura de la rama sin `styles.css`/`styles.scss`). 283 tests de la librería en verde
+  (277 base + 6 netos nuevos).
 
 ## [0.1.1] - 2026-07-15
 

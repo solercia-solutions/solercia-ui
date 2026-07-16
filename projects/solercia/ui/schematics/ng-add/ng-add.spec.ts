@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Tree } from '@angular-devkit/schematics';
-import { SchematicTestRunner } from '@angular-devkit/schematics/testing';
+import { SchematicTestRunner, UnitTestTree } from '@angular-devkit/schematics/testing';
 import { describe, it, expect, beforeAll } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -175,10 +175,10 @@ describe('schematic: ng-add', () => {
     expect(result.files).not.toContain('/eslint.config.mjs');
   });
 
-  it('[fix eslint-config] agrega @solercia/eslint-config como devDependency', async () => {
+  it('[fix eslint-config] agrega @solercia/eslint-config como devDependency con versión válida', async () => {
     const tree = await runner.runSchematic('ng-add', {}, ngNewFixtureTree());
     const pkg = JSON.parse(tree.readContent('/package.json'));
-    expect(pkg.devDependencies['@solercia/eslint-config']).toBeDefined();
+    expect(pkg.devDependencies['@solercia/eslint-config']).toBe('^0.1.1');
   });
 
   it('[fix @shared/i18n] scaffoldea shared/i18n/ con I18nService (evita TS2571 en page/feature/widget generados)', async () => {
@@ -207,6 +207,23 @@ describe('schematic: ng-add', () => {
     expect(pkg.scripts.prepare).toBe('husky');
   });
 
+  it('[fix Husky ESM] emite commitlint.config.cjs y lint-staged.config.cjs (no .js) cuando el package.json declara "type":"module"', async () => {
+    const tree = ngNewFixtureTree();
+    const pkg = JSON.parse(tree.read('/package.json')?.toString('utf-8') ?? '{}');
+    tree.overwrite('/package.json', JSON.stringify({ ...pkg, type: 'module' }, null, 2));
+
+    const result = await runner.runSchematic('ng-add', {}, tree);
+    expect(result.files).toContain('/commitlint.config.cjs');
+    expect(result.files).toContain('/lint-staged.config.cjs');
+    expect(result.files).not.toContain('/commitlint.config.js');
+    expect(result.files).not.toContain('/lint-staged.config.js');
+
+    // el contenido CommonJS (module.exports) se conserva sin cambios, solo
+    // cambia la extensión — evita ReferenceError: module is not defined.
+    expect(result.readContent('/commitlint.config.cjs')).toContain('module.exports');
+    expect(result.readContent('/lint-staged.config.cjs')).toContain('module.exports');
+  });
+
   it('agrega el snippet de tokens --sol-* a styles.css sin duplicarlo', async () => {
     const tree = await runner.runSchematic('ng-add', {}, ngNewFixtureTree());
     const styles = tree.readContent('/src/styles.css');
@@ -216,6 +233,35 @@ describe('schematic: ng-add', () => {
     const stylesAgain = secondRun.readContent('/src/styles.css');
     const occurrences = stylesAgain.split('/* @solercia/ui — tokens base */').length - 1;
     expect(occurrences).toBe(1);
+  });
+
+  it('appendGlobalStyles no falla y deja el árbol de estilos intacto cuando el proyecto no tiene styles.css ni styles.scss', async () => {
+    const tree = ngNewFixtureTree();
+    tree.delete('/src/styles.css');
+
+    const warnings: string[] = [];
+    const subscription = runner.logger.subscribe((entry) => {
+      if (entry.level === 'warn') {
+        warnings.push(entry.message);
+      }
+    });
+
+    let result: UnitTestTree;
+    try {
+      result = await runner.runSchematic('ng-add', {}, tree);
+    } finally {
+      subscription.unsubscribe();
+    }
+
+    // el schematic no revienta: sigue produciendo el resto del andamiaje FSD.
+    expect(result.files).toContain('/src/pages/index.ts');
+    // no crea ni "adivina" ningún archivo de estilos.
+    expect(result.files).not.toContain('/src/styles.css');
+    expect(result.files).not.toContain('/src/styles.scss');
+    // avisa por el logger en vez de fallar silenciosamente.
+    expect(warnings.some((message) => message.includes('styles.css') && message.includes('styles.scss'))).toBe(
+      true,
+    );
   });
 
   it('[fix styles.scss] agrega el snippet de tokens --sol-* a styles.scss cuando el proyecto usa --style=scss', async () => {
