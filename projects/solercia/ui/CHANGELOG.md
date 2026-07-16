@@ -6,6 +6,60 @@ Todos los cambios notables de este paquete se documentan en este archivo. El for
 paquete tiene solo dos consumidores potenciales — `boki-front` y, próximamente, `gestion_proyectos`
 — y puede admitir cambios incompatibles en versiones `minor`).
 
+## [0.2.0] - 2026-07-16
+
+### Agregado
+
+- `sol-avatar`, `sol-score-badge`, `sol-trend`, `sol-message-status`: átomos de "vocero"
+  (iniciales + color estable por hash de 8 tonos, umbral configurable ≥80/≥50, tendencia con
+  signo, 5 estados de mensaje vía `sol-icon` sin SVG inline).
+- `sol-stepper`: nuevo input `navigation:'linear'|'free'` — en `free` cualquier paso es
+  navegable (pipeline CRM accionable) emitiendo `stepSelected`; retrocompatible con la API
+  horizontal `0.1.x`.
+- `sol-timeline`: timeline jerárquico N-niveles genérico (D2 — nunca conoce `epic`/`sprint`/
+  dominio del consumidor), motor de posicionamiento puro `positionRows(nodes, range)`,
+  envolvente automática para nodos padre sin fechas propias, colapso/expansión con "espejo"
+  interno, sin dependencias externas nuevas.
+- `sol-kanban-board` / `-column` / `-card`: tablero kanban genérico con arrastrar-y-soltar.
+  `@angular/cdk` como `peerDependency` encapsulada tras `sol-kanban` (lint
+  `no-restricted-imports` impide que el consumidor la importe directo). Anclas terminales por
+  template proyectado, mecanismo alternativo 100 % accesible por teclado (`<select>` de mover
+  tarjeta) y anuncio `aria-live` de cada movimiento (drag real o select).
+- `sol-calendar`: calendario genérico semana/día con paridad de vistas frente al widget legado
+  de `boki-front`, resolución de color por Strategy inyectable (`SOL_CALENDAR_COLOR`, default
+  null-object desde `event.color`), cuerpo de evento por template proyectado y leyenda
+  configurable (`view` tipa solo `'week' | 'day'`).
+- `sol-data-table`: `rowActionsTemplate` (`contentChild('rowActions')`), `actionsLabel` y
+  `toggleDetailsLabel` consolidados, con default de `toggleDetailsLabel` corregido para igualar
+  el texto real que usaban los consumidores.
+- Registro de íconos: +45 entradas Heroicons v2 (outline) + 7 SVG propios
+  (`robot`/`gauge`/`plug`/`git-branch`/`webhook`/`state-machine`/`double-check`). Gate
+  automatizado (`icon.registry.spec.ts` + `svg-inline-gate.spec.ts`) que impide agregar SVG
+  inline nuevo dentro de `projects/solercia/ui/src/lib/**` (escaneo de contenido completo,
+  no línea por línea — cubre `<svg>`/`<path>`/`<circle>`/`<polyline>`/`<polygon>`/`<line>`/
+  `<rect>` en cualquier posición, con exclusión de comentarios).
+
+### Corregido
+
+- Migración de SVG inline del lado librería (`pagination`/`modal`/`select`/`search-input`) a
+  `sol-icon` del registro ampliado.
+
+### Notas
+
+- `0.1.0` y `0.1.1` ya están publicadas en `registry.npmjs.org` (`npm view @solercia/ui
+  versions`), publicadas **manualmente** (no por CI). `0.1.2` quedó preparada (ver entrada
+  anterior) pero nunca llegó a publicarse por separado — su contenido queda absorbido por este
+  release.
+- Publicación real de `0.2.0` **PREPARADA, no ejecutada** (gate del fundador) — ver
+  `README.md#Publicación del paquete` para el paso exacto (`git tag v0.2.0` + push, o publish
+  manual como respaldo). Pendiente antes de publicar por CI: configurar el secret `NPM_TOKEN`
+  del repositorio (hoy vacío/ausente) y **rotar** el token de npm usado en la publicación
+  manual de `0.1.1` (quedó expuesto en un log de sesión) — deuda heredada de
+  `07-e9-extraccion-solercia-ui` (ver `openspec/07-e9-extraccion-solercia-ui/state.yaml`).
+- 961/961 tests de la librería en verde (283 de `0.1.2` + los nuevos de `sol-avatar`/
+  `sol-score-badge`/`sol-trend`/`sol-message-status`/`sol-stepper`/`sol-timeline`/`sol-kanban`/
+  `sol-calendar`/`sol-data-table`/registro de íconos acumulados en PR2-PR8).
+
 ## [0.1.2] - 2026-07-16
 
 ### Corregido
