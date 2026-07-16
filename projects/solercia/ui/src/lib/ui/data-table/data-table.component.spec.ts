@@ -135,4 +135,14 @@ describe('SolDataTableComponent — tabla de datos genérica', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.pagedData().map((r) => r['name'])).toEqual(['Beto', 'Ana']);
   });
+
+  // PR7a (T49) — paridad de defaults con el widget local de boki-front que este
+  // componente reemplaza vía puente: `actionsLabel` ya coincidía ('Acciones',
+  // ver el primer test de este archivo); `toggleDetailsLabel` NO coincidía
+  // ('Ver detalles' vs. la clave i18n real `shared.table.toggleDetails` =
+  // 'Mostrar u ocultar el detalle de la fila') — se cierra aquí la brecha.
+  it('el default de actionsLabel/toggleDetailsLabel iguala el texto real del widget de boki-front', () => {
+    expect(fixture.componentInstance.actionsLabel()).toBe('Acciones');
+    expect(fixture.componentInstance.toggleDetailsLabel()).toBe('Mostrar u ocultar el detalle de la fila');
+  });
 });

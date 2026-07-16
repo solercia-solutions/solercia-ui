@@ -582,8 +582,13 @@ export class SolDataTableComponent {
   readonly trackByKey = input<string>('id');
   /** Encabezado de la columna de acciones. */
   readonly actionsLabel = input<string>('Acciones');
-  /** aria-label del botón ▶ de expansión de fila en el modo móvil. */
-  readonly toggleDetailsLabel = input<string>('Ver detalles');
+  /**
+   * aria-label del botón ▶ de expansión de fila en el modo móvil. Default
+   * alineado (PR7a/T49) con la clave i18n `shared.table.toggleDetails` de
+   * `boki-front` para que el puente de re-export (`@widgets/data-table`) no
+   * introduzca una regresión de texto cuando un consumidor no lo sobreescribe.
+   */
+  readonly toggleDetailsLabel = input<string>('Mostrar u ocultar el detalle de la fila');
 
   readonly editClicked = output<SolDataTableRow>();
   readonly deleteClicked = output<SolDataTableRow>();
