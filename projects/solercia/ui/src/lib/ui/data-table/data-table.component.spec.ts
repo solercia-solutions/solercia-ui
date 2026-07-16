@@ -136,13 +136,147 @@ describe('SolDataTableComponent — tabla de datos genérica', () => {
     expect(fixture.componentInstance.pagedData().map((r) => r['name'])).toEqual(['Beto', 'Ana']);
   });
 
-  // PR7a (T49) — paridad de defaults con el widget local de boki-front que este
-  // componente reemplaza vía puente: `actionsLabel` ya coincidía ('Acciones',
-  // ver el primer test de este archivo); `toggleDetailsLabel` NO coincidía
-  // ('Ver detalles' vs. la clave i18n real `shared.table.toggleDetails` =
-  // 'Mostrar u ocultar el detalle de la fila') — se cierra aquí la brecha.
+  // PR7a (T49) — el default de cada texto se alinea con la clave i18n real
+  // de boki-front para que un consumidor sin override obtenga el texto
+  // correcto: `actionsLabel` ya coincidía ('Acciones', ver el primer test
+  // de este archivo); `toggleDetailsLabel` NO coincidía ('Ver detalles' vs.
+  // la clave i18n real `shared.table.toggleDetails` = 'Mostrar u ocultar el
+  // detalle de la fila') — se cierra aquí la brecha.
   it('el default de actionsLabel/toggleDetailsLabel iguala el texto real del widget de boki-front', () => {
     expect(fixture.componentInstance.actionsLabel()).toBe('Acciones');
     expect(fixture.componentInstance.toggleDetailsLabel()).toBe('Mostrar u ocultar el detalle de la fila');
+  });
+});
+
+/**
+ * Specs de `[solRowReveal]` (4R de PR7, WARNING-1): punto de extensión OCP
+ * que restaura la animación de entrada del widget local borrado (T51) sin
+ * acoplar la lib a `[solReveal]` de boki-front — mismo contrato de clases y
+ * tokens (`--sol-reveal-index`, `.sol-reveal-in`, `.sol-reveal-in--replay`),
+ * reimplementado dentro de la lib. jsdom NO implementa IntersectionObserver:
+ * se stubbea un mock controlable, igual que en `reveal.directive.spec.ts`.
+ */
+describe('SolDataTableComponent — [solRowReveal] (animación de entrada por fila)', () => {
+  type ObserverEntry = Pick<IntersectionObserverEntry, 'isIntersecting'>;
+  type ObserverCallback = (entries: ObserverEntry[]) => void;
+
+  class MockIntersectionObserver {
+    static instances: MockIntersectionObserver[] = [];
+    readonly observed: Element[] = [];
+    disconnected = false;
+
+    constructor(
+      private readonly callback: ObserverCallback,
+      readonly options?: IntersectionObserverInit,
+    ) {
+      MockIntersectionObserver.instances.push(this);
+    }
+
+    observe(element: Element): void {
+      this.observed.push(element);
+    }
+
+    unobserve(): void {}
+
+    disconnect(): void {
+      this.disconnected = true;
+    }
+
+    emit(isIntersecting: boolean): void {
+      this.callback([{ isIntersecting }]);
+    }
+  }
+
+  let fixture: ComponentFixture<SolDataTableComponent>;
+
+  function el(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function rows(): HTMLTableRowElement[] {
+    return Array.from(el().querySelectorAll('tbody tr.sol-data-table__tr'));
+  }
+
+  function makeFixture(inputs: Record<string, unknown> = {}): ComponentFixture<SolDataTableComponent> {
+    const f = TestBed.createComponent(SolDataTableComponent);
+    f.componentRef.setInput('columns', COLUMNS);
+    f.componentRef.setInput('data', DATA);
+    for (const [key, value] of Object.entries(inputs)) {
+      f.componentRef.setInput(key, value);
+    }
+    f.detectChanges();
+    return f;
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [SolDataTableComponent],
+      providers: [
+        {
+          provide: ThemeService,
+          useValue: {
+            isDark: signal(false).asReadonly(),
+            activeTheme: signal(null).asReadonly(),
+          },
+        },
+      ],
+    });
+    MockIntersectionObserver.instances = [];
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('setea --sol-reveal-index por fila según su posición ($index)', () => {
+    fixture = makeFixture();
+    const [first, second] = rows();
+
+    expect(first.style.getPropertyValue('--sol-reveal-index')).toBe('0');
+    expect(second.style.getPropertyValue('--sol-reveal-index')).toBe('1');
+  });
+
+  it('con rowReveal por defecto (true): oculta las filas y las observa con threshold bajo (una instancia por fila)', () => {
+    fixture = makeFixture();
+
+    expect(rows()[0].style.opacity).toBe('0');
+    expect(rows()[1].style.opacity).toBe('0');
+    expect(MockIntersectionObserver.instances.length).toBe(DATA.length);
+    expect(MockIntersectionObserver.instances[0].observed).toEqual([rows()[0]]);
+    expect(MockIntersectionObserver.instances[1].observed).toEqual([rows()[1]]);
+    expect(MockIntersectionObserver.instances[0].options?.threshold).toBe(0.05);
+  });
+
+  it('al entrar al viewport agrega .sol-reveal-in, libera la opacidad y desconecta (una sola vez)', () => {
+    fixture = makeFixture();
+    const observer = MockIntersectionObserver.instances[0];
+
+    observer.emit(true);
+
+    expect(rows()[0].classList.contains('sol-reveal-in')).toBe(true);
+    expect(rows()[0].style.opacity).toBe('');
+    expect(observer.disconnected).toBe(true);
+  });
+
+  it('con [rowReveal]="false": NO oculta las filas ni las observa (opt-out)', () => {
+    fixture = makeFixture({ rowReveal: false });
+
+    expect(MockIntersectionObserver.instances.length).toBe(0);
+    expect(rows()[0].style.opacity).toBe('');
+  });
+
+  it('el replay se dispara al ordenar sobre una fila ya revelada (sin quitarla del set)', () => {
+    fixture = makeFixture();
+    // Revela la fila de Ana (primera instancia observada); `onSort` reordena
+    // sin quitar filas del set, así que su directiva sigue viva (track por
+    // `id`) y sí debe reaccionar al cambio de `revealReplayKey`.
+    MockIntersectionObserver.instances[0].emit(true);
+
+    fixture.componentInstance.onSort('name');
+    fixture.detectChanges();
+
+    const anaRow = Array.from(rows()).find((r) => r.textContent?.includes('Ana'));
+    expect(anaRow?.classList.contains('sol-reveal-in--replay')).toBe(true);
   });
 });

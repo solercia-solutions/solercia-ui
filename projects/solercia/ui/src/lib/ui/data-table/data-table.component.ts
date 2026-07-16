@@ -2,6 +2,9 @@ import {
   Component,
   ChangeDetectionStrategy,
   DestroyRef,
+  Directive,
+  ElementRef,
+  OnInit,
   TemplateRef,
   computed,
   contentChild,
@@ -22,6 +25,118 @@ import { ThemeService } from '../../tokens';
 
 /** Fila genérica de la tabla: un objeto plano indexable por clave. */
 export type SolDataTableRow = Record<string, unknown>;
+
+/**
+ * Directiva interna (se exporta desde este archivo solo porque el
+ * compilador de Angular exige que los `imports` de un componente standalone
+ * sean símbolos exportados — NO se re-exporta desde `lib/ui/index.ts` ni
+ * `public-api.ts`, así que sigue sin ser parte de la API pública de
+ * `@solercia/ui`) que anima la entrada
+ * de cada fila/tarjeta de `sol-data-table` con el MISMO contrato de tokens
+ * y clases globales que `[solReveal]` (`@shared/lib` de la app boki-front):
+ * `--sol-reveal-index` (stagger), `.sol-reveal-in`/`.sol-reveal-in--replay`
+ * (definidas junto a los keyframes en el `styles.css` del consumidor,
+ * dirigidas por `component.motion.*` del tema).
+ *
+ * La lib NO importa `SolRevealDirective` de la app — eso invertiría la
+ * regla de dependencia (una librería no depende de quien la consume). Esta
+ * es el punto de extensión OCP que restaura la paridad visual del widget
+ * local borrado en PR7a (T51) sin acoplar `sol-data-table` a boki-front:
+ * la lib reimplementa el mismo contrato (mismas clases/tokens), agnóstica
+ * de qué app lo consume. Ver 4R de PR7 (11-a-solercia-ui), WARNING-1.
+ *
+ * Nota de mantenimiento: hay duplicación intencional con
+ * `src/shared/lib/reveal.directive.ts` (boki-front) — un futuro candidato
+ * a extraer sería mover `SolRevealDirective` a `@solercia/ui` para que
+ * ambos consuman una única implementación; queda fuera de esta corrección
+ * (fuera de alcance de PR7).
+ */
+@Directive({
+  selector: '[solRowReveal]',
+  standalone: true,
+})
+export class RowRevealDirective implements OnInit {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** Apaga el efecto por completo (sin observer, sin ocultar el elemento). */
+  readonly solRowReveal = input<boolean>(true);
+  /** Índice del stagger: retrasa la entrada índice × tokens de duración. */
+  readonly solRowRevealIndex = input<number>(0);
+  /** Valor arbitrario: cada cambio re-dispara la animación en filas ya reveladas. */
+  readonly solRowRevealReplay = input<unknown>(undefined);
+
+  private observer: IntersectionObserver | null = null;
+  private revealed = false;
+  private altKeyframe = false;
+
+  constructor() {
+    effect(() => {
+      this.host.nativeElement.style.setProperty(
+        '--sol-reveal-index',
+        String(this.solRowRevealIndex()),
+      );
+    });
+
+    let initial = true;
+    effect(() => {
+      this.solRowRevealReplay();
+      if (initial) {
+        initial = false;
+        return;
+      }
+      if (this.solRowReveal() && this.revealed) {
+        this.replay();
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    if (!this.solRowReveal() || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
+    this.host.nativeElement.style.opacity = '0';
+
+    this.observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          this.reveal();
+        }
+      },
+      { threshold: 0.05 },
+    );
+    this.observer.observe(this.host.nativeElement);
+
+    this.destroyRef.onDestroy(() => this.disconnect());
+  }
+
+  private reveal(): void {
+    this.disconnect();
+    const element = this.host.nativeElement;
+    element.style.removeProperty('opacity');
+    element.classList.add('sol-reveal-in');
+    this.revealed = true;
+  }
+
+  private replay(): void {
+    const element = this.host.nativeElement;
+    this.altKeyframe = !this.altKeyframe;
+    if (this.altKeyframe) {
+      const name =
+        getComputedStyle(element).getPropertyValue('--sol-reveal-name').trim() || 'solRevealFade';
+      element.style.setProperty('--sol-reveal-name-b', `${name}B`);
+      element.classList.add('sol-reveal-in--replay');
+    } else {
+      element.classList.remove('sol-reveal-in--replay');
+    }
+  }
+
+  private disconnect(): void {
+    this.observer?.disconnect();
+    this.observer = null;
+  }
+}
 
 /**
  * Descriptor de columna que dirige el render de `sol-data-table`.
@@ -64,6 +179,7 @@ export interface DataTableColumn {
     SolButtonComponent,
     SolIconComponent,
     SolSkeletonComponent,
+    RowRevealDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -125,7 +241,12 @@ export interface DataTableColumn {
         } @else {
           <ul class="sol-data-table__cards">
             @for (row of pagedData(); track trackId($index, row)) {
-              <li class="sol-data-table__card">
+              <li
+                class="sol-data-table__card"
+                [solRowReveal]="rowReveal()"
+                [solRowRevealIndex]="$index"
+                [solRowRevealReplay]="revealReplayKey()"
+              >
                 <button
                   type="button"
                   class="sol-data-table__card-head"
@@ -236,7 +357,12 @@ export interface DataTableColumn {
                 }
               } @else {
                 @for (row of pagedData(); track trackId($index, row)) {
-                  <tr class="sol-data-table__tr">
+                  <tr
+                    class="sol-data-table__tr"
+                    [solRowReveal]="rowReveal()"
+                    [solRowRevealIndex]="$index"
+                    [solRowRevealReplay]="revealReplayKey()"
+                  >
                     @for (col of columns(); track col.key) {
                       <td class="sol-data-table__td">
                         @if (col.cellTemplate) {
@@ -583,12 +709,23 @@ export class SolDataTableComponent {
   /** Encabezado de la columna de acciones. */
   readonly actionsLabel = input<string>('Acciones');
   /**
-   * aria-label del botón ▶ de expansión de fila en el modo móvil. Default
-   * alineado (PR7a/T49) con la clave i18n `shared.table.toggleDetails` de
-   * `boki-front` para que el puente de re-export (`@widgets/data-table`) no
-   * introduzca una regresión de texto cuando un consumidor no lo sobreescribe.
+   * aria-label del botón ▶ de expansión de fila en el modo móvil. El default
+   * se alinea con el texto de la clave i18n `shared.table.toggleDetails`
+   * para que cualquier consumidor que no lo sobreescriba (vía
+   * `[toggleDetailsLabel]`) obtenga el texto correcto sin necesidad de
+   * traducción explícita.
    */
   readonly toggleDetailsLabel = input<string>('Mostrar u ocultar el detalle de la fila');
+  /**
+   * Activa la animación de entrada (`solRowReveal`, ver directiva interna
+   * arriba) en cada fila/tarjeta. Default `true`: preserva el
+   * comportamiento visual del widget local que este componente reemplazó
+   * (PR7a/T51) sin requerir cambios en los consumidores existentes — el
+   * intensity "none"/`prefers-reduced-motion` del tema ya neutraliza el
+   * efecto (duración ~1ms, distancia 0) para quien no lo quiera, sin
+   * necesidad de apagar este input.
+   */
+  readonly rowReveal = input<boolean>(true);
 
   readonly editClicked = output<SolDataTableRow>();
   readonly deleteClicked = output<SolDataTableRow>();
@@ -612,6 +749,15 @@ export class SolDataTableComponent {
   readonly pageSize = signal(10);
   readonly sortKey = signal('');
   readonly sortDirection = signal<'asc' | 'desc'>('asc');
+
+  /**
+   * Clave de replay de `solRowReveal`: cambia con cualquier búsqueda, orden
+   * o paginación — reinicia la animación de entrada de las filas visibles
+   * (paridad con el widget local: `solRevealReplay` sobre el mismo filtro).
+   */
+  readonly revealReplayKey = computed(
+    () => `${this.searchTerm()}:${this.sortKey()}:${this.sortDirection()}:${this.currentPage()}`,
+  );
 
   /** Señal reactiva de viewport móvil (breakpoint canónico 767px). */
   readonly isMobileViewport = observeMobileViewport();
