@@ -17,10 +17,14 @@ interface DemoItem {
     <ng-template #card let-item>
       <span class="demo-card-title">{{ item.title }}</span>
     </ng-template>
+    <ng-template #anchor let-column>
+      <span class="demo-anchor">🏆 {{ column.id }}</span>
+    </ng-template>
   `,
 })
 class TemplateHostComponent {
   readonly cardTemplate = viewChild.required<TemplateRef<unknown>>('card');
+  readonly anchorTemplate = viewChild.required<TemplateRef<unknown>>('anchor');
 }
 
 describe('SolKanbanBoardComponent', () => {
@@ -101,5 +105,49 @@ describe('SolKanbanBoardComponent', () => {
       fixture.detectChanges();
     }).not.toThrow();
     expect(columnTitles()).toEqual(['Por hacer']);
+  });
+
+  it('[WARNING — O] el board expone y reenvía anchorTemplate a sol-kanban-column: el ancla se renderiza vía el board', () => {
+    const templateHost = TestBed.createComponent(TemplateHostComponent);
+    templateHost.detectChanges();
+
+    fixture.componentRef.setInput('anchorTemplate', templateHost.componentInstance.anchorTemplate());
+    fixture.componentRef.setInput('columns', [
+      { id: 'ganada', title: 'Ganada', items: [], terminalAnchor: true },
+    ]);
+    fixture.detectChanges();
+
+    expect(host().querySelector('.demo-anchor')?.textContent?.trim()).toBe('🏆 ganada');
+  });
+
+  it('[WARNING — blindaje D4] columns=null inicial (patrón asíncrono) y LUEGO llegan datos reales: el espejo las refleja', () => {
+    // Mismo escenario que causó el 2º CRITICAL de sol-timeline (PR4) — acá
+    // el espejo se re-siembra SIEMPRE (comportamiento correcto en PR5a, sin
+    // flag de "ya sembrado"), así que la llegada tardía de datos SÍ debe
+    // reflejarse sin necesitar ningún fix adicional. Test de blindaje antes
+    // de que el PR5b construya el DnD encima de este mismo espejo.
+    fixture.componentRef.setInput('columns', null);
+    fixture.detectChanges();
+    expect(host().querySelectorAll('sol-kanban-column').length).toBe(0);
+
+    fixture.componentRef.setInput('columns', demoColumns);
+    fixture.detectChanges();
+
+    expect(columnTitles()).toEqual(['Por hacer', 'Hecho']);
+  });
+
+  it('[WARNING] columnas con id duplicado o ausente no lanzan NG0955 — degradan (track cae al índice)', () => {
+    const dupOrMissing: KanbanColumn<DemoItem>[] = [
+      { id: 'dup', title: 'Primera', items: [] },
+      { id: 'dup', title: 'Segunda (id duplicado)', items: [] },
+      { id: undefined as unknown as string, title: 'Sin id', items: [] },
+    ];
+
+    expect(() => {
+      fixture.componentRef.setInput('columns', dupOrMissing);
+      fixture.detectChanges();
+    }).not.toThrow();
+
+    expect(columnTitles()).toEqual(['Primera', 'Segunda (id duplicado)', 'Sin id']);
   });
 });

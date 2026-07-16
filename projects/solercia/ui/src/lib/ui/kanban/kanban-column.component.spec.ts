@@ -140,4 +140,58 @@ describe('SolKanbanColumnComponent', () => {
 
     expect(fixture.componentInstance.accentColor()).toContain('--sol-color-text-muted');
   });
+
+  it('[WARNING] items con id duplicado o ausente no lanzan NG0955 — degradan (track cae al índice)', () => {
+    const items: DemoItem[] = [
+      { id: 'dup', title: 'Item 1', status: 'active' },
+      { id: 'dup', title: 'Item 2 (id duplicado)', status: 'active' },
+      { id: undefined as unknown as string, title: 'Item sin id', status: 'active' },
+    ];
+
+    expect(() => {
+      fixture.componentRef.setInput('column', { id: 'col-1', title: 'Con duplicados', items });
+      fixture.detectChanges();
+    }).not.toThrow();
+
+    const titles = Array.from(host().querySelectorAll('.demo-card-title')).map((el) => el.textContent);
+    expect(titles).toEqual(['Item 1', 'Item 2 (id duplicado)', 'Item sin id']);
+  });
+
+  it('[WARNING] plural correcto: columna con 1 item usa la clave singular ("1 tarjeta")', () => {
+    fixture.componentRef.setInput('column', {
+      id: 'col-1',
+      title: 'Con una',
+      items: [{ id: '1', title: 'Única', status: 'active' }],
+    });
+    fixture.detectChanges();
+
+    expect(host().querySelector('.sol-kanban-column__count')?.getAttribute('aria-label')).toBe('1 tarjeta');
+  });
+
+  it('[WARNING] plural correcto: columna con 2+ items usa la clave PLURAL (shared.kanban.itemCountAriaPlural)', () => {
+    fixture.componentRef.setInput('column', {
+      id: 'col-1',
+      title: 'Con varias',
+      items: [
+        { id: '1', title: 'A', status: 'active' },
+        { id: '2', title: 'B', status: 'active' },
+      ],
+    });
+    fixture.detectChanges();
+
+    // El stub de test VERIFICA la clave contra es-CO.json pero no interpola
+    // {{count}} (esa sustitución la hace el motor i18n real, p. ej.
+    // Transloco) — se confirma que se usó la clave PLURAL (no la singular)
+    // y que el conteo real de items es el esperado.
+    expect(host().querySelector('.sol-kanban-column__count')?.getAttribute('aria-label')).toBe('{{count}} tarjetas');
+    expect(fixture.componentInstance.items().length).toBe(2);
+  });
+
+  it('[WARNING] plural correcto: columna vacía (0 items) usa la clave PLURAL, no la singular', () => {
+    fixture.componentRef.setInput('column', { id: 'col-1', title: 'Vacía', items: [] });
+    fixture.detectChanges();
+
+    expect(host().querySelector('.sol-kanban-column__count')?.getAttribute('aria-label')).toBe('{{count}} tarjetas');
+    expect(fixture.componentInstance.items().length).toBe(0);
+  });
 });

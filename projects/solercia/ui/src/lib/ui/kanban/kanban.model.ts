@@ -50,3 +50,12 @@ export interface KanbanColumnAction {
   columnId: string;
   action: string;
 }
+
+/**
+ * Acción reservada del botón "+ Agregar" que `sol-kanban-column` emite y
+ * `sol-kanban-board` reconoce para derivar `addRequested`. Constante
+ * compartida (no un literal `'add'` repetido en 2 archivos) — un renombre
+ * futuro no puede romper `addRequested` en silencio si un solo lado se
+ * actualiza.
+ */
+export const KANBAN_ADD_ACTION = 'add';

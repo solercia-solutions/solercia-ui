@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   TemplateRef,
+  computed,
   effect,
   input,
   output,
@@ -9,7 +10,8 @@ import {
 } from '@angular/core';
 import type { KanbanCardTemplateContext } from './kanban-card.component';
 import { SolKanbanColumnComponent } from './kanban-column.component';
-import type { KanbanColumn, KanbanColumnAction, KanbanItem } from './kanban.model';
+import { KANBAN_ADD_ACTION, type KanbanColumn, type KanbanColumnAction, type KanbanItem } from './kanban.model';
+import { countIds, safeTrackKey } from './kanban-track';
 
 /**
  * `sol-kanban-board` — orquestador de columnas (spec: solercia-ui-kanban).
@@ -38,11 +40,12 @@ import type { KanbanColumn, KanbanColumnAction, KanbanItem } from './kanban.mode
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="sol-kanban-board">
-      @for (column of mirroredColumns(); track column.id) {
+      @for (column of mirroredColumns(); track trackColumn(column, $index)) {
         <sol-kanban-column
           [column]="column"
           [cardTemplate]="cardTemplate()"
           [headerTemplate]="headerTemplate()"
+          [anchorTemplate]="anchorTemplate()"
           [emptyTemplate]="emptyTemplate()"
           (action)="onColumnAction($event)"
         />
@@ -71,6 +74,17 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
 
   readonly headerTemplate = input<TemplateRef<{ $implicit: KanbanColumn<T> | null | undefined }> | null>(null);
 
+  /**
+   * Template del ancla terminal (ganada/perdida/etc.), reenviado tal cual a
+   * `sol-kanban-column`. Sin este reenvío, un consumidor que arme su
+   * pipeline vía `sol-kanban-board` (en vez de `sol-kanban-column` directo)
+   * no podría usar el ancla terminal sin tocar la librería — violaría el
+   * objetivo O ("agregar dominio = pasar templates, sin tocar el
+   * componente"). La columna YA soportaba `anchorTemplate`; solo faltaba
+   * exponerlo/reenviarlo desde el board.
+   */
+  readonly anchorTemplate = input<TemplateRef<{ $implicit: KanbanColumn<T> | null | undefined }> | null>(null);
+
   readonly emptyTemplate = input<TemplateRef<unknown> | null>(null);
 
   readonly columnAction = output<KanbanColumnAction>();
@@ -88,9 +102,17 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
     });
   }
 
+  /** Frecuencia de `id` entre las columnas actuales — soporte de `trackColumn` (fix NG0955 con id duplicado/ausente). */
+  private readonly columnIdFrequency = computed(() => countIds(this.mirroredColumns()));
+
+  /** `track` seguro: cae al índice si el `id` de la columna está ausente o duplicado. */
+  trackColumn(column: KanbanColumn<T>, index: number): unknown {
+    return safeTrackKey(column?.id, index, this.columnIdFrequency());
+  }
+
   onColumnAction(action: KanbanColumnAction): void {
     this.columnAction.emit(action);
-    if (action.action === 'add') {
+    if (action.action === KANBAN_ADD_ACTION) {
       this.addRequested.emit(action.columnId);
     }
   }

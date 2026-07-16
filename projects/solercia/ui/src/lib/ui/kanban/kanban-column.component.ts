@@ -11,7 +11,8 @@ import { NgTemplateOutlet } from '@angular/common';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { TONE_COLOR } from '../tone/sol-tone';
 import { SolKanbanCardComponent, type KanbanCardTemplateContext } from './kanban-card.component';
-import type { KanbanColumn, KanbanColumnAction, KanbanItem } from './kanban.model';
+import { KANBAN_ADD_ACTION, type KanbanColumn, type KanbanColumnAction, type KanbanItem } from './kanban.model';
+import { countIds, safeTrackKey } from './kanban-track';
 
 /** Resuelve el título de una columna: `titleKey` (i18n) > `title` (crudo) > `''`. Tolera `column` inválido/no-string. */
 function resolveColumnTitle(column: KanbanColumn | null | undefined, translate: (key: string) => string): string {
@@ -61,7 +62,7 @@ function resolveColumnTitle(column: KanbanColumn | null | undefined, translate: 
       </header>
 
       <div class="sol-kanban-column__items">
-        @for (item of items(); track item.id) {
+        @for (item of items(); track trackItem(item, $index)) {
           <sol-kanban-card [item]="item" [cardTemplate]="cardTemplate()" />
         }
         @if (items().length === 0) {
@@ -189,6 +190,14 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
 
   readonly items = computed<T[]>(() => this.column()?.items ?? []);
 
+  /** Frecuencia de `id` entre los items actuales — soporte de `trackItem` (fix NG0955 con id duplicado/ausente). */
+  private readonly itemIdFrequency = computed(() => countIds(this.items()));
+
+  /** `track` seguro: cae al índice si el `id` del item está ausente o duplicado, en vez de dejar que Angular lance `NG0955`. */
+  trackItem(item: T, index: number): unknown {
+    return safeTrackKey(item?.id, index, this.itemIdFrequency());
+  }
+
   readonly title = computed(() => resolveColumnTitle(this.column(), (key) => this.i18n.translate(key)));
 
   readonly accentColor = computed(() => {
@@ -201,9 +210,17 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
     return this.i18n.translate('shared.kanban.columnAria', { title: this.title() });
   });
 
+  /**
+   * Singular/plural correcto en español ("1 tarjeta" vs. "N tarjetas") — el
+   * contrato `SolI18n` no soporta ICU MessageFormat, así que la elección de
+   * clave se hace acá en vez de interpolar un plural incorrecto.
+   */
   readonly itemCountAria = computed(() => {
     this.i18n.activeLang();
-    return this.i18n.translate('shared.kanban.itemCountAria', { count: this.items().length });
+    const count = this.items().length;
+    return count === 1
+      ? this.i18n.translate('shared.kanban.itemCountAriaSingular')
+      : this.i18n.translate('shared.kanban.itemCountAriaPlural', { count });
   });
 
   readonly emptyLabel = computed(() => {
@@ -219,6 +236,6 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
   requestAdd(): void {
     const columnId = this.column()?.id;
     if (!columnId) return;
-    this.action.emit({ columnId, action: 'add' });
+    this.action.emit({ columnId, action: KANBAN_ADD_ACTION });
   }
 }
