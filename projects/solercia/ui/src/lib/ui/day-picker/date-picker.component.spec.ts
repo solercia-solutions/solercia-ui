@@ -262,4 +262,13 @@ describe('SolDatePickerComponent — fix de zoom móvil (11-f PR1)', () => {
     expect(block).not.toMatch(/background/);
     expect(block).not.toMatch(/border/);
   });
+
+  it('variante size="sm" también llega a 16px en móvil: el bloque @media incluye .sol-date-picker--sm .sol-date-picker__input (evita que la regla --sm de mayor especificidad gane la cascada)', () => {
+    fixture.componentRef.setInput('size', 'sm');
+    fixture.detectChanges();
+    const block = mobileMediaBlock(headStyles());
+    // Angular con ViewEncapsulation.Emulated inserta [_ngcontent-xxx] tras cada
+    // parte del selector compuesto, así que se tolera ese atributo y espacios extra.
+    expect(block).toMatch(/\.sol-date-picker--sm(\[[^\]]*\])?\s+\.sol-date-picker__input(\[[^\]]*\])?\s*\{[^}]*font-size:\s*16px/);
+  });
 });
