@@ -299,6 +299,18 @@ export interface SolSelectOption {
       from { opacity: 0; transform: translateY(4px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* Evita el zoom automático de iOS Safari al enfocar el buscador interno
+       (requiere font-size computado >= 16px). El trigger (<button>) no
+       dispara zoom, pero se sube a 16px por paridad visual. Solo aplica en
+       viewport móvil; no toca el token global --sol-font-size-base ni el
+       font-size fuera de este breakpoint. */
+    @media (max-width: 640px) {
+      .sol-select__search,
+      .sol-select__trigger {
+        font-size: 16px;
+      }
+    }
   `,
 })
 export class SolSelectComponent implements ControlValueAccessor {

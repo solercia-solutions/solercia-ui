@@ -91,6 +91,15 @@ import { SolIconComponent } from '../icon/icon.component';
       color: var(--sol-color-text-primary, #0F172A);
       background: color-mix(in srgb, var(--sol-color-text-muted, #94A3B8) 15%, transparent);
     }
+
+    /* Evita el zoom automático de iOS Safari al enfocar (requiere font-size
+       computado >= 16px). Solo aplica en viewport móvil; no toca el token
+       global --sol-font-size-base ni el font-size fuera de este breakpoint. */
+    @media (max-width: 640px) {
+      .sol-search-input__field {
+        font-size: 16px;
+      }
+    }
   `,
 })
 export class SolSearchInputComponent {

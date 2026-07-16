@@ -119,6 +119,15 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
       color: var(--sol-textarea-error-color);
       line-height: 1.4;
     }
+
+    /* Evita el zoom automático de iOS Safari al enfocar (requiere font-size
+       computado >= 16px). Solo aplica en viewport móvil; no toca el token
+       global --sol-font-size-base ni el font-size fuera de este breakpoint. */
+    @media (max-width: 640px) {
+      .sol-textarea__native {
+        font-size: 16px;
+      }
+    }
   `,
 })
 export class SolTextareaComponent implements ControlValueAccessor {
