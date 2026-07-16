@@ -6,6 +6,48 @@ Todos los cambios notables de este paquete se documentan en este archivo. El for
 paquete tiene solo dos consumidores potenciales — `boki-front` y, próximamente, `gestion_proyectos`
 — y puede admitir cambios incompatibles en versiones `minor`).
 
+## [0.3.0] - 2026-07-16
+
+### Agregado
+
+- `sol-chip` / `sol-chip-group`: átomo de selección presentacional (emoji, conteo,
+  removible, deshabilitado, tamaño) + contenedor CVA con política de selección única
+  (`radiogroup`/`radio`) o múltiple (`group`/`checkbox`) resuelta por Strategy
+  (`SolChipSelectionStrategy`), roving-tabindex con flechas/Home/End, `aria-pressed` vs
+  `aria-checked` según rol, i18n (`shared.chip.remove`).
+- `sol-number-input` (`SolNumberInputComponent`, deliberadamente distinto de
+  `sol-stepper`, que indica pasos): stepper numérico CVA con `min`/`max`/`step`,
+  `role="spinbutton"` + `aria-valuemin/max/now`, botones `−`/`+` deshabilitados en el
+  límite (sin wrap), flechas ± un `step` y Home/End a los límites, re-clamp reactivo si
+  `min`/`max` cambian en runtime, i18n (`shared.numberInput.decrement/increment`).
+- Ícono `minus` agregado al registro (`icon.registry.ts`) para los botones de
+  `sol-number-input`.
+
+### Corregido
+
+- Zoom automático de iOS en móvil (`<640px`) en 5 átomos que ya usaban `<input>`/
+  `<textarea>` nativos: `sol-input`, `sol-textarea`, `sol-search-input` (antes 12px vía
+  `--sol-font-size-sm`), `sol-select` (buscador + trigger, paridad visual) y
+  `sol-date-picker` (variantes normal y `--sm`). Fix encapsulado por átomo vía
+  `@media (max-width:640px){ font-size:16px }` en los `styles` inline de cada
+  componente — sin tocar el token global `--sol-font-size-base` (contrato de tenant,
+  afecta también desktop) ni el `viewport` de `index.html` (WCAG 1.4.4 se preserva).
+
+### Notas
+
+- Superficie pública curada: `SolChipSelectionStrategy`, `SINGLE_SELECT_STRATEGY` y
+  `MULTIPLE_SELECT_STRATEGY` son internos a `chip/` (no exportados desde
+  `lib/ui/index.ts`) — no hay input `strategy` que los consuma todavía (YAGNI, sin
+  consumidores reales aún); el componente sigue decidiendo la FORMA del valor CVA
+  (`string` vs `string[]`) directamente sobre `multiple()`.
+- Publicación real a `registry.npmjs.org` **NO ejecutada** (gate del fundador, igual
+  que `0.2.0`) — este release solo se empaqueta localmente (`npm pack`) para consumo
+  vía `.tgz` en `gestion_proyectos` y como validación de compatibilidad `ThemeFile`/
+  `EMIT_TABLE` (sin cambios de contrato).
+- 1023/1023 tests de la librería en verde (1016 de las nuevas incorporaciones de
+  `sol-chip`/`sol-chip-group`/`sol-number-input` + 7 de la corrección de robustez
+  post-review sobre foco/CVA/bounds).
+
 ## [0.2.0] - 2026-07-16
 
 ### Agregado
