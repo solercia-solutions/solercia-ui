@@ -114,6 +114,17 @@ export type {
 } from './kanban/kanban.model';
 export { KanbanReorderService } from './kanban/kanban-reorder.service';
 
+// sol-chip / sol-chip-group / sol-number-input (11-f-ciclo3-ux, PR2)
+export { SolChipComponent } from './chip/chip.component';
+export type { SolChipRole, SolChipSize } from './chip/chip.component';
+export { SolChipGroupComponent } from './chip/chip-group.component';
+export type { SolChipOption } from './chip/chip-group.component';
+export type {
+  SolChipSelectionStrategy,
+} from './chip/chip-selection.strategy';
+export { SINGLE_SELECT_STRATEGY, MULTIPLE_SELECT_STRATEGY } from './chip/chip-selection.strategy';
+export { SolNumberInputComponent } from './number-input/number-input.component';
+
 // sol-calendar (11-a-solercia-ui, PR6)
 export { SolCalendarComponent } from './calendar/calendar.component';
 export { SolCalendarHeaderComponent } from './calendar/calendar-header.component';
