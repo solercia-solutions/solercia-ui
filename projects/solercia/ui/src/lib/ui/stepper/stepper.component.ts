@@ -29,6 +29,17 @@ export type SolStepperOrientation = 'horizontal' | 'vertical';
 export type SolStepperStepState = 'completed' | 'current' | 'pending' | 'error';
 
 /**
+ * `'linear'` (default, comportamiento 0.1.x sin cambios): en modo
+ * `interactive`, solo son navegables los pasos ya alcanzados (hasta
+ * `furthestIndex`/`activeIndex`) — wizard clásico.
+ * `'free'` (D7, 11-a-solercia-ui): CUALQUIER paso es navegable, incluso uno
+ * nunca visitado — pipeline CRM accionable (mover un lead a cualquier
+ * etapa). El estado visual (completado/actual/pendiente) no cambia; solo
+ * cambia CUÁLES pasos aceptan clic/teclado.
+ */
+export type SolStepperNavigation = 'linear' | 'free';
+
+/**
  * `sol-stepper` — átomo del design system (E4, primer consumidor:
  * onboarding v2).
  *
@@ -42,6 +53,10 @@ export type SolStepperStepState = 'completed' | 'current' | 'pending' | 'error';
  *   navegables en AMBOS sentidos; los futuros jamás emiten. Sin
  *   `furthestIndex` la frontera es el propio `activeIndex` → wizard lineal
  *   clásico (solo hacia atrás), preservando el comportamiento previo.
+ * - `navigation` (D7, 11-a-solercia-ui): `'linear'` (default) es EXACTAMENTE
+ *   el comportamiento anterior; `'free'` habilita el pipeline accionable —
+ *   cualquier paso, visitado o no, es navegable. Extensión OCP pura: un
+ *   input nuevo, cero cambios en la API 0.1.x.
  * - Light/dark vía tokens `--sol-*` con fallbacks, como todo átomo.
  */
 @Component({
@@ -311,6 +326,14 @@ export class SolStepperComponent {
    */
   readonly interactive = input<boolean>(false);
 
+  /**
+   * `'linear'` (default) preserva la API 0.1.x sin cambios de comportamiento.
+   * `'free'` habilita el pipeline accionable: con `interactive=true`,
+   * CUALQUIER paso (incluso uno no alcanzado) es navegable — ver
+   * {@link SolStepperNavigation}.
+   */
+  readonly navigation = input<SolStepperNavigation>('linear');
+
   /** Clave i18n del nombre accesible de la lista de pasos. */
   readonly ariaLabelKey = input<string>('shared.stepper.aria');
 
@@ -363,9 +386,17 @@ export class SolStepperComponent {
     return 'pending';
   }
 
-  /** Navegable = interactivo, distinto del actual y dentro de la frontera alcanzada. */
+  /**
+   * Navegable = interactivo y distinto del actual. En `navigation:'linear'`
+   * (default) además exige estar dentro de la frontera alcanzada — igual
+   * que antes de D7. En `navigation:'free'` cualquier paso califica (pipeline
+   * accionable): el estado visual sigue siendo el mismo, solo cambia qué
+   * acepta clic/teclado.
+   */
   isNavigable(index: number): boolean {
-    return this.interactive() && index !== this.activeIndex() && index <= this.effectiveFurthest();
+    if (!this.interactive() || index === this.activeIndex()) return false;
+    if (this.navigation() === 'free') return true;
+    return index <= this.effectiveFurthest();
   }
 
   /** `aria-disabled` solo aplica en modo interactivo; en visual puro no hay semántica de botón. */
@@ -399,8 +430,9 @@ export class SolStepperComponent {
         '.sol-stepper__step',
       ),
     );
-    // Focos válidos: todo paso hasta la frontera alcanzada (los futuros no).
-    const focusable = buttons.slice(0, this.effectiveFurthest() + 1);
+    // Focos válidos: en 'free' TODOS los pasos; en 'linear' (default) solo
+    // hasta la frontera alcanzada (los futuros no) — comportamiento 0.1.x.
+    const focusable = this.navigation() === 'free' ? buttons : buttons.slice(0, this.effectiveFurthest() + 1);
     if (focusable.length === 0) return;
 
     const currentFocus = focusable.indexOf(document.activeElement as HTMLButtonElement);

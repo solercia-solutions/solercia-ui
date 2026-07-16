@@ -30,7 +30,12 @@ export { SolViewToggleComponent } from './view-toggle/view-toggle.component';
 export type { SolViewToggleOption } from './view-toggle/view-toggle.component';
 export { SolEmptyStateComponent } from './empty-state/empty-state.component';
 export { SolStepperComponent } from './stepper/stepper.component';
-export type { SolStepperStep, SolStepperOrientation, SolStepperStepState } from './stepper/stepper.component';
+export type {
+  SolStepperStep,
+  SolStepperOrientation,
+  SolStepperStepState,
+  SolStepperNavigation,
+} from './stepper/stepper.component';
 export { SolProgressBarComponent } from './progress-bar/progress-bar.component';
 export type { SolProgressMode, SolProgressSize, SolProgressVariant } from './progress-bar/progress-bar.component';
 export { SolWizardComponent, SolWizardStepDirective } from './wizard/wizard.component';
@@ -57,3 +62,21 @@ export {
   TCPDF_ALLOWED_TAGS,
   TCPDF_ALLOWED_STYLE_PROPERTIES,
 } from './rich-editor/rich-editor-serializer';
+
+// Átomos de vocero (11-a-solercia-ui, PR3)
+export { SolAvatarComponent, hashToPaletteIndex, computeInitials } from './avatar/avatar.component';
+export type { SolAvatarSize } from './avatar/avatar.component';
+export {
+  SolScoreBadgeComponent,
+  resolveScoreTone,
+  DEFAULT_SCORE_THRESHOLDS,
+} from './score-badge/score-badge.component';
+export type { SolTone, SolScoreThreshold } from './score-badge/score-badge.component';
+export {
+  SolTrendComponent,
+  resolveTrendDirection,
+  defaultTrendFormat,
+} from './trend/trend.component';
+export type { SolTrendDirection } from './trend/trend.component';
+export { SolMessageStatusComponent } from './message-status/message-status.component';
+export type { SolMessageStatus } from './message-status/message-status.component';
