@@ -6,9 +6,10 @@ import {
   input,
 } from '@angular/core';
 import { SOL_I18N } from '../../i18n/sol-i18n';
+import { TONE_COLOR, type SolTone } from '../tone/sol-tone';
 
-/** Tono semántico compartido por `sol-score-badge` y `sol-trend`. */
-export type SolTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+/** Re-exportado por compatibilidad — la definición canónica vive en `ui/tone/sol-tone.ts`. */
+export type { SolTone };
 
 /** Umbral ascendente: `upTo` es el límite EXCLUSIVO superior de `tone`. */
 export interface SolScoreThreshold {
@@ -33,14 +34,6 @@ export function resolveScoreTone(score: number, thresholds: readonly SolScoreThr
   const match = sorted.find((t) => score < t.upTo);
   return match?.tone ?? sorted[sorted.length - 1]?.tone ?? 'neutral';
 }
-
-const TONE_COLOR: Record<SolTone, string> = {
-  success: 'var(--sol-color-success, #10b981)',
-  warning: 'var(--sol-color-warning, #f59e0b)',
-  danger: 'var(--sol-color-danger, #ef4444)',
-  info: 'var(--sol-color-info, #3b82f6)',
-  neutral: 'var(--sol-color-text-muted, #94a3b8)',
-};
 
 /**
  * `sol-score-badge` — puntaje numérico con tono resuelto contra umbrales
@@ -94,6 +87,18 @@ export class SolScoreBadgeComponent {
   /** `true` mientras la métrica se está calculando (p. ej. corrida del laboratorio en curso). */
   readonly pending = input<boolean>(false);
 
+  /**
+   * `true` cuando no hay puntaje utilizable: `value=null` (sin dato todavía)
+   * O `value` es `NaN` (p. ej. una división 0/0 corriente arriba, o un
+   * `parseFloat` fallido). Sin esta guarda, `NaN < umbral` es SIEMPRE `false`
+   * y `resolveScoreTone` cae al último tono ("éxito") mostrando una insignia
+   * verde con el texto literal "NaN".
+   */
+  private readonly hasNoData = computed(() => {
+    const v = this.value();
+    return v === null || Number.isNaN(v);
+  });
+
   /** Puntaje normalizado a 0-100 para evaluar contra los umbrales (el texto mostrado usa el valor crudo). */
   private readonly normalizedValue = computed(() => {
     const v = this.value();
@@ -103,16 +108,14 @@ export class SolScoreBadgeComponent {
   });
 
   readonly tone = computed<SolTone>(() => {
-    if (this.pending()) return 'neutral';
-    const v = this.normalizedValue();
-    return v === null ? 'neutral' : resolveScoreTone(v, this.thresholds());
+    if (this.pending() || this.hasNoData()) return 'neutral';
+    return resolveScoreTone(this.normalizedValue()!, this.thresholds());
   });
 
   readonly displayText = computed(() => {
     this.i18n.activeLang();
     if (this.pending()) return this.i18n.translate('shared.scoreBadge.pending');
-    const v = this.value();
-    return v === null ? this.i18n.translate('shared.scoreBadge.empty') : `${v}`;
+    return this.hasNoData() ? this.i18n.translate('shared.scoreBadge.empty') : `${this.value()}`;
   });
 
   readonly hostStyles = computed(() => {

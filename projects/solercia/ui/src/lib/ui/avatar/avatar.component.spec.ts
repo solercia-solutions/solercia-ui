@@ -22,6 +22,22 @@ describe('computeInitials (pura)', () => {
     expect(computeInitials('')).toBe('');
     expect(computeInitials('   ')).toBe('');
   });
+
+  it('[CRITICAL] null o undefined: no lanza, devuelve el placeholder "?"', () => {
+    expect(computeInitials(null)).toBe('?');
+    expect(computeInitials(undefined)).toBe('?');
+  });
+
+  it('[WARNING] nombre que empieza con emoji: segmenta por code point, sin U+FFFD', () => {
+    const result = computeInitials('😀 Torres');
+    expect(result).not.toContain('�');
+    expect(result).toBe('😀T');
+  });
+
+  it('una sola palabra que empieza con emoji: sin U+FFFD', () => {
+    const result = computeInitials('😀Bot');
+    expect(result).not.toContain('�');
+  });
 });
 
 describe('hashToPaletteIndex (pura, determinista)', () => {
@@ -44,6 +60,11 @@ describe('hashToPaletteIndex (pura, determinista)', () => {
   it('semillas distintas típicamente producen índices distintos (no todo colapsa a 0)', () => {
     const indices = new Set(['Ana', 'Beto', 'Carla', 'Diego', 'Elena'].map((s) => hashToPaletteIndex(s)));
     expect(indices.size).toBeGreaterThan(1);
+  });
+
+  it('[CRITICAL] null o undefined: no lanza, cae al índice 0 (neutral)', () => {
+    expect(hashToPaletteIndex(null)).toBe(0);
+    expect(hashToPaletteIndex(undefined)).toBe(0);
   });
 });
 
@@ -96,5 +117,25 @@ describe('SolAvatarComponent', () => {
     expect(host().className).toContain('sol-avatar--lg');
     expect(host().getAttribute('aria-label')).toBe('Ana Torres');
     expect(host().getAttribute('role')).toBe('img');
+  });
+
+  it('[CRITICAL] name=null no revienta el render — muestra "?" y la paleta neutral (índice 0)', () => {
+    expect(() => {
+      fixture.componentRef.setInput('name', null);
+      fixture.detectChanges();
+    }).not.toThrow();
+
+    expect(host().querySelector('.sol-avatar__initials')?.textContent).toBe('?');
+    expect(host().className).toContain('sol-avatar--palette-0');
+    expect(host().getAttribute('aria-label')).toBe('?');
+  });
+
+  it('[CRITICAL] name=undefined (binding aún sin resolver) no revienta el render', () => {
+    expect(() => {
+      fixture.componentRef.setInput('name', undefined);
+      fixture.detectChanges();
+    }).not.toThrow();
+
+    expect(host().querySelector('.sol-avatar__initials')?.textContent).toBe('?');
   });
 });

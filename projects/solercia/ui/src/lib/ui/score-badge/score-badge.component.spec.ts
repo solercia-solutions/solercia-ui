@@ -1,6 +1,6 @@
-import { signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
+import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import {
   SolScoreBadgeComponent,
   resolveScoreTone,
@@ -45,9 +45,10 @@ describe('SolScoreBadgeComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [SolScoreBadgeComponent],
-      providers: [
-        { provide: SOL_I18N, useValue: { activeLang: signal('es-CO'), translate: (key: string) => `t(${key})` } },
-      ],
+      // Stub que VERIFICA la clave contra el catálogo real es-CO.json — si la
+      // clave no existe ahí, la traducción lanza (en vez de "pasar" ciegamente
+      // con `t(${key})`). Detecta claves i18n olvidadas en el catálogo real.
+      providers: [{ provide: SOL_I18N, useValue: createCatalogCheckedI18nStub() }],
     });
     fixture = TestBed.createComponent(SolScoreBadgeComponent);
   });
@@ -58,16 +59,16 @@ describe('SolScoreBadgeComponent', () => {
     expect(text()).toBe('85');
   });
 
-  it('value=null muestra el texto de "sin dato" por clave i18n', () => {
+  it('value=null muestra el texto de "sin dato" (clave shared.scoreBadge.empty, verificada contra es-CO.json)', () => {
     fixture.detectChanges();
-    expect(text()).toBe('t(shared.scoreBadge.empty)');
+    expect(text()).toBe('Sin dato');
   });
 
-  it('pending=true muestra el texto "en curso" por clave i18n, incluso con value presente', () => {
+  it('pending=true muestra el texto "en curso" (clave shared.scoreBadge.pending), incluso con value presente', () => {
     fixture.componentRef.setInput('value', 90);
     fixture.componentRef.setInput('pending', true);
     fixture.detectChanges();
-    expect(text()).toBe('t(shared.scoreBadge.pending)');
+    expect(text()).toBe('Calculando…');
   });
 
   it('normaliza value/max a escala 0-100 antes de evaluar los umbrales', () => {
@@ -77,5 +78,14 @@ describe('SolScoreBadgeComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.tone()).toBe('warning');
     expect(text()).toBe('7'); // el texto muestra el valor crudo, no el normalizado
+  });
+
+  it('[WARNING] value=NaN se trata como "sin dato" (tono neutral, texto "Sin dato"), NUNCA como éxito con "NaN"', () => {
+    fixture.componentRef.setInput('value', NaN);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.tone()).toBe('neutral');
+    expect(text()).toBe('Sin dato');
+    expect(text()).not.toContain('NaN');
   });
 });

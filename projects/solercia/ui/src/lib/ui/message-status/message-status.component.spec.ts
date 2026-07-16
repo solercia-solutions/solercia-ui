@@ -1,6 +1,6 @@
-import { signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
+import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import { SolMessageStatusComponent } from './message-status.component';
 
 describe('SolMessageStatusComponent', () => {
@@ -13,9 +13,9 @@ describe('SolMessageStatusComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [SolMessageStatusComponent],
-      providers: [
-        { provide: SOL_I18N, useValue: { activeLang: signal('es-CO'), translate: (key: string) => `t(${key})` } },
-      ],
+      // Stub que VERIFICA la clave contra el catálogo real es-CO.json (ver
+      // testing/i18n-catalog.ts) — detecta claves i18n olvidadas.
+      providers: [{ provide: SOL_I18N, useValue: createCatalogCheckedI18nStub() }],
     });
     fixture = TestBed.createComponent(SolMessageStatusComponent);
   });
@@ -60,9 +60,13 @@ describe('SolMessageStatusComponent', () => {
     expect(fixture.componentInstance.iconName()).toBe('check');
   });
 
-  it('expone un aria-label por clave i18n, uno distinto por estado', () => {
+  it('expone un aria-label por clave i18n (verificada contra es-CO.json), uno distinto por estado', () => {
     fixture.componentRef.setInput('status', 'failed');
     fixture.detectChanges();
-    expect(host().getAttribute('aria-label')).toBe('t(shared.messageStatus.failed)');
+    expect(host().getAttribute('aria-label')).toBe('No se pudo entregar');
+
+    fixture.componentRef.setInput('status', 'read');
+    fixture.detectChanges();
+    expect(host().getAttribute('aria-label')).toBe('Leído');
   });
 });

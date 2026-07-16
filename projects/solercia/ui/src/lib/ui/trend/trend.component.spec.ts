@@ -1,6 +1,6 @@
-import { signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
+import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import {
   SolTrendComponent,
   resolveTrendDirection,
@@ -37,9 +37,9 @@ describe('SolTrendComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [SolTrendComponent],
-      providers: [
-        { provide: SOL_I18N, useValue: { activeLang: signal('es-CO'), translate: (key: string) => `t(${key})` } },
-      ],
+      // Stub que VERIFICA la clave contra el catálogo real es-CO.json (ver
+      // testing/i18n-catalog.ts) — detecta claves i18n olvidadas.
+      providers: [{ provide: SOL_I18N, useValue: createCatalogCheckedI18nStub() }],
     });
     fixture = TestBed.createComponent(SolTrendComponent);
   });
@@ -84,10 +84,10 @@ describe('SolTrendComponent', () => {
     expect(fixture.componentInstance.tone()).toBe('danger'); // subir es malo cuando invert=true
   });
 
-  it('sin previous, muestra el texto de "sin dato" por clave i18n', () => {
+  it('sin previous, muestra el texto de "sin dato" (clave shared.trend.noData, verificada contra es-CO.json)', () => {
     fixture.componentRef.setInput('current', 40);
     fixture.detectChanges();
-    expect(value()).toBe('t(shared.trend.noData)');
+    expect(value()).toBe('Sin comparación disponible');
   });
 
   it('acepta un formateador propio del delta', () => {
@@ -96,5 +96,17 @@ describe('SolTrendComponent', () => {
     fixture.componentRef.setInput('format', (d: number) => `${d}%`);
     fixture.detectChanges();
     expect(value()).toBe('15%');
+  });
+
+  it('[WARNING] delta NaN (current/previous no numéricos) se trata como "sin dato", NUNCA imprime "NaN"', () => {
+    fixture.componentRef.setInput('current', NaN);
+    fixture.componentRef.setInput('previous', 55);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.delta()).toBeNull();
+    expect(fixture.componentInstance.direction()).toBe('flat');
+    expect(fixture.componentInstance.tone()).toBe('neutral');
+    expect(value()).toBe('Sin comparación disponible');
+    expect(value()).not.toContain('NaN');
   });
 });

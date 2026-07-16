@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { SolIconComponent, type SolIconName } from '../icon/icon.component';
-import type { SolTone } from '../score-badge/score-badge.component';
+import { TONE_COLOR, type SolTone } from '../tone/sol-tone';
 
 export type SolTrendDirection = 'up' | 'down' | 'flat';
 
@@ -90,9 +90,17 @@ export class SolTrendComponent {
   /** Formateador opcional del delta (p. ej. agregar "%"). Default: signo explícito. */
   readonly format = input<(delta: number) => string>(defaultTrendFormat);
 
+  /**
+   * `null` = "sin dato" (sin `previous` AÚN, o el delta resultó `NaN` — p. ej.
+   * `current`/`previous` no numéricos corriente arriba). Sin esta guarda,
+   * `resolveTrendDirection(NaN)` cae a `'flat'` mostrando el texto literal
+   * "NaN" en vez del estado de "sin dato".
+   */
   readonly delta = computed(() => {
     const prev = this.previous();
-    return prev === null ? null : this.current() - prev;
+    if (prev === null) return null;
+    const d = this.current() - prev;
+    return Number.isNaN(d) ? null : d;
   });
 
   readonly direction = computed<SolTrendDirection>(() => {
@@ -105,16 +113,7 @@ export class SolTrendComponent {
     return this.invert() ? invertTone(base) : base;
   });
 
-  readonly toneColor = computed(() => {
-    const map: Record<SolTone, string> = {
-      success: 'var(--sol-color-success, #10b981)',
-      warning: 'var(--sol-color-warning, #f59e0b)',
-      danger: 'var(--sol-color-danger, #ef4444)',
-      info: 'var(--sol-color-info, #3b82f6)',
-      neutral: 'var(--sol-color-text-muted, #94a3b8)',
-    };
-    return map[this.tone()];
-  });
+  readonly toneColor = computed(() => TONE_COLOR[this.tone()]);
 
   readonly iconName = computed(() => DIRECTION_ICON[this.direction()] ?? null);
 

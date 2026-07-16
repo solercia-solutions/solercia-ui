@@ -10,12 +10,20 @@ export type SolAvatarSize = 'sm' | 'md' | 'lg';
 const PALETTE_SIZE = 8;
 
 /**
- * Hash determinista (variante djb2) de una semilla a un índice `[0, paletteSize)`.
- * PURA: sin `Date`/`Math.random`/estado — la misma semilla SIEMPRE produce el
- * mismo índice, en cualquier instancia y en cualquier momento (spec:
- * solercia-ui-vocero-atoms#color estable entre instancias).
+ * Hash determinista (multiplicador 31, estilo `String.hashCode` de Java) de
+ * una semilla a un índice `[0, paletteSize)`. PURA: sin `Date`/`Math.random`/
+ * estado — la misma semilla SIEMPRE produce el mismo índice, en cualquier
+ * instancia y en cualquier momento (spec: solercia-ui-vocero-atoms#color
+ * estable entre instancias).
+ *
+ * Tolera `null`/`undefined` (índice 0/neutral) sin lanzar: `input.required()`
+ * de Angular solo exige que el BINDING exista en el template — no que el
+ * valor resuelto sea no-nulo en runtime. Un `[name]="entidad.nombre"` mientras
+ * la data todavía carga pasa `undefined` sin que Angular lo bloquee (NG0950
+ * solo dispara si el binding falta por completo, no si resuelve a `undefined`).
  */
-export function hashToPaletteIndex(seed: string, paletteSize = PALETTE_SIZE): number {
+export function hashToPaletteIndex(seed: string | null | undefined, paletteSize = PALETTE_SIZE): number {
+  if (seed == null) return 0;
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash * 31 + seed.charCodeAt(i)) | 0; // |0 trunca a entero de 32 bits (overflow controlado)
@@ -26,13 +34,24 @@ export function hashToPaletteIndex(seed: string, paletteSize = PALETTE_SIZE): nu
 /**
  * Iniciales a partir de un nombre: nombre compuesto → primera letra de la
  * primera y de la última palabra ("Ana Torres" → "AT"); una sola palabra →
- * sus 2 primeras letras; vacío → cadena vacía. PURA.
+ * sus 2 primeras letras; vacío/solo espacios → cadena vacía; `null`/
+ * `undefined` (mismo motivo que `hashToPaletteIndex` arriba) → `'?'` como
+ * placeholder visual explícito. PURA.
+ *
+ * Segmenta por CODE POINT (`[...palabra]`), no por UTF-16 code unit
+ * (`charAt`/índice numérico): un nombre que empieza con un carácter fuera
+ * del BMP (la mayoría de emoji) ocupa 2 code units — `charAt(0)` corta el
+ * primero suelto y produce U+FFFD (replacement character) en vez de la
+ * inicial completa.
  */
-export function computeInitials(name: string): string {
+export function computeInitials(name: string | null | undefined): string {
+  if (name == null) return '?';
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  if (parts.length === 1) return [...parts[0]].slice(0, 2).join('').toUpperCase();
+  const firstLetter = [...parts[0]][0] ?? '';
+  const lastLetter = [...parts[parts.length - 1]][0] ?? '';
+  return (firstLetter + lastLetter).toUpperCase();
 }
 
 /**
@@ -51,7 +70,7 @@ export function computeInitials(name: string): string {
   host: {
     '[class]': 'hostClass()',
     role: 'img',
-    '[attr.aria-label]': 'name()',
+    '[attr.aria-label]': 'name() ?? initials()',
   },
   template: `
     @if (imageUrl(); as src) {
@@ -97,8 +116,13 @@ export function computeInitials(name: string): string {
   `,
 })
 export class SolAvatarComponent {
-  /** Nombre o identificador de entrada — determina iniciales y color. */
-  readonly name = input.required<string>();
+  /**
+   * Nombre o identificador de entrada — determina iniciales y color.
+   * Tipado `string | null | undefined` a propósito: `input.required()` exige
+   * que el BINDING exista en el template, no que su valor ya esté resuelto
+   * (p. ej. `[name]="entidad.nombre"` mientras `entidad` todavía carga).
+   */
+  readonly name = input.required<string | null | undefined>();
 
   /** URL de imagen opcional; si se da, reemplaza las iniciales. */
   readonly imageUrl = input<string | null>(null);
