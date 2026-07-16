@@ -48,6 +48,11 @@ export class SolIconComponent {
    *   'outline' — stroke paths on transparent background
    *   'fill'    — solid filled shape
    *
+   * Outline-only icons (registry entries with `fill === ''`, e.g. `bold`,
+   * `robot`) have no solid silhouette — requesting `variant="fill"` on one
+   * of them renders its outline stroke instead (never a broken/invisible
+   * icon). See `IconDef.fill` in `icon.registry.ts`.
+   *
    * Color is controlled via Tailwind's text-* class on the host element.
    * Example: <sol-icon name="edit" variant="fill" class="text-blue-500" />
    */
@@ -58,19 +63,24 @@ export class SolIconComponent {
   readonly svg = computed((): SafeHtml => {
     const def = ICON_REGISTRY[this.name()];
 
+    // Outline-only icons (`IconDef.fill === ''`) have no solid variant — their
+    // path data is open/thin strokes with zero fillable area. Requesting
+    // `variant="fill"` on one of them degrades to the outline stroke
+    // rendering instead of producing a broken/invisible icon.
+    const hasSolidFill = !!def?.fill;
+    const renderAsFill = this.variant() === 'fill' && hasSolidFill;
+
     const paths = def
-      ? (this.variant() === 'fill' ? def.fill : def.outline)
+      ? (renderAsFill ? def.fill : def.outline)
       : '<circle cx="12" cy="12" r="4" />';  // fallback dot for unknown icons
 
-    const isOutline = this.variant() === 'outline';
-
-    const markup = isOutline
+    const markup = renderAsFill
       ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+             fill="currentColor" stroke="none"
              aria-hidden="true">${paths}</svg>`
       : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-             fill="currentColor" stroke="none"
+             fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
              aria-hidden="true">${paths}</svg>`;
 
     return this.sanitizer.bypassSecurityTrustHtml(markup);

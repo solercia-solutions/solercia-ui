@@ -9,16 +9,26 @@
  *    heroicons.com or the `heroicons` npm package. Keep the exact `d`
  *    attribute (do not hand-edit path data).
  * 2. Custom glyphs with no Heroicons equivalent (see the "íconos propios"
- *    section below): original design, single-stroke, `outline === fill`
- *    (there is no separate solid variant) — same convention already used by
- *    the rich-editor toolbar icons.
+ *    section below, and the rich-editor toolbar icons): original design,
+ *    line-art by nature — see the **outline-only** rule below.
  *
  * Naming: kebab-case key (`/^[a-z0-9]+(-[a-z0-9]+)*$/`), enforced by
- * `icon.registry.spec.ts` (gate — also fails on an empty `outline`/`fill`).
+ * `icon.registry.spec.ts` (gate — also fails on an empty `outline`).
  *
  * Structure per icon (`IconDef`):
  *   outline — stroke-based paths (designed for fill="none", stroke="currentColor")
  *   fill    — solid paths       (designed for fill="currentColor", stroke="none")
+ *           — OR `''` (empty string) for an **outline-only** icon: a glyph
+ *             built from open/thin strokes (a line, an antenna, a needle...)
+ *             that has NO real solid silhouette. Filling that same path data
+ *             with `fill="currentColor"` would give many of its subpaths
+ *             ZERO area — the icon would render incomplete or invisible.
+ *             `icon.component.ts` detects `fill === ''` and degrades
+ *             `variant="fill"` to the outline stroke rendering instead of
+ *             breaking the icon. This is NOT "outline === fill" (that used
+ *             to be the convention and was the bug): the outline path is
+ *             reused, but rendered with the outline's stroke wrapper, never
+ *             with `fill="currentColor"`.
  *
  * Gate: no `<sol-icon>` consumer inside `projects/solercia/ui/src/lib/**`
  * may inline its own `<svg>`/`<path>` — everything goes through this
@@ -27,6 +37,7 @@
 
 export interface IconDef {
   outline: string;
+  /** Solid path data, or `''` for an outline-only icon (see above). */
   fill: string;
 }
 
@@ -461,91 +472,97 @@ export const ICON_REGISTRY: Readonly<Record<string, IconDef>> = {
   // ── CRM / Vocero — íconos propios sin equivalente Heroicons (11-a-solercia-ui, PR2) ──
   // Sin licencia MIT de terceros que reproducir: diseño propio, mismo patrón que la
   // sección de rich-editor (trazo stroke-linecap/linejoin round, viewBox 24×24 implícito
-  // vía el wrapper de icon.component.ts, outline === fill por ser glifos de un solo trazo).
+  // vía el wrapper de icon.component.ts). Los 7 son OUTLINE-ONLY (`fill: ''`): subpaths
+  // abiertos (antena/ojos/boca, aguja, patas/cable, tronco, conector) tendrían área CERO
+  // si se intentaran rellenar — `icon.component.ts` degrada `variant="fill"` al trazo
+  // outline en vez de romper el ícono (ver comentario de `IconDef.fill` arriba).
 
   robot: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V9Zm5-2V4m-1-1a1 1 0 1 0 2 0 1 1 0 1 0-2 0M10 12.5v1.5m4-1.5v1.5M9.5 16.5h5" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V9Zm5-2V4m-1-1a1 1 0 1 0 2 0 1 1 0 1 0-2 0M10 12.5v1.5m4-1.5v1.5M9.5 16.5h5" />`,
+    fill: '',
   },
 
   gauge: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 16a8 8 0 1 1 16 0M12 16 16 9M10.7 16a1.3 1.3 0 1 0 2.6 0 1.3 1.3 0 1 0-2.6 0" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 16a8 8 0 1 1 16 0M12 16 16 9M10.7 16a1.3 1.3 0 1 0 2.6 0 1.3 1.3 0 1 0-2.6 0" />`,
+    fill: '',
   },
 
   plug: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M10 6V2M14 6V2M7 6h10v7a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3V6ZM12 16v4" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M10 6V2M14 6V2M7 6h10v7a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3V6ZM12 16v4" />`,
+    fill: '',
   },
 
   'git-branch': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M6 3v12M15 6a3 3 0 1 0 6 0 3 3 0 1 0-6 0M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0M18 9a9 9 0 0 1-9 9" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M6 3v12M15 6a3 3 0 1 0 6 0 3 3 0 1 0-6 0M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0M18 9a9 9 0 0 1-9 9" />`,
+    fill: '',
   },
 
   webhook: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M8 20v-6a5 5 0 0 1 5-5h3M14 7a2 2 0 1 0 4 0 2 2 0 1 0-4 0" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M8 20v-6a5 5 0 0 1 5-5h3M14 7a2 2 0 1 0 4 0 2 2 0 1 0-4 0" />`,
+    fill: '',
   },
 
   'state-machine': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M1.75 12a3.25 3.25 0 1 0 6.5 0 3.25 3.25 0 1 0-6.5 0M15.75 12a3.25 3.25 0 1 0 6.5 0 3.25 3.25 0 1 0-6.5 0M8.25 12h7.5M14 9.5l1.75 2.5-1.75 2.5" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M1.75 12a3.25 3.25 0 1 0 6.5 0 3.25 3.25 0 1 0-6.5 0M15.75 12a3.25 3.25 0 1 0 6.5 0 3.25 3.25 0 1 0-6.5 0M8.25 12h7.5M14 9.5l1.75 2.5-1.75 2.5" />`,
+    fill: '',
   },
 
   'double-check': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M2 12 7 17 16 6M7 12 12 17 21 6" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M2 12 7 17 16 6M7 12 12 17 21 6" />`,
+    fill: '',
   },
 
   // ── Editor de texto enriquecido (sol-rich-editor) ─────────────────────────────
   // Glifos de formato de 24×24 pensados para el trazo (variante outline, la única
   // que usa la toolbar). Diseño propio inspirado en iconografía de editores (MIT).
-  // El `fill` replica el trazo: estos íconos son outline-only por naturaleza.
+  // OUTLINE-ONLY (`fill: ''`) salvo `image` (silueta sólida real vía evenodd):
+  // rellenar el resto con `fill="currentColor"` dejaría sus trazos abiertos
+  // (líneas, subrayado, tachado, viñetas, alineación, "H" de heading, cadena de
+  // link, tachón de remove-format) con área CERO — ver `IconDef.fill` arriba.
 
   bold: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 5h6a3.5 3.5 0 0 1 0 7h-6z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 5h6a3.5 3.5 0 0 1 0 7h-6z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7" />`,
+    fill: '',
   },
 
   italic: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M11 5h6M7 19h6M14 5l-4 14" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M11 5h6M7 19h6M14 5l-4 14" />`,
+    fill: '',
   },
 
   underline: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 5v5a5 5 0 0 0 10 0V5M5 19h14" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 5v5a5 5 0 0 0 10 0V5M5 19h14" />`,
+    fill: '',
   },
 
   strikethrough: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M15.5 8.5c-.6-1.7-2.3-2.75-4-2.75-2.2 0-3.75 1.3-3.75 3M8.5 15.5c.6 1.7 2.3 2.75 4 2.75 2.2 0 3.75-1.3 3.75-3" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M15.5 8.5c-.6-1.7-2.3-2.75-4-2.75-2.2 0-3.75 1.3-3.75 3M8.5 15.5c.6 1.7 2.3 2.75 4 2.75 2.2 0 3.75-1.3 3.75-3" />`,
+    fill: '',
   },
 
   'list-bullet': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01" />`,
+    fill: '',
   },
 
   'list-numbered': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M11 6h9M11 12h9M11 18h9M4 16a2 2 0 1 1 3 1.73L4 20h4M6 10V4L4 6" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M11 6h9M11 12h9M11 18h9M4 16a2 2 0 1 1 3 1.73L4 20h4M6 10V4L4 6" />`,
+    fill: '',
   },
 
   'align-left': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h14" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h14" />`,
+    fill: '',
   },
 
   'align-center': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M8 12h8M6 18h12" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M8 12h8M6 18h12" />`,
+    fill: '',
   },
 
   'align-right': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M10 12h10M6 18h14" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M10 12h10M6 18h14" />`,
+    fill: '',
   },
 
   image: {
@@ -555,22 +572,22 @@ export const ICON_REGISTRY: Readonly<Record<string, IconDef>> = {
 
   table: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 15h18M9 3v18M15 3v18" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 15h18M9 3v18M15 3v18" />`,
+    fill: '',
   },
 
   heading: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M6 4v16M18 4v16M6 12h12" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M6 4v16M18 4v16M6 12h12" />`,
+    fill: '',
   },
 
   'remove-format': {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 6V5h11v1M12 5 8.5 19M6 19h6M15.5 14.5l5 5M20.5 14.5l-5 5" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M7 6V5h11v1M12 5 8.5 19M6 19h6M15.5 14.5l5 5M20.5 14.5l-5 5" />`,
+    fill: '',
   },
 
   link: {
     outline: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 15l6-6M11 6l.46-.54a5 5 0 0 1 7.08 7.08l-.54.46M13 18l-.4.53a5.07 5.07 0 0 1-7.13 0 4.97 4.97 0 0 1 0-7.07l.52-.46" />`,
-    fill: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 15l6-6M11 6l.46-.54a5 5 0 0 1 7.08 7.08l-.54.46M13 18l-.4.53a5.07 5.07 0 0 1-7.13 0 4.97 4.97 0 0 1 0-7.07l.52-.46" />`,
+    fill: '',
   },
 
 };
