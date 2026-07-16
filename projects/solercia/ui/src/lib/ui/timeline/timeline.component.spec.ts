@@ -127,6 +127,35 @@ describe('SolTimelineComponent', () => {
     expect(toggleButtons()[0].getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('[CRITICAL nuevo] nodes=null inicial (patrón asíncrono) y LUEGO llegan datos con collapsed:true: el nodo SÍ inicia colapsado', () => {
+    // Reproduce exactamente el bug introducido por el fix anterior: si la
+    // PRIMERA corrida del effect ve nodes()=null (mientras la data carga,
+    // p. ej. `[nodes]="stream$ | async"`) y marca "ya sembrado" sin sembrar
+    // nada, cuando después llegan los datos reales con `collapsed: true` ya
+    // no se siembran — el nodo se renderiza EXPANDIDO sin que el usuario lo
+    // pidiera. La condición correcta exige `nodes()?.length` antes de
+    // marcar hasSeededCollapse.
+    fixture.componentRef.setInput('nodes', null); // 1ª emisión: sin datos todavía
+    fixture.detectChanges();
+    expect(host().querySelector('.sol-timeline__empty')).not.toBeNull();
+
+    const tree: TimelineNode[] = [
+      {
+        id: 'root',
+        label: 'Raíz',
+        collapsed: true, // debe iniciar colapsado
+        start: new Date(2024, 0, 1),
+        end: new Date(2024, 0, 31),
+        children: [{ id: 'child', label: 'Hijo', start: new Date(2024, 0, 5), end: new Date(2024, 0, 10) }],
+      },
+    ];
+    fixture.componentRef.setInput('nodes', tree); // 2ª emisión: llegan los datos reales
+    fixture.detectChanges();
+
+    expect(rowLabels()).toEqual(['Raíz']); // colapsado desde el arranque — "Hijo" no se ve
+    expect(toggleButtons()[0].getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('[CRITICAL-1] threeLevelTree (fechas propias en los 3 niveles): TODAS las barras caen dentro de [0,100]', () => {
     fixture.componentRef.setInput('nodes', threeLevelTree());
     fixture.detectChanges();

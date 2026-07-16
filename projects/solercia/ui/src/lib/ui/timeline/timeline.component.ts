@@ -310,21 +310,34 @@ export class SolTimelineComponent {
   private readonly collapsedIds = signal<ReadonlySet<string | number>>(new Set());
 
   /**
-   * Siembra `collapsedIds` SOLO la primera vez que el `effect` corre (con
-   * los `nodes` ya resueltos). Distinto del patrón "espejo" de
-   * `sol-kanban-board`: ahí el re-siembro en CADA cambio de `columns` es un
-   * rollback DELIBERADO (el consumidor reasigna el input para deshacer un
-   * drag fallido). Aquí NO — `TimelineNode.collapsed` es explícitamente el
-   * estado INICIAL al montar (ver `timeline.model.ts`); reasignar `nodes`
-   * después (p. ej. porque llegó una actualización del backend) NUNCA debe
-   * descartar lo que el usuario ya colapsó/expandió con clics.
+   * Siembra `collapsedIds` SOLO la primera vez que `nodes()` tiene contenido
+   * REAL (`length > 0`) — no basta con que el `effect` haya corrido una vez.
+   * Distinto del patrón "espejo" de `sol-kanban-board`: ahí el re-siembro en
+   * CADA cambio de `columns` es un rollback DELIBERADO (el consumidor
+   * reasigna el input para deshacer un drag fallido). Aquí NO —
+   * `TimelineNode.collapsed` es explícitamente el estado INICIAL al montar
+   * (ver `timeline.model.ts`); reasignar `nodes` después (p. ej. porque
+   * llegó una actualización del backend) NUNCA debe descartar lo que el
+   * usuario ya colapsó/expandió con clics.
+   *
+   * CORRECCIÓN (bug introducido por el fix anterior): marcar "ya sembrado"
+   * en la PRIMERA corrida del effect, sin mirar si `nodes()` traía datos,
+   * rompía el caso `[nodes]="stream$ | async"` — el patrón asíncrono que
+   * este mismo componente documenta arriba y habilita con
+   * `input.required<TimelineNode[] | null | undefined>()`. Si la primera
+   * emisión es `null`/`undefined`/`[]` (mientras la data carga), el
+   * sembrado se marcaba completo SIN sembrar nada; cuando llegaban los
+   * datos reales con `node.collapsed=true`, ya no se sembraban — los nodos
+   * que debían iniciar colapsados se renderizaban expandidos. La condición
+   * correcta es `!hasSeededCollapse && nodes()?.length` (con contenido
+   * real), no solo `!hasSeededCollapse`.
    */
   private hasSeededCollapse = false;
 
   constructor() {
     effect(() => {
       const currentNodes = this.nodes();
-      if (this.hasSeededCollapse) return;
+      if (this.hasSeededCollapse || !currentNodes?.length) return;
       this.hasSeededCollapse = true;
 
       const initial = new Set<string | number>();
@@ -336,7 +349,7 @@ export class SolTimelineComponent {
           if (node.children?.length) seed(node.children, visited);
         }
       };
-      seed(currentNodes ?? [], new WeakSet());
+      seed(currentNodes, new WeakSet());
       this.collapsedIds.set(initial);
     });
   }
