@@ -31,6 +31,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
         [placeholder]="placeholder()"
         [disabled]="disabled() || isDisabled()"
         [value]="value()"
+        [attr.autocomplete]="autocomplete()"
         (input)="onInputChange($event)"
         (blur)="onTouched()"
       />
@@ -119,6 +120,15 @@ export class SolInputComponent implements ControlValueAccessor {
   readonly label = input<string>('');
   readonly error = input<string>('');
   readonly disabled = input<boolean>(false);
+  /**
+   * Passthrough opcional al atributo `autocomplete` del `<input>` nativo
+   * (gate 4R A3, 11-c-whatsapp-config). `undefined` por defecto — con
+   * `[attr.autocomplete]` Angular OMITE el atributo por completo, así que
+   * ningún consumidor existente cambia de comportamiento. Úsalo con
+   * `"new-password"`/`"off"` en campos de credenciales/tokens para que el
+   * gestor de contraseñas del navegador/SO no ofrezca guardarlos.
+   */
+  readonly autocomplete = input<string | undefined>(undefined);
 
   /* --- Internal state --- */
   readonly value = signal<string>('');
