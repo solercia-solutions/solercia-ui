@@ -158,4 +158,10 @@ describe('SolChipComponent', () => {
     const fixture = create({ size: 'sm' });
     expect(chipEl(fixture).classList).toContain('sol-chip--sm');
   });
+
+  it('focus(): enfoca el elemento raíz interactivo del chip (usado por sol-chip-group vía viewChildren, sin querySelector)', () => {
+    const fixture = create();
+    fixture.componentInstance.focus();
+    expect(document.activeElement).toBe(chipEl(fixture));
+  });
 });

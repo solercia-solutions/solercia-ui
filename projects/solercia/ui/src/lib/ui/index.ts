@@ -115,14 +115,13 @@ export type {
 export { KanbanReorderService } from './kanban/kanban-reorder.service';
 
 // sol-chip / sol-chip-group / sol-number-input (11-f-ciclo3-ux, PR2)
+// NOTA: `SolChipSelectionStrategy`/`SINGLE_SELECT_STRATEGY`/`MULTIPLE_SELECT_STRATEGY`
+// son internos a `chip/` (no exportados aquí) — no hay input `strategy` que
+// los consuma desde afuera; superficie curada (D4), sin scope creep.
 export { SolChipComponent } from './chip/chip.component';
 export type { SolChipRole, SolChipSize } from './chip/chip.component';
 export { SolChipGroupComponent } from './chip/chip-group.component';
 export type { SolChipOption } from './chip/chip-group.component';
-export type {
-  SolChipSelectionStrategy,
-} from './chip/chip-selection.strategy';
-export { SINGLE_SELECT_STRATEGY, MULTIPLE_SELECT_STRATEGY } from './chip/chip-selection.strategy';
 export { SolNumberInputComponent } from './number-input/number-input.component';
 
 // sol-calendar (11-a-solercia-ui, PR6)

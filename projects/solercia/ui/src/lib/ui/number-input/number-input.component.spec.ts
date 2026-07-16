@@ -188,6 +188,60 @@ describe('SolNumberInputComponent', () => {
     expect(fixture.componentInstance.value()).toBe(2); // clamp(0) con min=2
   });
 
+  it('re-clamp reactivo: si min/max cambian en runtime y dejan value() fuera de rango, se re-clampa y reemite una sola vez por CVA', () => {
+    const fixture = create({ min: 0, max: 10 });
+    fixture.componentInstance.writeValue(8);
+    fixture.detectChanges();
+    const emitted: number[] = [];
+    fixture.componentInstance.registerOnChange(v => emitted.push(v));
+
+    fixture.componentRef.setInput('max', 5);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.value()).toBe(5);
+    expect(emitted).toEqual([5]);
+    expect(field(fixture).value).toBe('5');
+  });
+
+  it('min>max: effectiveMax normaliza el tope a min (rango de un solo punto, sin estado ambiguo)', () => {
+    const fixture = create({ min: 5, max: 2 });
+    fixture.componentInstance.writeValue(10);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.effectiveMax()).toBe(5);
+    expect(fixture.componentInstance.value()).toBe(5);
+    expect(decBtn(fixture).disabled).toBe(true);
+    expect(incBtn(fixture).disabled).toBe(true);
+  });
+
+  it('step=0 se trata como 1 (evita que los botones queden habilitados pero inertes)', () => {
+    const fixture = create({ min: 0, max: 10, step: 0 });
+    fixture.componentInstance.writeValue(4);
+    fixture.detectChanges();
+    const emitted: number[] = [];
+    fixture.componentInstance.registerOnChange(v => emitted.push(v));
+
+    incBtn(fixture).click();
+    fixture.detectChanges();
+
+    expect(field(fixture).value).toBe('5');
+    expect(emitted).toEqual([5]);
+  });
+
+  it('step negativo se trata como 1 (no invierte la dirección de +/-)', () => {
+    const fixture = create({ min: 0, max: 10, step: -2 });
+    fixture.componentInstance.writeValue(4);
+    fixture.detectChanges();
+
+    incBtn(fixture).click();
+    fixture.detectChanges();
+    expect(field(fixture).value).toBe('5'); // sube, no baja
+
+    decBtn(fixture).click();
+    fixture.detectChanges();
+    expect(field(fixture).value).toBe('4'); // baja, no sube
+  });
+
   /**
    * Igual que el fix de zoom móvil de PR1: el `styles` inline se inserta
    * como `<style>` real en `document.head` (encapsulación emulada), así que

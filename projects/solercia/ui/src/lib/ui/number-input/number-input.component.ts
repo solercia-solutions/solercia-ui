@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
+  effect,
   forwardRef,
   inject,
   input,
@@ -21,14 +22,30 @@ import { SolIconComponent } from '../icon/icon.component';
  * evitada a propósito.
  *
  * CVA (patrón `sol-select`): el valor es siempre un `number`, acotado a
- * `[min, max]` y alineado a `step`. Los botones `−`/`+` se deshabilitan al
- * llegar al límite (no hacen wrap). El campo central es editable
- * directamente; un valor no numérico revierte al último valor válido en
- * `blur`/`change`.
+ * `[min, max]` — el clamp tiene PRECEDENCIA sobre `step`: cuando
+ * `(max-min)` no es múltiplo de `step`, el valor puede terminar NO alineado
+ * a la grilla de `step` (p.ej. `min=0,max=10,step=3` llega hasta `10`, no
+ * hasta `9`). NO se sobrepromete alineación a `step`. Los botones `−`/`+`
+ * se deshabilitan al llegar al límite (no hacen wrap). El campo central es
+ * editable directamente; un valor no numérico revierte al último valor
+ * válido en `blur`/`change`.
+ *
+ * Defaults: `min=0`, `max=Number.MAX_SAFE_INTEGER` (deliberadamente no
+ * acotado — un consumidor que olvida pasar `max` no queda clampado en
+ * silencio a un tope arbitrario), `step=1`. Un `step<=0` (cero o negativo)
+ * se trata como `1` vía `effectiveStep` — de lo contrario `step=0` deja los
+ * botones habilitados pero inertes, y un `step` negativo invertiría la
+ * dirección de `+`/`−`. Si `min()>max()` (rango invertido por el
+ * consumidor), `effectiveMax` normaliza el tope a `min()` — el widget
+ * colapsa a un único valor válido en vez de quedar con ambos botones
+ * deshabilitados sin ninguna forma de salir de ese estado.
+ * `value()` se re-clampa reactivamente (via `effect()`) si `min`/`max`
+ * cambian en runtime y lo dejan fuera de rango, reemitiendo por CVA solo si
+ * el valor efectivo cambió.
  *
  * A11y: `role="spinbutton"` con `aria-valuemin`/`aria-valuemax`/`aria-valuenow`
  * en el campo de texto central; flechas arriba/abajo incrementan/decrementan
- * un `step`, Home/End saltan a `min`/`max`.
+ * un `step` efectivo, Home/End saltan a `min`/`effectiveMax`.
  *
  * Móvil: el campo central SÍ es un `<input>` de texto real, así que aplica
  * el mismo criterio de zoom de iOS Safari que PR1 — `font-size:16px` dentro
@@ -65,7 +82,7 @@ import { SolIconComponent } from '../icon/icon.component';
         role="spinbutton"
         [attr.aria-label]="ariaLabel()"
         [attr.aria-valuemin]="min()"
-        [attr.aria-valuemax]="max()"
+        [attr.aria-valuemax]="effectiveMax()"
         [attr.aria-valuenow]="value()"
         [attr.aria-disabled]="disabled() || null"
         [disabled]="disabled()"
@@ -182,7 +199,7 @@ export class SolNumberInputComponent implements ControlValueAccessor {
   private readonly i18n = inject(SOL_I18N);
 
   readonly min = input<number>(0);
-  readonly max = input<number>(100);
+  readonly max = input<number>(Number.MAX_SAFE_INTEGER);
   readonly step = input<number>(1);
   readonly disabled = input<boolean>(false);
   /** i18n key for the field's accessible name — required: describes what quantity this instance edits (e.g. "Cantidad de sesiones"). */
@@ -192,9 +209,20 @@ export class SolNumberInputComponent implements ControlValueAccessor {
 
   readonly value = signal(0);
 
+  /**
+   * Tope efectivo tras defenderse de `min() > max()`: se sube `max` hasta
+   * `min` para que el widget siempre tenga un rango válido y no ambiguo, en
+   * vez de quedar con ambos botones deshabilitados sin ninguna salida. Un
+   * `min>max` sigue siendo un bug del consumidor que conviene corregir
+   * arriba — esto es solo la defensa del átomo.
+   */
+  readonly effectiveMax = computed(() => Math.max(this.min(), this.max()));
+  /** `step<=0` (cero o negativo) se trata como `1` — evita botones inertes (`step=0`) o con dirección invertida (`step` negativo). */
+  readonly effectiveStep = computed(() => (this.step() > 0 ? this.step() : 1));
+
   readonly displayValue = computed(() => String(this.value()));
   readonly isAtMin = computed(() => this.value() <= this.min());
-  readonly isAtMax = computed(() => this.value() >= this.max());
+  readonly isAtMax = computed(() => this.value() >= this.effectiveMax());
 
   readonly ariaLabel = computed(() => {
     this.i18n.activeLang();
@@ -214,18 +242,32 @@ export class SolNumberInputComponent implements ControlValueAccessor {
   private onChange: (value: number) => void = () => {};
   private onTouched: () => void = () => {};
 
+  constructor() {
+    // Re-clampa `value()` cuando `min`/`max` cambian en runtime y lo dejan
+    // fuera de rango (p.ej. el consumidor reduce `max` por debajo del valor
+    // actual). Reemite por CVA solo si el valor efectivo cambió — misma
+    // guarda de igualdad que `setValue`.
+    effect(() => {
+      const clamped = this.clamp(this.value());
+      if (clamped !== this.value()) {
+        this.value.set(clamped);
+        this.onChange(clamped);
+      }
+    });
+  }
+
   private clamp(raw: number): number {
-    return Math.min(this.max(), Math.max(this.min(), raw));
+    return Math.min(this.effectiveMax(), Math.max(this.min(), raw));
   }
 
   increment(): void {
     if (this.disabled() || this.isAtMax()) return;
-    this.setValue(this.value() + this.step());
+    this.setValue(this.value() + this.effectiveStep());
   }
 
   decrement(): void {
     if (this.disabled() || this.isAtMin()) return;
-    this.setValue(this.value() - this.step());
+    this.setValue(this.value() - this.effectiveStep());
   }
 
   private setValue(next: number): void {
@@ -268,7 +310,7 @@ export class SolNumberInputComponent implements ControlValueAccessor {
         break;
       case 'End':
         event.preventDefault();
-        this.setValue(this.max());
+        this.setValue(this.effectiveMax());
         break;
     }
   }

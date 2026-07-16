@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { SolChipGroupComponent, type SolChipOption } from './chip-group.component';
+import { SolChipComponent } from './chip.component';
 
 /**
  * Specs de `sol-chip-group` (11-f PR2). Cubre: la Strategy de selección
@@ -105,7 +106,7 @@ describe('SolChipGroupComponent', () => {
     expect(emitted).toEqual(['a', '']);
   });
 
-  it('single + allowDeselect=false: reactivar el chip seleccionado NO cambia la selección', () => {
+  it('single + allowDeselect=false: reactivar el chip seleccionado NO cambia la selección NI reemite (idempotencia CVA)', () => {
     const fixture = create({ allowDeselect: false });
     const emitted: unknown[] = [];
     fixture.componentInstance.registerOnChange(v => emitted.push(v));
@@ -113,7 +114,9 @@ describe('SolChipGroupComponent', () => {
     chips(fixture)[0].click();
     chips(fixture)[0].click();
 
-    expect(emitted).toEqual(['a', 'a']);
+    // La segunda activación no cambia el conjunto seleccionado resultante
+    // ('a' de nuevo), así que el CVA NO debe reemitir el mismo valor.
+    expect(emitted).toEqual(['a']);
   });
 
   it('multiple: alternar valores acumula/quita del array emitido vía CVA', () => {
@@ -216,5 +219,37 @@ describe('SolChipGroupComponent', () => {
     fixture.detectChanges();
 
     expect(emitted).toEqual([]);
+  });
+
+  it('CRÍTICO: si la PRIMERA opción está disabled, el roving tabindex recae en el primer chip habilitado (el grupo sigue siendo alcanzable por Tab)', () => {
+    const optionsWithFirstDisabled: SolChipOption[] = [
+      { value: 'x', label: 'X', disabled: true },
+      { value: 'y', label: 'Y' },
+      { value: 'z', label: 'Z' },
+    ];
+    const fixture = create({ options: optionsWithFirstDisabled });
+    const items = chips(fixture);
+
+    // El chip disabled nunca debe quedar como tab-stop del grupo.
+    expect(items[0].getAttribute('tabindex')).toBe('-1');
+    // El primer chip habilitado ('y') queda como el único tab-stop.
+    expect(items[1].getAttribute('tabindex')).toBe('0');
+    expect(items[2].getAttribute('tabindex')).toBe('-1');
+
+    // Exactamente un chip con tabindex 0 — el grupo es alcanzable por Tab.
+    const tabbable = items.filter(chip => chip.getAttribute('tabindex') === '0');
+    expect(tabbable.length).toBe(1);
+  });
+
+  it('el grupo enfoca cada chip vía su método público `focus()` (viewChildren), no un querySelector acoplado a la clase CSS interna', () => {
+    const focusSpy = vi.spyOn(SolChipComponent.prototype, 'focus');
+    const fixture = create();
+
+    chips(fixture)[0].focus();
+    groupEl(fixture).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(focusSpy).toHaveBeenCalled();
+    focusSpy.mockRestore();
   });
 });

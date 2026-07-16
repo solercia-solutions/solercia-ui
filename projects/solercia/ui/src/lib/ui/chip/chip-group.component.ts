@@ -2,11 +2,11 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
-  ElementRef,
   forwardRef,
   inject,
   input,
   signal,
+  viewChildren,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { SOL_I18N } from '../../i18n/sol-i18n';
@@ -30,13 +30,28 @@ export interface SolChipOption {
  *
  * CVA (patrón `sol-select`): en modo `single` el valor es un `string`
  * (`''` cuando nada está seleccionado); en modo `multiple` es un `string[]`.
+ * Esta FORMA del valor la decide `multiple()` directamente en `writeValue`/
+ * `emitValue` — es un concepto aparte de la Strategy de abajo, y SÍ ramifica
+ * sobre `multiple()` a propósito.
  *
- * La política de selección vive detrás de `SolChipSelectionStrategy`
- * (Strategy, Open/Closed): el template y los manejadores de eventos de este
- * componente llaman siempre a `strategy().isSelected(...)`,
- * `strategy().select(...)`, `strategy().chipRole` y `strategy().groupRole`
- * — NUNCA `@if (multiple())`. Agregar una política nueva es agregar una
+ * La política de selección — qué CONJUNTO queda seleccionado tras activar un
+ * chip, y qué rol ARIA usar — vive detrás de `SolChipSelectionStrategy`
+ * (Strategy, Open/Closed): el template y los manejadores de activación
+ * llaman siempre a `strategy().isSelected(...)`, `strategy().select(...)`,
+ * `strategy().chipRole` y `strategy().groupRole`, nunca `@if (multiple())`
+ * para decidir el conjunto. Agregar una política nueva es agregar una
  * Strategy nueva, no ramificar esta clase.
+ *
+ * Roving tabindex: `tabIndexFor` usa `rovingIndex()`, que NUNCA apunta a una
+ * opción `disabled` — si `activeIndex()` señala una deshabilitada (p.ej. la
+ * primera opción del arreglo llegó `disabled`), recae en la primera opción
+ * habilitada. Sin esta guarda el grupo entero queda fuera del orden de Tab,
+ * porque `sol-chip` fuerza `tabindex="-1"` en cualquier chip deshabilitado.
+ *
+ * CVA idempotente: si activar un chip no cambia el conjunto seleccionado
+ * resultante (p.ej. reactivar el ya seleccionado con `allowDeselect=false`),
+ * NO se reinvoca `onChange` — misma guarda por igualdad que
+ * `SolNumberInputComponent.setValue`.
  *
  * Teclado: roving tabindex con flechas (◀▶ u ◀▲▼▶, todas aceptadas) +
  * Home/End para mover el foco entre chips habilitados. Las flechas SOLO
@@ -103,7 +118,8 @@ export interface SolChipOption {
 })
 export class SolChipGroupComponent implements ControlValueAccessor {
   private readonly i18n = inject(SOL_I18N);
-  private readonly host = inject(ElementRef<HTMLElement>);
+  /** Instancias renderizadas de `sol-chip`, en el mismo orden que `options()` — usadas por `focusChipAt` para enfocar sin depender de clases CSS internas. */
+  private readonly chipViews = viewChildren(SolChipComponent);
 
   /** Options to render, in order. */
   readonly options = input.required<SolChipOption[]>();
@@ -127,6 +143,18 @@ export class SolChipGroupComponent implements ControlValueAccessor {
     this.multiple() ? MULTIPLE_SELECT_STRATEGY : SINGLE_SELECT_STRATEGY,
   );
 
+  /**
+   * Roving-tabindex efectivo: `activeIndex()` si esa opción está habilitada;
+   * si no, el índice de la PRIMERA opción habilitada (`-1` si ninguna lo
+   * está). Ver el JSDoc de la clase.
+   */
+  readonly rovingIndex = computed(() => {
+    const opts = this.options();
+    const active = this.activeIndex();
+    if (opts[active] && !opts[active].disabled) return active;
+    return opts.findIndex(o => !o.disabled);
+  });
+
   readonly groupAriaLabel = computed(() => {
     this.i18n.activeLang();
     return this.i18n.translate(this.ariaLabelKey());
@@ -140,31 +168,47 @@ export class SolChipGroupComponent implements ControlValueAccessor {
   }
 
   tabIndexFor(index: number): number {
-    return index === this.activeIndex() ? 0 : -1;
+    return index === this.rovingIndex() ? 0 : -1;
   }
 
   onChipToggled(value: string): void {
     if (this.disabled()) return;
     const opt = this.options().find(o => o.value === value);
+    // Revalidación defensiva: `opt.disabled` es por-opción (independiente de
+    // `disabled()` del grupo), y el evento `toggled` puede llegar igual si
+    // el DOM se manipula por fuera del flujo normal de click/teclado.
     if (!opt || opt.disabled) return;
 
     this.activeIndex.set(this.options().findIndex(o => o.value === value));
-    const next = this.strategy().select(this.selectedValues(), value, this.allowDeselect());
+    const previous = this.selectedValues();
+    const next = this.strategy().select(previous, value, this.allowDeselect());
     this.selectedValues.set(next);
     this.onTouched();
-    this.emitValue(next);
+    this.emitValue(next, previous);
   }
 
   onChipRemoved(value: string): void {
     if (this.disabled()) return;
-    const next = this.selectedValues().filter(v => v !== value);
+    const previous = this.selectedValues();
+    const next = previous.filter(v => v !== value);
     this.selectedValues.set(next);
     this.onTouched();
-    this.emitValue(next);
+    this.emitValue(next, previous);
   }
 
-  private emitValue(values: string[]): void {
-    this.onChange(this.multiple() ? values : (values[0] ?? ''));
+  /**
+   * Emite el valor CVA solo si el conjunto seleccionado cambió respecto al
+   * anterior (comparación por contenido) — evita reemitir el mismo valor
+   * cuando, p.ej., `allowDeselect=false` y se reactiva el chip ya
+   * seleccionado.
+   */
+  private emitValue(next: string[], previous: string[]): void {
+    if (this.sameValues(next, previous)) return;
+    this.onChange(this.multiple() ? next : (next[0] ?? ''));
+  }
+
+  private sameValues(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
   }
 
   private focusableIndexes(): number[] {
@@ -185,7 +229,7 @@ export class SolChipGroupComponent implements ControlValueAccessor {
     const focusable = this.focusableIndexes();
     if (focusable.length === 0) return;
 
-    const currentPos = focusable.indexOf(this.activeIndex());
+    const currentPos = focusable.indexOf(this.rovingIndex());
     let nextPos: number;
     if (home) nextPos = 0;
     else if (end) nextPos = focusable.length - 1;
@@ -200,8 +244,7 @@ export class SolChipGroupComponent implements ControlValueAccessor {
   }
 
   private focusChipAt(index: number): void {
-    const chips = (this.host.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.sol-chip');
-    chips[index]?.focus();
+    this.chipViews()[index]?.focus();
   }
 
   // ── ControlValueAccessor ──

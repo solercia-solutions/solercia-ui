@@ -1,10 +1,18 @@
 /**
  * Selection policy for `sol-chip-group` (11-f PR2).
  *
- * The policy is a Strategy behind an interface so the group component and
- * its template NEVER branch on `multiple()` directly (Open/Closed): adding a
- * new selection policy later means adding a new `SolChipSelectionStrategy`
- * object, not touching `chip-group.component.ts`'s template or handlers.
+ * Scope: this Strategy governs which SET of values ends up selected after a
+ * chip is activated (`select`/`isSelected`) and which ARIA roles apply
+ * (`chipRole`/`groupRole`) — the group's template and activation handlers
+ * consult it instead of branching on `multiple()` for that decision
+ * (Open/Closed: a new policy is a new `SolChipSelectionStrategy` object, not
+ * a new branch in `chip-group.component.ts`). It does NOT govern the CVA
+ * value's SHAPE (`string` in single-select vs `string[]` in multiple-select)
+ * — that is a separate concern handled directly via `multiple()` in
+ * `writeValue`/`emitValue`, deliberately kept out of this interface.
+ *
+ * Internal to the `chip/` folder: not part of `@solercia/ui`'s public
+ * surface (curated API, no consumer needs to inject a custom strategy yet).
  */
 export interface SolChipSelectionStrategy {
   /** ARIA role assigned to every `sol-chip` under this policy. */

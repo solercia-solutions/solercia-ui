@@ -2,9 +2,11 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
+  ElementRef,
   inject,
   input,
   output,
+  viewChild,
 } from '@angular/core';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
@@ -42,6 +44,7 @@ export type SolChipSize = 'sm' | 'md';
   template: `
     <div class="sol-chip-wrapper" [class.sol-chip-wrapper--selected]="selected()">
       <div
+        #chipRoot
         class="sol-chip"
         [class.sol-chip--selected]="selected()"
         [class.sol-chip--disabled]="disabled()"
@@ -194,6 +197,7 @@ export type SolChipSize = 'sm' | 'md';
 })
 export class SolChipComponent {
   private readonly i18n = inject(SOL_I18N);
+  private readonly chipRoot = viewChild.required<ElementRef<HTMLElement>>('chipRoot');
 
   /** Stable identifier emitted by `toggled`/`removed`. */
   readonly value = input.required<string>();
@@ -222,6 +226,11 @@ export class SolChipComponent {
     this.i18n.activeLang();
     return this.i18n.translate(this.removeLabelKey());
   });
+
+  /** Focuses the chip's interactive root element. Called by `sol-chip-group`'s roving tabindex via `viewChildren(SolChipComponent)`, so the group never needs to query internal CSS classes. */
+  focus(): void {
+    this.chipRoot().nativeElement.focus();
+  }
 
   onActivate(): void {
     if (this.disabled()) return;
