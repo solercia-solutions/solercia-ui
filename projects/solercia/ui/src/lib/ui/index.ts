@@ -80,3 +80,20 @@ export {
 export type { SolTrendDirection } from './trend/trend.component';
 export { SolMessageStatusComponent } from './message-status/message-status.component';
 export type { SolMessageStatus } from './message-status/message-status.component';
+
+// sol-timeline (11-a-solercia-ui, PR4)
+export { SolTimelineComponent } from './timeline/timeline.component';
+export type {
+  TimelineNode,
+  TimelineLegendItem,
+  SolTimelineStatusResolver,
+  SolTimelineRange,
+} from './timeline/timeline.model';
+export {
+  computeGlobalRange,
+  positionRows,
+  collectUndatedNodes,
+  computeMonthAxisTicks,
+  defaultStatusToken,
+} from './timeline/timeline-position';
+export type { PositionedTimelineRow, SolTimelineAxisTick } from './timeline/timeline-position';
