@@ -1,6 +1,6 @@
 import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
-import { CdkDrag } from '@angular/cdk/drag-drop';
+import { CdkDrag, type CdkDragStart, type CdkDragEnd } from '@angular/cdk/drag-drop';
 import { SolKanbanCardComponent, type KanbanCardTemplateContext } from './kanban-card.component';
 
 interface DemoItem {
@@ -80,6 +80,24 @@ describe('SolKanbanCardComponent', () => {
       fixture.detectChanges();
       const host = fixture.nativeElement as HTMLElement;
       expect(host.hasAttribute('cdkdrag')).toBe(false);
+    });
+
+    it('[corrección 4R WARNING] emite `dragActiveChanged(true)` cuando `cdkDrag.started` dispara y `dragActiveChanged(false)` cuando `cdkDrag.ended` dispara', () => {
+      fixture.detectChanges();
+      const drag = fixture.debugElement.injector.get(CdkDrag);
+      const changes: boolean[] = [];
+      fixture.componentInstance.dragActiveChanged.subscribe((active) => changes.push(active));
+
+      drag.started.emit({ source: drag, event: new MouseEvent('mousedown') } as CdkDragStart);
+      expect(changes).toEqual([true]);
+
+      drag.ended.emit({
+        source: drag,
+        distance: { x: 0, y: 0 },
+        dropPoint: { x: 0, y: 0 },
+        event: new MouseEvent('mouseup'),
+      } as CdkDragEnd);
+      expect(changes).toEqual([true, false]);
     });
   });
 });

@@ -113,11 +113,36 @@ describe('KanbanReorderService (puro, sin CDK ni DOM)', () => {
     expect(service.reorder(withEmpty, { fromColumnId: 'A', toColumnId: 'B', previousIndex: 0, currentIndex: 0 })).toBeNull();
   });
 
-  it('[robustez] currentIndex negativo o mayor al tamaño destino se clampa (no lanza, inserta en el borde válido)', () => {
+  it('[robustez] currentIndex MAYOR al tamaño destino se clampa al final (no lanza) y el `moved.currentIndex` reportado refleja la posición REAL, no el valor crudo pedido', () => {
     const event: KanbanRawDropEvent = { fromColumnId: 'A', toColumnId: 'B', previousIndex: 0, currentIndex: 999 };
     const result = service.reorder(columns(), event);
     expect(result).not.toBeNull();
     expect(result!.columns.find((c) => c.id === 'B')!.items.map((i) => i.id)).toEqual(['4', '1']);
+    // Corrección: antes se reportaba el 999 crudo en `moved.currentIndex` —
+    // un consumidor que confiara en ese índice para sincronizar su propio
+    // estado recibiría un valor sin sentido. Ahora refleja el índice REAL.
+    expect(result!.moved.currentIndex).toBe(1);
+  });
+
+  it('[robustez] currentIndex NEGATIVO se clampa a 0 (no lanza, inserta al inicio)', () => {
+    const event: KanbanRawDropEvent = { fromColumnId: 'A', toColumnId: 'B', previousIndex: 0, currentIndex: -5 };
+    const result = service.reorder(columns(), event);
+    expect(result).not.toBeNull();
+    expect(result!.columns.find((c) => c.id === 'B')!.items.map((i) => i.id)).toEqual(['1', '4']);
+    expect(result!.moved.currentIndex).toBe(0);
+  });
+
+  it('[cobertura] mover a una columna destino VACÍA (items: []) inserta en índice 0', () => {
+    const withEmptyTarget: KanbanColumn<DemoItem>[] = [
+      { id: 'A', title: 'Columna A', items: [{ id: '1', title: 'Uno' }] },
+      { id: 'B', title: 'Vacía', items: [] },
+    ];
+    const event: KanbanRawDropEvent = { fromColumnId: 'A', toColumnId: 'B', previousIndex: 0, currentIndex: 0 };
+    const result = service.reorder(withEmptyTarget, event);
+
+    expect(result).not.toBeNull();
+    expect(result!.columns.find((c) => c.id === 'B')!.items.map((i) => i.id)).toEqual(['1']);
+    expect(result!.moved.currentIndex).toBe(0);
   });
 
   it('[robustez] column.items ausente (undefined en runtime pese al tipo) no lanza — se trata como vacía', () => {

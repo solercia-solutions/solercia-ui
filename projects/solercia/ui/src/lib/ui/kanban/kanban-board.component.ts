@@ -8,10 +8,12 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
+import { SOL_I18N } from '../../i18n/sol-i18n';
+import { resolveColumnTitle, SolKanbanColumnComponent } from './kanban-column.component';
 import type { KanbanCardTemplateContext } from './kanban-card.component';
-import { SolKanbanColumnComponent } from './kanban-column.component';
 import {
   KANBAN_ADD_ACTION,
   type KanbanColumn,
@@ -43,10 +45,38 @@ import { countIds, safeTrackKey } from './kanban-track';
  * input, que sigue siendo propiedad del consumidor).
  *
  * Optimista + rollback (D4): el board NO persiste nada. El consumidor de
- * `itemMoved` hace su PATCH optimista y, si falla, reasigna `[columns]` a la
- * referencia PREVIA — como el `effect` de abajo SIEMPRE re-siembra el
- * espejo desde `columns()`, esa reasignación deshace automáticamente la
- * actualización optimista del espejo (rollback), sin lógica adicional acá.
+ * `itemMoved` hace su PATCH optimista y, si falla, DEBE llamar `rollback()`
+ * para restaurar el espejo desde el `columns()` actual del input.
+ *
+ * CORRECCIÓN 4R (WARNING): el `effect` de abajo re-siembra el espejo cuando
+ * `columns()` CAMBIA — pero los signal inputs comparan por `Object.is`, así
+ * que reasignar la MISMA referencia (p. ej. la que el consumidor ya tenía
+ * antes del drop) NO dispara nada: el rollback fallaría en silencio. Por
+ * eso `rollback()` NO depende del juego de referencias — fuerza el re-seed
+ * leyendo `columns()` directamente, sin pasar por la comparación del
+ * signal. El consumidor puede además reasignar una referencia NUEVA (un
+ * clon) para lograr el mismo efecto vía el `effect` normal, pero `rollback()`
+ * es el mecanismo recomendado y documentado.
+ *
+ * CORRECCIÓN 4R (WARNING — reseed durante un drag activo): si el consumidor
+ * reasigna `columns()` (refresh en vivo) MIENTRAS el usuario arrastra una
+ * tarjeta, re-sembrar el espejo de inmediato destruiría/recrearía el nodo
+ * DOM que CDK tiene tomado (`@for`), corrompiendo el gesto. Por eso el
+ * `effect` de abajo POSPONE el re-seed si `isDragging()` es `true`
+ * (guardado en `pendingColumnsSeed`, sin tocar `mirroredColumns` todavía) y
+ * lo aplica recién cuando el drag TERMINA (`onCardDragActiveChanged`). La
+ * lectura de `isDragging()` usa `untracked()` a propósito: el `effect` NO
+ * debe reaccionar a que `isDragging` cambie por sí solo (si reaccionara,
+ * CADA fin de drag re-sembraría desde el `columns()` viejo del consumidor y
+ * pisaría la actualización optimista que `onItemDropped` ya aplicó — el
+ * caso normal de cada drag-and-drop sin refresh en vivo). El `effect` solo
+ * debe reaccionar cuando `columns()` mismo cambia.
+ *
+ * Mecanismo alternativo accesible por teclado (corrección 4R CRITICAL):
+ * `cdkDrag` de CDK no soporta teclado — `sol-kanban-column` ofrece un
+ * `<select>` nativo por tarjeta que emite el MISMO `itemDropped`. El board
+ * anuncia cada `itemMoved` (venga del drag o del select) vía una región
+ * `aria-live="polite"` — ver `announcement` y la plantilla.
  *
  * Robustez de entrada (lecciones PR3/PR4): `columns` tolera `null`/
  * `undefined` (se trata como arreglo vacío); un elemento `null`/`undefined`
@@ -66,11 +96,14 @@ import { countIds, safeTrackKey } from './kanban-track';
           [headerTemplate]="headerTemplate()"
           [anchorTemplate]="anchorTemplate()"
           [emptyTemplate]="emptyTemplate()"
+          [allColumns]="mirroredColumns()"
           (action)="onColumnAction($event)"
           (itemDropped)="onItemDropped($event)"
+          (dragActiveChanged)="onCardDragActiveChanged($event)"
         />
       }
     </div>
+    <div class="sol-kanban-board__announce" aria-live="polite" role="status">{{ announcement() }}</div>
   `,
   styles: `
     :host {
@@ -83,6 +116,20 @@ import { countIds, safeTrackKey } from './kanban-track';
       gap: var(--sol-space-md, 12px);
       overflow-x: auto;
       padding-bottom: var(--sol-space-sm, 8px);
+    }
+
+    /* Región aria-live visualmente oculta (corrección 4R CRITICAL): anuncia
+       cada movimiento (drag real o select accesible) sin ocupar espacio. */
+    .sol-kanban-board__announce {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
   `,
 })
@@ -121,13 +168,28 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
   readonly itemMoved = output<KanbanItemMoved<T>>();
 
   private readonly reorderService = inject(KanbanReorderService);
+  private readonly i18n = inject(SOL_I18N);
 
   /** `protected` (no `private`): el template de este mismo componente necesita leerlo, y Angular exige acceso no-privado para bindings de plantilla. */
   protected readonly mirroredColumns = signal<KanbanColumn<T>[]>([]);
 
+  /** `true` mientras CUALQUIER tarjeta del board está siendo arrastrada (corrección 4R WARNING). */
+  private readonly isDragging = signal(false);
+
+  /** Seed diferido: `columns()` que llegó mientras `isDragging()` era `true`, pendiente de aplicar al terminar el drag. `null` = nada pendiente. */
+  private pendingColumnsSeed: KanbanColumn<T>[] | null = null;
+
+  /** Anuncio `aria-live` del último movimiento (drag real o select accesible) — corrección 4R CRITICAL. */
+  protected readonly announcement = signal('');
+
   constructor() {
     effect(() => {
       const incoming = (this.columns() ?? []).filter((c): c is KanbanColumn<T> => !!c);
+      if (untracked(() => this.isDragging())) {
+        // Pospone: ver doc de la clase (CORRECCIÓN 4R — reseed durante un drag activo).
+        this.pendingColumnsSeed = incoming;
+        return;
+      }
       this.mirroredColumns.set(incoming);
     });
   }
@@ -153,11 +215,57 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
    * SOLO sobre el espejo y emite `itemMoved`. Un resultado `null` (evento
    * inconsistente/columna inexistente) se ignora sin lanzar — mismo espíritu
    * de robustez que el resto de `sol-kanban-*` (lecciones PR3/PR4/PR5a).
+   * Recibe el MISMO `KanbanRawDropEvent` tanto del drag real (CDK) como del
+   * `<select>` accesible de `sol-kanban-column` — ambos caminos comparten
+   * exactamente esta lógica y el mismo `itemMoved` (corrección 4R CRITICAL).
    */
   onItemDropped(event: KanbanRawDropEvent): void {
     const result = this.reorderService.reorder(this.mirroredColumns(), event);
     if (!result) return;
     this.mirroredColumns.set(result.columns);
     this.itemMoved.emit(result.moved);
+    this.announceMove(result.moved);
+  }
+
+  /**
+   * Fuerza el re-seed del espejo desde el `columns()` ACTUAL (corrección 4R
+   * WARNING) — NO depende de que la referencia cambie (a diferencia del
+   * `effect`, que compara por `Object.is`). El consumidor la llama tras un
+   * PATCH fallido para deshacer la actualización optimista. Respeta el
+   * mismo diferido que el `effect` si hay un drag activo en curso.
+   */
+  rollback(): void {
+    const incoming = (this.columns() ?? []).filter((c): c is KanbanColumn<T> => !!c);
+    if (this.isDragging()) {
+      this.pendingColumnsSeed = incoming;
+      return;
+    }
+    this.mirroredColumns.set(incoming);
+  }
+
+  /**
+   * Recibe el `dragActiveChanged` bubbleado desde CADA `sol-kanban-column`
+   * (que a su vez lo recibe de cada `sol-kanban-card`). Al terminar el
+   * drag (`active === false`), aplica cualquier reseed diferido pendiente
+   * (corrección 4R WARNING).
+   */
+  protected onCardDragActiveChanged(active: boolean): void {
+    this.isDragging.set(active);
+    if (!active && this.pendingColumnsSeed) {
+      this.mirroredColumns.set(this.pendingColumnsSeed);
+      this.pendingColumnsSeed = null;
+    }
+  }
+
+  /** Anuncia el movimiento por `aria-live` (corrección 4R CRITICAL) — mismo texto venga del drag o del select accesible. */
+  private announceMove(moved: KanbanItemMoved<T>): void {
+    this.i18n.activeLang();
+    const toColumn = this.mirroredColumns().find((c) => c.id === moved.toColumnId);
+    const columnLabel = resolveColumnTitle(toColumn, (key) => this.i18n.translate(key));
+    this.announcement.set(
+      moved.fromColumnId === moved.toColumnId
+        ? this.i18n.translate('shared.kanban.movedWithinColumn')
+        : this.i18n.translate('shared.kanban.movedToColumn', { column: columnLabel }),
+    );
   }
 }

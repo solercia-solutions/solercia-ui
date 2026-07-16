@@ -1,7 +1,7 @@
 import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDropList, type CdkDragDrop, type CdkDragStart, type CdkDragEnd } from '@angular/cdk/drag-drop';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import { SolKanbanBoardComponent } from './kanban-board.component';
@@ -53,6 +53,11 @@ describe('SolKanbanBoardComponent', () => {
     const match = lists.find((list) => list.id === columnId);
     if (!match) throw new Error(`No se encontró cdkDropList para la columna "${columnId}"`);
     return match;
+  }
+
+  /** Primera instancia REAL de `CdkDrag` renderizada (la tarjeta en curso de arrastre). */
+  function firstCardDrag(): CdkDrag {
+    return fixture.debugElement.query(By.directive(CdkDrag)).injector.get(CdkDrag);
   }
 
   function mockDrop(previousIndex: number, currentIndex: number, previousContainerId: string, containerId: string): CdkDragDrop<DemoItem[]> {
@@ -240,8 +245,7 @@ describe('SolKanbanBoardComponent', () => {
       expect(cardTitlesIn(0)).toEqual(['Tarea A']);
     });
 
-    it('[optimista+rollback D4] reasignar `columns` (nueva referencia, mismos datos) tras un itemMoved deshace la actualización optimista del espejo', () => {
-      // Snapshot ANTES del drop — el consumidor reasigna a esto si el PATCH falla.
+    it('[optimista+rollback D4, corrección 4R WARNING] `board.rollback()` restaura el espejo desde `columns()` tras un PATCH fallido, SIN depender del juego de referencias', () => {
       const beforeDrop: KanbanColumn<DemoItem>[] = [
         { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
         { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
@@ -251,14 +255,55 @@ describe('SolKanbanBoardComponent', () => {
 
       // Optimista: el usuario arrastra "Tarea A" a "Hecho". El `[columns]` del
       // consumidor NO cambia con el drag (el mirror interno es independiente,
-      // D4) — solo cambia si el consumidor reasigna explícitamente.
+      // D4) — sigue apuntando a `beforeDrop`, sin tocar.
       dropListOf('todo').dropped.emit(mockDrop(0, 1, 'todo', 'done'));
       fixture.detectChanges();
       expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
 
-      // El consumidor simula que el PATCH falló: reasigna `[columns]` a una
-      // referencia NUEVA con los mismos datos de ANTES del drop (rollback) —
-      // el `effect` D4 re-siembra el espejo desde esta referencia.
+      // El consumidor simula que el PATCH falló: llama `board.rollback()` —
+      // NO reasigna `[columns]` (sigue siendo `beforeDrop`, la MISMA
+      // referencia de siempre). `rollback()` fuerza el re-seed del espejo
+      // desde el `columns()` ACTUAL sin depender de que la referencia
+      // cambie (a diferencia de un simple efecto reactivo por Object.is).
+      fixture.componentInstance.rollback();
+      fixture.detectChanges();
+
+      expect(cardTitlesIn(0)).toEqual(['Tarea A']);
+      expect(cardTitlesIn(1)).toEqual(['Tarea B']);
+    });
+
+    it('[corrección 4R WARNING] reasignar `[columns]` a la MISMA referencia (Object.is) NO dispara el re-seed automático — por eso existe `rollback()`', () => {
+      const beforeDrop: KanbanColumn<DemoItem>[] = [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ];
+      fixture.componentRef.setInput('columns', beforeDrop);
+      fixture.detectChanges();
+
+      dropListOf('todo').dropped.emit(mockDrop(0, 1, 'todo', 'done'));
+      fixture.detectChanges();
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+
+      // Reasignar la MISMA referencia (sin `rollback()`) no revierte nada —
+      // documenta el comportamiento real de `Object.is` en signal inputs.
+      fixture.componentRef.setInput('columns', beforeDrop);
+      fixture.detectChanges();
+
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+    });
+
+    it('[optimista+rollback D4] reasignar `columns` a una referencia NUEVA (mismos datos) también re-siembra el espejo (vía el effect normal)', () => {
+      const beforeDrop: KanbanColumn<DemoItem>[] = [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ];
+      fixture.componentRef.setInput('columns', beforeDrop);
+      fixture.detectChanges();
+
+      dropListOf('todo').dropped.emit(mockDrop(0, 1, 'todo', 'done'));
+      fixture.detectChanges();
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+
       fixture.componentRef.setInput('columns', [
         { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
         { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
@@ -267,6 +312,140 @@ describe('SolKanbanBoardComponent', () => {
 
       expect(cardTitlesIn(0)).toEqual(['Tarea A']);
       expect(cardTitlesIn(1)).toEqual(['Tarea B']);
+    });
+  });
+
+  describe('[corrección 4R WARNING] reseed del espejo pospuesto mientras hay un drag CDK activo', () => {
+    it('reasignar `columns()` DURANTE un drag activo NO reseedea el espejo hasta que el drag termina (cdkDragEnded)', () => {
+      fixture.componentRef.setInput('columns', [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ]);
+      fixture.detectChanges();
+
+      const drag = firstCardDrag();
+      drag.started.emit({ source: drag, event: new MouseEvent('mousedown') } as CdkDragStart);
+
+      // El consumidor empuja un refresh en vivo MIENTRAS el usuario arrastra.
+      fixture.componentRef.setInput('columns', [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A (actualizada)', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ]);
+      fixture.detectChanges();
+
+      // Pospuesto: el render SIGUE mostrando el dato viejo — reseedear ahora
+      // destruiría/recrearía el nodo DOM que CDK está arrastrando (`@for`).
+      expect(cardTitlesIn(0)).toEqual(['Tarea A']);
+
+      drag.ended.emit({
+        source: drag,
+        distance: { x: 0, y: 0 },
+        dropPoint: { x: 0, y: 0 },
+        event: new MouseEvent('mouseup'),
+      } as CdkDragEnd);
+      fixture.detectChanges();
+
+      // Al terminar el drag, el espejo se pone al día con la ÚLTIMA verdad.
+      expect(cardTitlesIn(0)).toEqual(['Tarea A (actualizada)']);
+    });
+
+    it('si `columns()` NO cambia durante el drag, terminar el drag no pisa la actualización optimista de un drop concurrente', () => {
+      fixture.componentRef.setInput('columns', [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ]);
+      fixture.detectChanges();
+
+      const drag = firstCardDrag();
+      drag.started.emit({ source: drag, event: new MouseEvent('mousedown') } as CdkDragStart);
+
+      // El drop real ocurre (actualiza el espejo de forma optimista, sin pasar por el effect).
+      dropListOf('todo').dropped.emit(mockDrop(0, 1, 'todo', 'done'));
+      fixture.detectChanges();
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+
+      drag.ended.emit({
+        source: drag,
+        distance: { x: 0, y: 0 },
+        dropPoint: { x: 0, y: 0 },
+        event: new MouseEvent('mouseup'),
+      } as CdkDragEnd);
+      fixture.detectChanges();
+
+      // `columns()` del consumidor nunca cambió durante el drag → no hay
+      // nada pospuesto que aplicar → la actualización optimista se conserva.
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+    });
+  });
+
+  describe('[corrección 4R CRITICAL] mover una tarjeta SOLO con teclado (extremo a extremo, sin drag) — Tests requeridos por el 4R', () => {
+    function announce(): string {
+      return (host().querySelector('.sol-kanban-board__announce') as HTMLElement).textContent ?? '';
+    }
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('columns', [
+        { id: 'todo', title: 'Por hacer', items: [{ id: '1', title: 'Tarea A', status: 'active' }] },
+        { id: 'done', title: 'Hecho', items: [{ id: '2', title: 'Tarea B', status: 'done' }] },
+      ]);
+      fixture.detectChanges();
+    });
+
+    it('[spec] foco en el select → elegir "mover a Hecho" → itemMoved emitido — MISMO KanbanReorderService/itemMoved que el drag', () => {
+      const moved: KanbanItemMoved<DemoItem>[] = [];
+      fixture.componentInstance.itemMoved.subscribe((e) => moved.push(e));
+
+      const select = host().querySelector<HTMLSelectElement>('.sol-kanban-column__move-select')!;
+      select.focus();
+      expect(document.activeElement).toBe(select);
+
+      select.value = 'to:done';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(moved).toEqual([
+        { item: { id: '1', title: 'Tarea A', status: 'active' }, fromColumnId: 'todo', toColumnId: 'done', previousIndex: 0, currentIndex: 1 },
+      ]);
+      expect(cardTitlesIn(1)).toEqual(['Tarea B', 'Tarea A']);
+    });
+
+    it('[spec] la región `aria-live="polite"` anuncia el movimiento tras mover por teclado', () => {
+      expect(announce()).toBe('');
+
+      const select = host().querySelector<HTMLSelectElement>('.sol-kanban-column__move-select')!;
+      select.value = 'to:done';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(announce()).toContain('movida a la columna');
+    });
+
+    it('la región `aria-live="polite"` también anuncia un movimiento hecho por DRAG real (mismo mecanismo)', () => {
+      dropListOf('todo').dropped.emit(mockDrop(0, 1, 'todo', 'done'));
+      fixture.detectChanges();
+
+      expect(announce()).toContain('movida a la columna');
+    });
+
+    it('reordenar dentro de la MISMA columna por teclado ("Bajar") anuncia un texto distinto ("reordenada", no "movida a")', () => {
+      fixture.componentRef.setInput('columns', [
+        {
+          id: 'todo',
+          title: 'Por hacer',
+          items: [
+            { id: '1', title: 'A', status: 'active' },
+            { id: '2', title: 'B', status: 'active' },
+          ],
+        },
+      ]);
+      fixture.detectChanges();
+
+      const selects = Array.from(host().querySelectorAll<HTMLSelectElement>('.sol-kanban-column__move-select'));
+      selects[0].value = 'down';
+      selects[0].dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(announce()).toBe('Tarjeta reordenada dentro de la columna');
     });
   });
 });

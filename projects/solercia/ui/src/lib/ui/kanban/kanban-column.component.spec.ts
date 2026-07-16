@@ -315,4 +315,107 @@ describe('SolKanbanColumnComponent', () => {
       expect(dropList().id).toBe('');
     });
   });
+
+  describe('[corrección 4R CRITICAL] mover tarjeta 100% por teclado (select nativo, sin depender del drag de CDK)', () => {
+    function moveSelects(): HTMLSelectElement[] {
+      return Array.from(host().querySelectorAll<HTMLSelectElement>('.sol-kanban-column__move-select'));
+    }
+
+    function selectOption(select: HTMLSelectElement, value: string): void {
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+    }
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('column', {
+        id: 'A',
+        title: 'Columna A',
+        items: [
+          { id: '1', title: 'Uno', status: 'active' },
+          { id: '2', title: 'Dos', status: 'active' },
+          { id: '3', title: 'Tres', status: 'active' },
+        ],
+      });
+      fixture.componentRef.setInput('allColumns', [
+        { id: 'A', title: 'Columna A', items: [] },
+        { id: 'B', title: 'Columna B', items: [] },
+      ]);
+      fixture.detectChanges();
+    });
+
+    it('[spec] cada tarjeta expone un `<select>` operable por teclado con `aria-label`', () => {
+      const selects = moveSelects();
+      expect(selects.length).toBe(3);
+      for (const select of selects) {
+        expect(select.getAttribute('aria-label')).toBe('Mover tarjeta');
+      }
+    });
+
+    it('el select de la PRIMERA tarjeta NO ofrece "Subir" (ya está arriba)', () => {
+      const options = Array.from(moveSelects()[0].querySelectorAll('option')).map((o) => o.value);
+      expect(options).not.toContain('up');
+      expect(options).toContain('down');
+    });
+
+    it('el select de la ÚLTIMA tarjeta NO ofrece "Bajar" (ya está abajo)', () => {
+      const options = Array.from(moveSelects()[2].querySelectorAll('option')).map((o) => o.value);
+      expect(options).not.toContain('down');
+      expect(options).toContain('up');
+    });
+
+    it('el select ofrece la OTRA columna (no la propia) como opción "mover a"', () => {
+      const options = Array.from(moveSelects()[1].querySelectorAll('option'));
+      // El stub de test verifica la clave contra es-CO.json pero NO interpola
+      // `{{column}}` (esa sustitución la hace el motor i18n real, p. ej.
+      // Transloco) — igual que el precedente de itemCountAriaPlural (PR5a).
+      const toOption = options.find((o) => o.value === 'to:B');
+      expect(toOption?.textContent).toBe('Mover a {{column}}');
+      expect(options.some((o) => o.value === 'to:A')).toBe(false);
+    });
+
+    it('[spec] elegir "Subir" emite `itemDropped` (misma columna, previousIndex→previousIndex-1) — MISMO output que el drag real', () => {
+      const emitted: KanbanRawDropEvent[] = [];
+      fixture.componentInstance.itemDropped.subscribe((e) => emitted.push(e));
+
+      selectOption(moveSelects()[1], 'up');
+
+      expect(emitted).toEqual([{ fromColumnId: 'A', toColumnId: 'A', previousIndex: 1, currentIndex: 0 }]);
+    });
+
+    it('elegir "Bajar" emite `itemDropped` (misma columna, previousIndex→previousIndex+1)', () => {
+      const emitted: KanbanRawDropEvent[] = [];
+      fixture.componentInstance.itemDropped.subscribe((e) => emitted.push(e));
+
+      selectOption(moveSelects()[0], 'down');
+
+      expect(emitted).toEqual([{ fromColumnId: 'A', toColumnId: 'A', previousIndex: 0, currentIndex: 1 }]);
+    });
+
+    it('elegir "Mover a Columna B" emite `itemDropped` hacia esa columna, al FINAL (índice grande, KanbanReorderService lo clampa)', () => {
+      const emitted: KanbanRawDropEvent[] = [];
+      fixture.componentInstance.itemDropped.subscribe((e) => emitted.push(e));
+
+      selectOption(moveSelects()[0], 'to:B');
+
+      expect(emitted.length).toBe(1);
+      expect(emitted[0].fromColumnId).toBe('A');
+      expect(emitted[0].toColumnId).toBe('B');
+      expect(emitted[0].previousIndex).toBe(0);
+      expect(emitted[0].currentIndex).toBeGreaterThan(0);
+    });
+
+    it('el select vuelve a su placeholder ("") después de cada selección — permite elegir la MISMA opción de nuevo', () => {
+      const select = moveSelects()[1];
+      selectOption(select, 'up');
+      expect(select.value).toBe('');
+    });
+
+    it('sin `allColumns` (input no provisto), el select igual funciona para subir/bajar (solo faltan las opciones "mover a")', () => {
+      fixture.componentRef.setInput('allColumns', null);
+      fixture.detectChanges();
+
+      const options = Array.from(moveSelects()[1].querySelectorAll('option')).map((o) => o.value);
+      expect(options).toEqual(['', 'up', 'down']);
+    });
+  });
 });

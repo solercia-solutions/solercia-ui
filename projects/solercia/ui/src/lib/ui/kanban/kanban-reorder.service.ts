@@ -89,7 +89,12 @@ export class KanbanReorderService {
         fromColumnId: event.fromColumnId,
         toColumnId: event.toColumnId,
         previousIndex: event.previousIndex,
-        currentIndex: event.currentIndex,
+        // `insertAt` (CLAMPADO), no `event.currentIndex` crudo: el select
+        // accesible de `sol-kanban-column` pide "mover al final" con
+        // `Number.MAX_SAFE_INTEGER` (corrección 4R CRITICAL) — reportar ese
+        // valor crudo en el `itemMoved` público sería inútil/engañoso para
+        // un consumidor que sincroniza su propio estado con el índice real.
+        currentIndex: insertAt,
       },
     };
   }

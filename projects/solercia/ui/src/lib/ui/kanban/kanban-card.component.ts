@@ -1,11 +1,14 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  DestroyRef,
   TemplateRef,
   effect,
   inject,
   input,
+  output,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgTemplateOutlet } from '@angular/common';
 import { CdkDrag } from '@angular/cdk/drag-drop';
 import type { KanbanItem } from './kanban.model';
@@ -26,14 +29,22 @@ export interface KanbanCardTemplateContext<T extends KanbanItem> {
  * directiva se adopta internamente (`hostDirectives: [CdkDrag]`, forma
  * "desnuda" que NO reexpone ningún input/output de CDK hacia consumidores de
  * `<sol-kanban-card>`) y se cablea imperativamente (`data`, `previewClass`)
- * inyectando la instancia (`inject(CdkDrag, { host: true })`). Es uno de los
- * 2 únicos archivos de la librería (junto con `kanban-column.component.ts`)
- * autorizados a importar `@angular/cdk/drag-drop` (gate ESLint T40).
+ * inyectando la instancia (`inject(CdkDrag, { host: true })`). Cualquier
+ * archivo dentro de `ui/kanban/` puede importar `@angular/cdk/drag-drop`
+ * (gate ESLint T40 exime el directorio completo, no un archivo puntual —
+ * `kanban-board.component.ts` también importa `CdkDropListGroup`).
  *
- * A11y (best-effort, D1): `cdkDrag` trae de fábrica soporte de teclado
- * (foco + Espacio/Enter para levantar, flechas para mover) — no se reimplementa
- * nada a mano encima; ver notas de accesibilidad del PR5b en el reporte de
- * cierre.
+ * A11y — CORRECCIÓN 4R (PR5b): `cdkDrag` de `@angular/cdk` 22.0.5 SOLO
+ * registra listeners de `mousedown`/`touchstart`/`dragstart` — CERO soporte
+ * de teclado (`keydown`). El comentario original de esta clase afirmaba lo
+ * contrario; era falso y dejaba el tablero INOPERABLE para un usuario sin
+ * mouse/touch (el drag es la única forma de mover una tarjeta). Por eso
+ * `sol-kanban-column` ofrece un mecanismo alternativo 100% accesible por
+ * teclado (un `<select>` nativo por tarjeta: "subir"/"bajar"/"mover a
+ * columna X") que invoca el MISMO `KanbanReorderService` y emite el MISMO
+ * `itemMoved` que el drag — ver `kanban-column.component.ts`. No se
+ * reimplementa el drag por teclado de CDK (complejo y frágil); se da
+ * paridad FUNCIONAL por una vía distinta.
  */
 @Component({
   selector: 'sol-kanban-card',
@@ -107,6 +118,16 @@ export class SolKanbanCardComponent<T extends KanbanItem = KanbanItem> {
   /** Template proyectado que renderiza el CONTENIDO de la tarjeta. */
   readonly cardTemplate = input.required<TemplateRef<KanbanCardTemplateContext<T>>>();
 
+  /**
+   * `true` mientras esta tarjeta está siendo arrastrada, `false` al soltar
+   * (corrección 4R WARNING, PR5b): `sol-kanban-board` necesita saber si hay
+   * ALGÚN drag activo en el tablero para POSPONER el re-seed del espejo
+   * (D4) — reasignar `columns()` mientras CDK arrastra el nodo DOM de esta
+   * misma tarjeta podría destruirlo/recrearlo (`@for`) y corromper el
+   * gesto. Se bubblea vía `sol-kanban-column` hasta el board.
+   */
+  readonly dragActiveChanged = output<boolean>();
+
   constructor() {
     this.cdkDrag.previewClass = 'sol-kanban-card__drag-preview';
     // Payload del drag: SIEMPRE el item actual, sincronizado reactivamente.
@@ -116,5 +137,9 @@ export class SolKanbanCardComponent<T extends KanbanItem = KanbanItem> {
     effect(() => {
       this.cdkDrag.data = this.item();
     });
+
+    const destroyRef = inject(DestroyRef);
+    this.cdkDrag.started.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => this.dragActiveChanged.emit(true));
+    this.cdkDrag.ended.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => this.dragActiveChanged.emit(false));
   }
 }
