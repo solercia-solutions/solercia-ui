@@ -103,6 +103,60 @@ describe('SolTimelineComponent', () => {
     expect(events).toEqual([{ id: 'root', collapsed: true }]);
   });
 
+  it('[CRITICAL-4] tras un toggle() del usuario, reasignar `nodes` (misma estructura) NO descarta su colapso', () => {
+    // Antes del fix, el effect() re-sembraba collapsedIds en CADA cambio de
+    // `nodes()`, descartando lo que el usuario ya había colapsado/expandido —
+    // contrario al contrato de TimelineNode.collapsed ("estado INICIAL al
+    // montar; clics posteriores NO mutan la entrada").
+    const tree = threeLevelTree();
+    fixture.componentRef.setInput('nodes', tree);
+    fixture.detectChanges();
+    expect(rowLabels()).toEqual(['Raíz', 'Medio', 'Hoja']);
+
+    toggleButtons()[0].click(); // el usuario colapsa "root"
+    fixture.detectChanges();
+    expect(rowLabels()).toEqual(['Raíz']);
+
+    // El consumidor reasigna `nodes` con la MISMA estructura (p. ej. porque
+    // llegó una actualización del backend) — el objeto es nuevo, pero
+    // `collapsed` en los datos de origen sigue sin tocar (undefined/false).
+    fixture.componentRef.setInput('nodes', threeLevelTree());
+    fixture.detectChanges();
+
+    expect(rowLabels()).toEqual(['Raíz']); // el colapso del usuario PERSISTE
+    expect(toggleButtons()[0].getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('[CRITICAL-1] threeLevelTree (fechas propias en los 3 niveles): TODAS las barras caen dentro de [0,100]', () => {
+    fixture.componentRef.setInput('nodes', threeLevelTree());
+    fixture.detectChanges();
+
+    const bars = Array.from(host().querySelectorAll<HTMLElement>('.sol-timeline__bar'));
+    expect(bars.length).toBe(3);
+    for (const bar of bars) {
+      const left = parseFloat(bar.style.left);
+      const width = parseFloat(bar.style.width);
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(left + width).toBeLessThanOrEqual(100.000001);
+    }
+  });
+
+  it('[CRITICAL-3] un árbol con ciclo no revienta el render del componente', () => {
+    const cyclic: TimelineNode & { children: TimelineNode[] } = {
+      id: 'cyclic',
+      label: 'Ciclo',
+      start: new Date(2024, 0, 5),
+      end: new Date(2024, 0, 10),
+      children: [],
+    };
+    cyclic.children = [cyclic];
+
+    expect(() => {
+      fixture.componentRef.setInput('nodes', [cyclic]);
+      fixture.detectChanges();
+    }).not.toThrow();
+  });
+
   it('un nodo sin hijos no tiene botón de colapso (solo un espaciador)', () => {
     fixture.componentRef.setInput('nodes', [
       { id: 'leaf-only', label: 'Sin hijos', start: new Date(2024, 0, 1), end: new Date(2024, 0, 5) },
@@ -140,6 +194,17 @@ describe('SolTimelineComponent', () => {
     const chips = Array.from(host().querySelectorAll('.sol-timeline__chip')).map((c) => c.textContent!.trim());
     expect(chips).toEqual(['Sin fecha']);
     expect(rowLabels()).toEqual(['Con fecha']);
+  });
+
+  it('[WARNING] start > end (fechas invertidas) se trata como "sin fecha", no como barra mal ubicada', () => {
+    fixture.componentRef.setInput('nodes', [
+      { id: 'inv', label: 'Invertido', start: new Date(2024, 0, 20), end: new Date(2024, 0, 10) },
+    ]);
+    fixture.detectChanges();
+
+    const chips = Array.from(host().querySelectorAll('.sol-timeline__chip')).map((c) => c.textContent!.trim());
+    expect(chips).toEqual(['Invertido']);
+    expect(host().querySelectorAll('.sol-timeline__bar').length).toBe(0);
   });
 
   it('arreglo vacío o sin nodos muestra el estado vacío (clave verificada contra es-CO.json)', () => {

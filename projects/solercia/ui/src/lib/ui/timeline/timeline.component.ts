@@ -309,17 +309,34 @@ export class SolTimelineComponent {
   /** Espejo interno del colapso — sembrado desde `node.collapsed`, nunca muta la entrada. */
   private readonly collapsedIds = signal<ReadonlySet<string | number>>(new Set());
 
+  /**
+   * Siembra `collapsedIds` SOLO la primera vez que el `effect` corre (con
+   * los `nodes` ya resueltos). Distinto del patrón "espejo" de
+   * `sol-kanban-board`: ahí el re-siembro en CADA cambio de `columns` es un
+   * rollback DELIBERADO (el consumidor reasigna el input para deshacer un
+   * drag fallido). Aquí NO — `TimelineNode.collapsed` es explícitamente el
+   * estado INICIAL al montar (ver `timeline.model.ts`); reasignar `nodes`
+   * después (p. ej. porque llegó una actualización del backend) NUNCA debe
+   * descartar lo que el usuario ya colapsó/expandió con clics.
+   */
+  private hasSeededCollapse = false;
+
   constructor() {
     effect(() => {
+      const currentNodes = this.nodes();
+      if (this.hasSeededCollapse) return;
+      this.hasSeededCollapse = true;
+
       const initial = new Set<string | number>();
-      const seed = (list: TimelineNode[]) => {
+      const seed = (list: TimelineNode[], visited: WeakSet<TimelineNode>) => {
         for (const node of list) {
-          if (!node) continue;
+          if (!node || visited.has(node)) continue; // guarda de ciclos (CRITICAL-3)
+          visited.add(node);
           if (node.collapsed) initial.add(node.id);
-          if (node.children?.length) seed(node.children);
+          if (node.children?.length) seed(node.children, visited);
         }
       };
-      seed(this.nodes() ?? []);
+      seed(currentNodes ?? [], new WeakSet());
       this.collapsedIds.set(initial);
     });
   }

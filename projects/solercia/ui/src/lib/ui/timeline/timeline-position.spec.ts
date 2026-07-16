@@ -87,18 +87,112 @@ describe('positionRows (pura)', () => {
     expect(() => positionRows([null as unknown as TimelineNode, dated], range)).not.toThrow();
     expect(positionRows([null as unknown as TimelineNode, dated], range).map((r) => r.node.id)).toEqual(['d']);
   });
+
+  it('[CRITICAL-1] threeLevelTree con fechas propias en todos los niveles: TODAS las barras quedan dentro de [0,100]', () => {
+    // Reproducción exacta del hallazgo de review: root 1-31 ene, mid 5-20 ene,
+    // leaf 8-12 ene. El rango GLOBAL debe derivarse con el MISMO criterio que
+    // resuelve la barra de cada nodo (resolveNodeRange) — antes,
+    // computeGlobalRange solo miraba las HOJAS (leaf: 8-12 ene) mientras que
+    // la barra del root usaba sus fechas propias (1-31 ene) directamente,
+    // produciendo leftPct/widthPct muy fuera de [0,100] (p. ej. ≈-175%/750%).
+    const range = computeGlobalRange([
+      {
+        id: 'root',
+        start: new Date(2024, 0, 1),
+        end: new Date(2024, 0, 31),
+        children: [
+          {
+            id: 'mid',
+            start: new Date(2024, 0, 5),
+            end: new Date(2024, 0, 20),
+            children: [{ id: 'leaf', start: new Date(2024, 0, 8), end: new Date(2024, 0, 12) }],
+          },
+        ],
+      },
+    ])!;
+
+    const rows = positionRows(
+      [
+        {
+          id: 'root',
+          start: new Date(2024, 0, 1),
+          end: new Date(2024, 0, 31),
+          children: [
+            {
+              id: 'mid',
+              start: new Date(2024, 0, 5),
+              end: new Date(2024, 0, 20),
+              children: [{ id: 'leaf', start: new Date(2024, 0, 8), end: new Date(2024, 0, 12) }],
+            },
+          ],
+        },
+      ],
+      range,
+    );
+
+    expect(rows.length).toBe(3);
+    for (const row of rows) {
+      expect(row.leftPct).toBeGreaterThanOrEqual(0);
+      expect(row.leftPct + row.widthPct).toBeLessThanOrEqual(100 + 1e-6);
+    }
+  });
+
+  it('[CRITICAL-3] un ciclo directo (nodo hijo de sí mismo) no lanza RangeError — degrada sin romper', () => {
+    const cyclic: TimelineNode & { children: TimelineNode[] } = {
+      id: 'cyclic',
+      label: 'Ciclo',
+      start: new Date(2024, 0, 5),
+      end: new Date(2024, 0, 10),
+      children: [],
+    };
+    cyclic.children = [cyclic]; // referencia a sí mismo
+
+    const range = { start: new Date(2024, 0, 1).getTime(), end: new Date(2024, 0, 31).getTime() };
+    expect(() => positionRows([cyclic], range)).not.toThrow();
+  });
+
+  it('[CRITICAL-3] un ciclo indirecto (a→b→a) no lanza RangeError', () => {
+    const a: TimelineNode & { children: TimelineNode[] } = { id: 'a', start: new Date(2024, 0, 1), end: new Date(2024, 0, 5), children: [] };
+    const b: TimelineNode & { children: TimelineNode[] } = { id: 'b', start: new Date(2024, 0, 6), end: new Date(2024, 0, 10), children: [] };
+    a.children = [b];
+    b.children = [a];
+
+    const range = { start: new Date(2024, 0, 1).getTime(), end: new Date(2024, 0, 31).getTime() };
+    expect(() => positionRows([a], range)).not.toThrow();
+    expect(() => computeGlobalRange([a])).not.toThrow();
+  });
+
+  it('[WARNING] start > end (fechas invertidas): se trata como "sin fecha", no como barra mal ubicada', () => {
+    const range = { start: new Date(2024, 0, 1).getTime(), end: new Date(2024, 0, 31).getTime() };
+    const inverted: TimelineNode = { id: 'inv', label: 'Invertido', start: new Date(2024, 0, 20), end: new Date(2024, 0, 10) };
+
+    expect(positionRows([inverted], range)).toEqual([]);
+  });
 });
 
 describe('computeGlobalRange (pura)', () => {
-  it('rango global = min/max de las HOJAS con fecha (un intermedio con fecha propia no participa por sí solo)', () => {
+  it('[CRITICAL-1] usa el MISMO criterio que la barra de cada nodo: un padre con fecha propia MÁS ANCHA que sus hijos amplía el rango global (unión, no solo hojas)', () => {
     const leafA: TimelineNode = { id: 'a', start: new Date(2024, 0, 5), end: new Date(2024, 0, 10) };
     const leafB: TimelineNode = { id: 'b', start: new Date(2024, 0, 20), end: new Date(2024, 0, 25) };
     const parent: TimelineNode = {
       id: 'p',
-      start: new Date(2024, 0, 1), // fecha propia de un nodo CON hijos: se ignora para el rango global
+      start: new Date(2024, 0, 1), // fecha propia MÁS ANCHA que la envolvente de sus hijos [5,25]
       end: new Date(2024, 0, 31),
       children: [leafA, leafB],
     };
+
+    // Antes del fix, computeGlobalRange ignoraba la fecha propia del padre y
+    // devolvía solo [5,25] (envolvente de las hojas) — desalineado con
+    // resolveNodeRange (que sí usaba la fecha propia), produciendo barras
+    // fuera de [0,100]. Ahora ambas funciones usan el mismo criterio: unión.
+    const range = computeGlobalRange([parent]);
+    expect(range).toEqual({ start: new Date(2024, 0, 1).getTime(), end: new Date(2024, 0, 31).getTime() });
+  });
+
+  it('sin fecha propia en el padre, el rango global es la envolvente de las hojas (comportamiento sin cambios)', () => {
+    const leafA: TimelineNode = { id: 'a', start: new Date(2024, 0, 5), end: new Date(2024, 0, 10) };
+    const leafB: TimelineNode = { id: 'b', start: new Date(2024, 0, 20), end: new Date(2024, 0, 25) };
+    const parent: TimelineNode = { id: 'p', children: [leafA, leafB] };
 
     const range = computeGlobalRange([parent]);
     expect(range).toEqual({ start: new Date(2024, 0, 5).getTime(), end: new Date(2024, 0, 25).getTime() });
@@ -140,6 +234,18 @@ describe('computeMonthAxisTicks (pura, i18n-agnóstica)', () => {
     expect(computeMonthAxisTicks({ start: 100, end: 100 })).toEqual([]);
     expect(computeMonthAxisTicks({ start: 100, end: 50 })).toEqual([]);
   });
+
+  it('[CRITICAL-2] rango 1-ene → 1-feb (el final cae EXACTO en el 1º de un mes): NO produce ticks duplicados', () => {
+    const range = { start: new Date(2024, 0, 1).getTime(), end: new Date(2024, 1, 1).getTime() };
+    const ticks = computeMonthAxisTicks(range);
+
+    // Sin el fix: el bucle agrega un tick en 1-feb (leftPct=100) Y LUEGO se
+    // agrega SIEMPRE un tick final también en 1-feb/leftPct=100 → duplicado
+    // (colisiona con @for track de timeline.component.ts → NG0955 en dev).
+    const keys = ticks.map((t) => `${t.leftPct}|${t.year}-${t.month}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(ticks[ticks.length - 1]).toEqual(expect.objectContaining({ leftPct: 100, year: 2024, month: 1 }));
+  });
 });
 
 describe('defaultStatusToken (pura)', () => {
@@ -151,5 +257,12 @@ describe('defaultStatusToken (pura)', () => {
   it('un status desconocido o ausente cae a neutral, sin lanzar', () => {
     expect(() => defaultStatusToken('algo-inventado')).not.toThrow();
     expect(() => defaultStatusToken(undefined)).not.toThrow();
+  });
+
+  it('[WARNING] un status NO-string (dato futuro/malformado) no lanza TypeError — cae a neutral', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(() => defaultStatusToken(42 as any)).not.toThrow();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(defaultStatusToken(42 as any)).toBe(defaultStatusToken(undefined));
   });
 });
