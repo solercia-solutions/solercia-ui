@@ -6,6 +6,35 @@ Todos los cambios notables de este paquete se documentan en este archivo. El for
 paquete tiene solo dos consumidores potenciales — `boki-front` y, próximamente, `gestion_proyectos`
 — y puede admitir cambios incompatibles en versiones `minor`).
 
+## [0.1.2] - 2026-07-16
+
+### Corregido
+
+- `ng-add` (schematic): 5 correcciones descubiertas al hornear un proyecto real (`ng new` +
+  `ng add @solercia/ui@0.1.0`) contra el paquete publicado, sin backport previo al schematic:
+  1. **`TS5090`**: `wireTsconfigPaths` escribía los alias FSD (`@pages/*`, `@widgets/*`, etc.) sin
+     prefijo `./` (p. ej. `"src/pages/*"`); un `tsconfig.json` de `ng new` no define `baseUrl`, así
+     que el compilador rechazaba la ruta no-relativa. Ahora los `paths` generados siempre llevan
+     `./` explícito.
+  2. **`appendGlobalStyles` ignoraba SCSS**: solo detectaba `src/styles.css`; en un proyecto
+     `ng new --style=scss` los tokens `--sol-*` de ejemplo no se inyectaban. Ahora detecta también
+     `src/styles.scss`.
+  3. **`@solercia/eslint-config` no se instalaba**: el schematic solo dejaba un log informativo
+     ("aún no publicado"). Ahora se agrega como `devDependency` real vía `addDependency` (el preset
+     está publicado en npm desde `0.1.1`).
+  4. **`TS2571` por falta de `@shared/i18n`**: los schematics `page`/`feature`/`widget` generan
+     componentes que importan `I18nService` desde `@shared/i18n`, capa que `ng-add` nunca
+     scaffoldeaba. Ahora se crea `shared/i18n/i18n.service.ts` (adaptador identidad de `SolI18n`,
+     listo para cablear a `SOL_I18N`) + `shared/i18n/index.ts`.
+  5. **`eslint.config.js` sin `"type":"module"`**: se generaba en sintaxis ESM (`import ... from`)
+     sobre un `package.json` de `ng new` por defecto CommonJS, produciendo `ERR_REQUIRE_ESM`. Ahora
+     el archivo se emite como `eslint.config.mjs` cuando el `package.json` anfitrión no declara
+     `"type":"module"` (evita romper los `module.exports` de `commitlint.config.js`/
+     `lint-staged.config.js` que el mismo schematic scaffoldea vía Husky).
+- Cobertura: 5 casos nuevos/actualizados en `ng-add.spec.ts` con `SchematicTestRunner` sobre un
+  árbol `ng new` simulado (sin red), uno por fix. 281 tests de la librería en verde (277 base + 4
+  netos nuevos).
+
 ## [0.1.1] - 2026-07-15
 
 ### Agregado
