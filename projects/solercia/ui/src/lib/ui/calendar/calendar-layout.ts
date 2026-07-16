@@ -43,6 +43,17 @@ export interface CalendarDayColumn<T extends SolCalendarEvent = SolCalendarEvent
  * para `'week'`. Tolera `events` null/undefined y elementos `null`/`undefined`
  * dentro del arreglo (se filtran); un evento con `start` inválido/ausente se
  * excluye de TODAS las columnas (no puede ubicarse en ningún día) sin lanzar.
+ *
+ * LIMITACIÓN DOCUMENTADA (corrección 4R WARNING — reliability, re-gate PR6):
+ * un evento se agrupa ÚNICAMENTE por el día calendario de `start` — un
+ * evento que CRUZA MEDIANOCHE (p. ej. `start` 23:30 / `end` 00:30 del día
+ * siguiente) aparece SOLO en la columna del día de `start`; NO se replica
+ * ni se recorta al día de `end`. Vista mes/multi-día es no-meta de esta
+ * versión (ya diferida) — soportar eventos multi-día correctamente
+ * requeriría particionar el evento por día, alcance NUEVO fuera de esta
+ * corrección. `computeEventTop`/`computeEventHeight` sí clampan la caja al
+ * rango horario visible para que NUNCA se salga de la grilla, incluso
+ * cuando el evento cruza medianoche.
  */
 export function buildDayColumns<T extends SolCalendarEvent>(
   view: SolCalendarView,
@@ -83,23 +94,41 @@ export function buildDayColumns<T extends SolCalendarEvent>(
 /**
  * Offset vertical (px) del evento dentro de la grilla, según su hora de
  * inicio relativa a `hourStart`. `start` inválido/ausente → `0` (degrada,
- * no lanza). Nunca negativo (un evento que empieza antes de `hourStart` se
- * clampa al borde superior).
+ * no lanza). Clampado a `[0, (hourEnd-hourStart)*hourPx - minHeightPx]`
+ * (corrección 4R WARNING — reliability, re-gate PR6): un evento que empieza
+ * antes de `hourStart` se clampa al borde superior; uno que empieza en o
+ * después de `hourEnd` (p. ej. cruza medianoche, `start` 23:30 con
+ * `hourEnd`=22) se clampa al borde inferior — reservando `minHeightPx` para
+ * que la caja NUNCA se salga por debajo de la grilla visible.
  */
-export function computeEventTop(event: SolCalendarEvent | null | undefined, hourStart: number, hourPx: number): number {
+export function computeEventTop(
+  event: SolCalendarEvent | null | undefined,
+  hourStart: number,
+  hourEnd: number,
+  hourPx: number,
+  minHeightPx = 22,
+): number {
   const start = parseEventDate(event?.start);
   if (!start) return 0;
   const hoursFromStart = start.getHours() - hourStart + start.getMinutes() / 60;
-  return Math.max(0, hoursFromStart * hourPx);
+  const maxTop = Math.max(0, (hourEnd - hourStart) * hourPx - minHeightPx);
+  return Math.min(Math.max(0, hoursFromStart * hourPx), maxTop);
 }
 
 /**
  * Alto (px) del evento según la duración `end - start`. `start`/`end`
  * inválidos, ausentes, o duración no positiva → `minHeightPx` (degrada, no
  * lanza) — nunca menor que `minHeightPx` (visibilidad mínima garantizada).
+ * Clampado (corrección 4R WARNING — reliability, re-gate PR6) para que
+ * `top + height` NUNCA exceda el borde inferior de la grilla visible — un
+ * evento que cruza medianoche (fuera de `[hourStart, hourEnd)`) ya no
+ * produce una caja gigante fuera de la grilla; se recorta visualmente al
+ * día de `start` (ver limitación documentada en `buildDayColumns`).
  */
 export function computeEventHeight(
   event: SolCalendarEvent | null | undefined,
+  hourStart: number,
+  hourEnd: number,
   hourPx: number,
   minHeightPx = 22,
 ): number {
@@ -110,7 +139,11 @@ export function computeEventHeight(
   const durationMin = (end.getTime() - start.getTime()) / 60_000;
   if (!Number.isFinite(durationMin) || durationMin <= 0) return minHeightPx;
 
-  return Math.max((durationMin / 60) * hourPx, minHeightPx);
+  const rawHeight = Math.max((durationMin / 60) * hourPx, minHeightPx);
+  const top = computeEventTop(event, hourStart, hourEnd, hourPx, minHeightPx);
+  const gridHeight = (hourEnd - hourStart) * hourPx;
+  const maxHeight = Math.max(minHeightPx, gridHeight - top);
+  return Math.min(rawHeight, maxHeight);
 }
 
 /**

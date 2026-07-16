@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { SOL_CALENDAR_COLOR, type SolCalendarColorStrategy } from './calendar-color';
+import { SOL_CALENDAR_COLOR, isSafeCssColor, type SolCalendarColorStrategy } from './calendar-color';
 import type { SolCalendarEvent, StateColorSet } from './calendar.model';
 
 function baseEvent(overrides: Partial<SolCalendarEvent> = {}): SolCalendarEvent {
@@ -86,5 +86,60 @@ describe('SOL_CALENDAR_COLOR (D3 — Strategy inyectable, default null-object)',
     const result = strategy.resolve(baseEvent({ color: '' }), false);
 
     expect(result.bg).toContain('var(--sol-bg-sunken');
+  });
+
+  describe('[corrección 4R WARNING — risk] color de baja confianza: SOLO hex/rgb/hsl/var(--) se interpola; el resto degrada a la superficie neutra', () => {
+    it('un `color` con url(...) se RECHAZA — nunca se interpola en color-mix()/[style] (vector de "CSS beacon")', () => {
+      TestBed.configureTestingModule({});
+      const strategy = TestBed.inject(SOL_CALENDAR_COLOR);
+
+      const result = strategy.resolve(baseEvent({ color: 'url(https://evil.example/beacon.png)' }), false);
+
+      expect(result.bg).toContain('var(--sol-bg-sunken');
+      expect(result.bg).not.toContain('url(');
+      expect(result.border).not.toContain('url(');
+    });
+
+    it('un `color` con `image-set(...)` (otro vector de red vía shorthand `background`) también se rechaza', () => {
+      TestBed.configureTestingModule({});
+      const strategy = TestBed.inject(SOL_CALENDAR_COLOR);
+
+      const result = strategy.resolve(baseEvent({ color: 'image-set(url(x.png) 1x)' }), false);
+
+      expect(result.bg).toContain('var(--sol-bg-sunken');
+    });
+
+    it('un `color` con `javascript:` u otro esquema arbitrario se rechaza', () => {
+      TestBed.configureTestingModule({});
+      const strategy = TestBed.inject(SOL_CALENDAR_COLOR);
+
+      const result = strategy.resolve(baseEvent({ color: 'expression(alert(1))' }), false);
+
+      expect(result.bg).toContain('var(--sol-bg-sunken');
+    });
+
+    it('isSafeCssColor: acepta hex (#rgb, #rrggbb, #rrggbbaa)', () => {
+      expect(isSafeCssColor('#fff')).toBe(true);
+      expect(isSafeCssColor('#3B82F6')).toBe(true);
+      expect(isSafeCssColor('#3B82F6FF')).toBe(true);
+    });
+
+    it('isSafeCssColor: acepta rgb()/rgba()/hsl()/hsla()', () => {
+      expect(isSafeCssColor('rgb(59, 130, 246)')).toBe(true);
+      expect(isSafeCssColor('rgba(59, 130, 246, 0.5)')).toBe(true);
+      expect(isSafeCssColor('hsl(217, 91%, 60%)')).toBe(true);
+      expect(isSafeCssColor('hsla(217, 91%, 60%, 0.5)')).toBe(true);
+    });
+
+    it('isSafeCssColor: acepta var(--sol-*)', () => {
+      expect(isSafeCssColor('var(--sol-color-primary)')).toBe(true);
+    });
+
+    it('isSafeCssColor: rechaza url(), image-set(), nombres de color y cualquier otro valor', () => {
+      expect(isSafeCssColor('url(https://evil.example/x.png)')).toBe(false);
+      expect(isSafeCssColor('image-set(url(x.png) 1x)')).toBe(false);
+      expect(isSafeCssColor('red')).toBe(false); // whitelist estricta — sin nombres de color
+      expect(isSafeCssColor('')).toBe(false);
+    });
   });
 });

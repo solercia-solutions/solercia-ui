@@ -117,6 +117,17 @@ describe('SolCalendarComponent', () => {
     expect(host().querySelector('.sol-calendar__legend-label')?.textContent).toBe('Hoy');
   });
 
+  it('[corrección 4R WARNING — risk] un `legend.color` con url(...) se RECHAZA — el punto de la leyenda NUNCA lo interpola directo', () => {
+    const legend: SolCalendarLegendItem[] = [
+      { color: 'url(https://evil.example/beacon.png)', labelKey: 'shared.calendar.today' },
+    ];
+    fixture.componentRef.setInput('legend', legend);
+    fixture.detectChanges();
+
+    const dot = host().querySelector<HTMLElement>('.sol-calendar__legend-dot')!;
+    expect(dot.style.background).not.toContain('url(');
+  });
+
   it('[D4 — espejo interno] clic en "Siguiente" del header actualiza la fecha mostrada en la grilla sin reasignar el input `currentDate`', () => {
     fixture.detectChanges();
     const before = host().querySelector('.sol-calendar-header__range')?.textContent;

@@ -13,7 +13,7 @@ import {
 import { NgTemplateOutlet } from '@angular/common';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { ThemeService } from '../../tokens';
-import { SOL_CALENDAR_COLOR } from './calendar-color';
+import { NEUTRAL_CALENDAR_COLOR, SOL_CALENDAR_COLOR } from './calendar-color';
 import {
   buildDayColumns,
   computeEventHeight,
@@ -445,16 +445,42 @@ export class SolCalendarGridComponent<T extends SolCalendarEvent = SolCalendarEv
     return `${weekday} ${date.getDate()}/${date.getMonth() + 1}`;
   }
 
+  /**
+   * DEUDA DOCUMENTADA (SUGGESTION del 4R, re-gate PR6, deliberadamente NO
+   * implementada en esta corrección): `eventTop`/`eventHeight`/`eventColor`
+   * se llaman COMO MÉTODOS dentro del `@for` de eventos, así que Angular
+   * los reevalúa en CADA ciclo de detección de cambios (incluido el tick de
+   * 60s de `now`, que solo afecta la línea de "ahora" pero dispara CD sobre
+   * todo el componente). Con cientos de eventos visibles esto podría
+   * degradar a lentitud. Mejora futura: memoizar el layout del día completo
+   * vía un `computed()` sobre `(events, view, currentDate)` que devuelva
+   * `{event, top, height, color}[]` ya resueltos, y que el `@for` itere esa
+   * estructura en vez de llamar métodos por evento. No se implementó acá a
+   * propósito — el 4R lo marcó opcional y esta corrección ya prioriza los 2
+   * WARNING obligatorios (color inseguro + evento que cruza medianoche).
+   */
   eventTop(event: T): number {
-    return computeEventTop(event, HOUR_START, HOUR_PX);
+    return computeEventTop(event, HOUR_START, HOUR_END, HOUR_PX);
   }
 
   eventHeight(event: T): number {
-    return computeEventHeight(event, HOUR_PX);
+    return computeEventHeight(event, HOUR_START, HOUR_END, HOUR_PX);
   }
 
+  /**
+   * Delega en el `colorResolver` INYECTADO (corrección 4R WARNING —
+   * resilience, re-gate PR6): una `SolCalendarColorStrategy` de dominio
+   * provista por el consumidor es código EXTERNO a la librería — si lanza,
+   * antes rompía el render de TODA la grilla (un solo evento defectuoso
+   * tumbaba el resto). Ahora degrada a `NEUTRAL_CALENDAR_COLOR` SOLO para
+   * ESE evento; el resto del calendario sigue renderizando con normalidad.
+   */
   eventColor(event: T): StateColorSet {
-    return this.colorResolver.resolve(event, this.themeService.isDark());
+    try {
+      return this.colorResolver.resolve(event, this.themeService.isDark());
+    } catch {
+      return NEUTRAL_CALENDAR_COLOR;
+    }
   }
 
   onEventClick(event: T, domEvent: MouseEvent): void {

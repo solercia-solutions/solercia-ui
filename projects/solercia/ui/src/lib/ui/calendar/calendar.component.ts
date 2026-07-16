@@ -10,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { SOL_I18N } from '../../i18n/sol-i18n';
+import { isSafeCssColor } from './calendar-color';
 import { SolCalendarGridComponent, type SolCalendarEventTemplateContext } from './calendar-grid.component';
 import { SolCalendarHeaderComponent } from './calendar-header.component';
 import type { SolCalendarEvent, SolCalendarLegendItem, SolCalendarView } from './calendar.model';
@@ -57,7 +58,7 @@ import type { SolCalendarEvent, SolCalendarLegendItem, SolCalendarView } from '.
         <div class="sol-calendar__legend">
           @for (item of legendItems(); track item.labelKey) {
             <span class="sol-calendar__legend-item">
-              <span class="sol-calendar__legend-dot" [style.background]="item.color"></span>
+              <span class="sol-calendar__legend-dot" [style.background]="legendDotColor(item)"></span>
               <span class="sol-calendar__legend-label">{{ legendLabel(item) }}</span>
             </span>
           }
@@ -151,6 +152,19 @@ export class SolCalendarComponent<T extends SolCalendarEvent = SolCalendarEvent>
   legendLabel(item: SolCalendarLegendItem): string {
     this.i18n.activeLang();
     return this.i18n.translate(item.labelKey);
+  }
+
+  /**
+   * Valida `item.color` contra la whitelist de `isSafeCssColor` antes de
+   * interpolarlo en `[style.background]` (corrección 4R WARNING — risk,
+   * re-gate PR6): `background` es una propiedad shorthand que ACEPTA
+   * `url(...)` — un color de baja confianza (config de tenant futura)
+   * podría disparar una petición de red ("CSS beacon") si se enlazara sin
+   * validar. Un color no seguro degrada a un tono neutro por token.
+   */
+  legendDotColor(item: SolCalendarLegendItem): string {
+    const color = typeof item?.color === 'string' && item.color ? item.color : null;
+    return color && isSafeCssColor(color) ? color : 'var(--sol-color-text-muted, #94a3b8)';
   }
 
   protected onDateChange(date: Date): void {

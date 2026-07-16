@@ -3,6 +3,7 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import { ThemeService } from '../../tokens';
+import { SOL_CALENDAR_COLOR, type SolCalendarColorStrategy } from './calendar-color';
 import { SolCalendarGridComponent, type SolCalendarEventTemplateContext } from './calendar-grid.component';
 import type { SolCalendarEvent } from './calendar.model';
 
@@ -201,5 +202,64 @@ describe('SolCalendarGridComponent', () => {
     // El navegador normaliza #22C55E a rgb(34, 197, 94) al leer `.style` —
     // se compara contra el equivalente rgb(), no contra el hex literal.
     expect(card.style.borderLeft).toContain('rgb(34, 197, 94)');
+  });
+
+  it('[corrección 4R WARNING — reliability] un `colorResolver` inyectado que LANZA solo degrada ESA tarjeta a color neutro — el resto de la grilla sigue renderizando', () => {
+    const throwingResolver: SolCalendarColorStrategy = {
+      resolve: (event) => {
+        if (event.id === 'bad') throw new Error('Strategy de dominio rota');
+        return { bg: '#DBEAFE', border: '#3B82F6', text: '#1E40AF' };
+      },
+    };
+
+    // Provider distinto al de `beforeEach` — requiere su PROPIO módulo de
+    // testing (no se puede `overrideProvider` sobre un TestBed ya
+    // instanciado por el `fixture` del `beforeEach` exterior).
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [SolCalendarGridComponent],
+      providers: [
+        { provide: SOL_I18N, useValue: createCatalogCheckedI18nStub() },
+        { provide: SOL_CALENDAR_COLOR, useValue: throwingResolver },
+        {
+          provide: ThemeService,
+          useValue: {
+            isDark: signal(false).asReadonly(),
+            activeTheme: signal(null).asReadonly(),
+          },
+        },
+      ],
+    });
+    const throwingFixture = TestBed.createComponent<SolCalendarGridComponent<DemoEvent>>(SolCalendarGridComponent);
+    throwingFixture.componentRef.setInput('currentDate', new Date(2024, 0, 10));
+    throwingFixture.componentRef.setInput('view', 'week');
+
+    expect(() => {
+      throwingFixture.componentRef.setInput('events', [
+        { id: 'bad', title: 'Rota', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 10, 0) },
+        { id: 'ok', title: 'Normal', start: new Date(2024, 0, 10, 11, 0), end: new Date(2024, 0, 10, 12, 0) },
+      ]);
+      throwingFixture.detectChanges();
+    }).not.toThrow();
+
+    // AMBAS tarjetas se renderizan — la que lanzó degrada a color neutro, no rompe el resto.
+    const throwingHost = throwingFixture.nativeElement as HTMLElement;
+    expect(throwingHost.querySelectorAll('.sol-calendar-event').length).toBe(2);
+  });
+
+  it('[corrección 4R WARNING — reliability] un evento que CRUZA MEDIANOCHE se renderiza dentro de la grilla, sin NaN ni desbordar', () => {
+    fixture.componentRef.setInput('view', 'day');
+    fixture.componentRef.setInput('events', [
+      { id: '1', title: 'Nocturna', start: new Date(2024, 0, 10, 23, 30), end: new Date(2024, 0, 11, 0, 30) },
+    ]);
+    fixture.detectChanges();
+
+    const card = host().querySelector<HTMLElement>('.sol-calendar-event')!;
+    const top = parseFloat(card.style.top);
+    const height = parseFloat(card.style.height);
+
+    expect(Number.isNaN(top)).toBe(false);
+    expect(Number.isNaN(height)).toBe(false);
+    expect(top + height).toBeLessThanOrEqual((22 - 6) * 60); // HOUR_END - HOUR_START, en px
   });
 });

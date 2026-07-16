@@ -125,7 +125,7 @@ export type {
   SolCalendarLegendItem,
   StateColorSet,
 } from './calendar/calendar.model';
-export { SOL_CALENDAR_COLOR } from './calendar/calendar-color';
+export { SOL_CALENDAR_COLOR, NEUTRAL_CALENDAR_COLOR, isSafeCssColor } from './calendar/calendar-color';
 export type { SolCalendarColorStrategy } from './calendar/calendar-color';
 export {
   buildDayColumns,

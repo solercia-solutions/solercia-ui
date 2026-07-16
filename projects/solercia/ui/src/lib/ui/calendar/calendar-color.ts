@@ -12,24 +12,51 @@ export interface SolCalendarColorStrategy {
   resolve(event: SolCalendarEvent, isDark: boolean): StateColorSet;
 }
 
+/** Superficie neutra por tokens — fallback compartido por el default null-object (sin `color`/`color` no seguro) y por `sol-calendar-grid` cuando una Strategy inyectada lanza (corrección 4R WARNING — resilience). */
+export const NEUTRAL_CALENDAR_COLOR: StateColorSet = {
+  bg: 'var(--sol-bg-sunken, var(--sol-bg-page, #f1f5f9))',
+  border: 'var(--sol-border-color-default, #cbd5e1)',
+  text: 'var(--sol-color-text-primary, #0f172a)',
+};
+
+const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
+const FUNCTIONAL_COLOR = /^(rgb|hsl)a?\(/i;
+const CSS_VAR = /^var\(--/;
+
 /**
- * Default null-object (D3): si el evento trae `color` explícito, deriva
- * `{bg,border,text}` con `color-mix()` sobre tokens `var(--sol-*)` — el
- * `color` es la única fuente de verdad, sin paleta hardcodeada. Sin `color`,
- * usa una superficie neutra (también por tokens). Tolera `event` inválido o
- * `color` no-string (lección PR3/PR4/PR5: `typeof` antes de usar un campo
- * que podría no ser el tipo esperado en runtime).
+ * Whitelist estricta de formas CSS seguras para interpolar en
+ * `color-mix()`/`[style]` (corrección 4R WARNING — risk, re-gate PR6):
+ * hex (`#rgb`/`#rrggbb`/`#rrggbbaa`), notación funcional (`rgb()`/`rgba()`/
+ * `hsl()`/`hsla()`) o referencia a token (`var(--sol-*)`). Cualquier otro
+ * valor (p. ej. `url(...)`, `image-set(...)`, `expression(...)`) se
+ * rechaza — `background`/`border`/`color` son propiedades shorthand que
+ * ACEPTAN `url(...)`, así que un `color` de baja confianza (config de
+ * tenant futura, dato de un consumidor no confiable) podría disparar una
+ * petición de red ("CSS beacon") si se interpolara sin validar. NO acepta
+ * nombres de color (`red`, `blue`) a propósito — whitelist mínima, no
+ * exhaustiva.
+ */
+export function isSafeCssColor(value: string): boolean {
+  return HEX_COLOR.test(value) || FUNCTIONAL_COLOR.test(value) || CSS_VAR.test(value);
+}
+
+/**
+ * Default null-object (D3): si el evento trae `color` explícito Y SEGURO
+ * (`isSafeCssColor`), deriva `{bg,border,text}` con `color-mix()` sobre
+ * tokens `var(--sol-*)` — el `color` es la única fuente de verdad, sin
+ * paleta hardcodeada. Sin `color` (ausente, no-string, o que no pase la
+ * whitelist de seguridad), usa una superficie neutra (también por tokens).
+ * Tolera `event` inválido o `color` no-string (lección PR3/PR4/PR5:
+ * `typeof` antes de usar un campo que podría no ser el tipo esperado en
+ * runtime).
  */
 class DefaultCalendarColorStrategy implements SolCalendarColorStrategy {
   resolve(event: SolCalendarEvent | null | undefined, isDark: boolean): StateColorSet {
-    const color = event && typeof event.color === 'string' && event.color ? event.color : null;
+    const raw = event && typeof event.color === 'string' && event.color ? event.color : null;
+    const color = raw && isSafeCssColor(raw) ? raw : null;
 
     if (!color) {
-      return {
-        bg: 'var(--sol-bg-sunken, var(--sol-bg-page, #f1f5f9))',
-        border: 'var(--sol-border-color-default, #cbd5e1)',
-        text: 'var(--sol-color-text-primary, #0f172a)',
-      };
+      return NEUTRAL_CALENDAR_COLOR;
     }
 
     return {

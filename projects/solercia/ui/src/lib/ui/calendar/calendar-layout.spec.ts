@@ -125,63 +125,81 @@ describe('buildDayColumns (pura)', () => {
 });
 
 describe('computeEventTop (pura)', () => {
-  it('evento a las 9:00 con hourStart=6, hourPx=60 → top = 180 (3 horas × 60px)', () => {
+  it('evento a las 9:00 con hourStart=6, hourEnd=22, hourPx=60 → top = 180 (3 horas × 60px)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 10, 0) };
-    expect(computeEventTop(event, 6, 60)).toBe(180);
+    expect(computeEventTop(event, 6, 22, 60)).toBe(180);
   });
 
   it('evento a las 9:30 con hourPx=60 incluye los minutos proporcionalmente (210px)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 30), end: new Date(2024, 0, 10, 10, 0) };
-    expect(computeEventTop(event, 6, 60)).toBe(210);
+    expect(computeEventTop(event, 6, 22, 60)).toBe(210);
   });
 
   it('escala correctamente con hourPx≠60 (p. ej. 9:30 con hourPx=40 → 3.5h × 40 = 140px)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 30), end: new Date(2024, 0, 10, 10, 0) };
-    expect(computeEventTop(event, 6, 40)).toBe(140);
+    expect(computeEventTop(event, 6, 22, 40)).toBe(140);
   });
 
   it('un evento que empieza ANTES de hourStart se clampa a 0 (no negativo)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 5, 0), end: new Date(2024, 0, 10, 6, 0) };
-    expect(computeEventTop(event, 6, 60)).toBe(0);
+    expect(computeEventTop(event, 6, 22, 60)).toBe(0);
   });
 
   it('[robustez] event/start inválido o ausente → 0, sin lanzar', () => {
-    expect(computeEventTop(null, 6, 60)).toBe(0);
-    expect(computeEventTop({ id: '1', title: 'X', start: 'invalido', end: new Date() }, 6, 60)).toBe(0);
+    expect(computeEventTop(null, 6, 22, 60)).toBe(0);
+    expect(computeEventTop({ id: '1', title: 'X', start: 'invalido', end: new Date() }, 6, 22, 60)).toBe(0);
+  });
+
+  it('[corrección 4R WARNING] un evento que empieza EN o DESPUÉS de hourEnd (cruza medianoche) se clampa al borde inferior, reservando minHeightPx', () => {
+    // hourStart=6, hourEnd=22, hourPx=60 → gridHeight=960, minHeightPx=22 → maxTop=938.
+    const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 23, 30), end: new Date(2024, 0, 11, 0, 30) };
+    expect(computeEventTop(event, 6, 22, 60)).toBe(938);
   });
 });
 
 describe('computeEventHeight (pura)', () => {
   it('evento de 9:00 a 10:00 con hourPx=60 → 60px (1 hora)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 10, 0) };
-    expect(computeEventHeight(event, 60)).toBe(60);
+    expect(computeEventHeight(event, 6, 22, 60)).toBe(60);
   });
 
   it('evento de 30 minutos con hourPx=60 → 30px', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 9, 30) };
-    expect(computeEventHeight(event, 60)).toBe(30);
+    expect(computeEventHeight(event, 6, 22, 60)).toBe(30);
   });
 
   it('escala correctamente con hourPx≠60 (1 hora con hourPx=40 → 40px, por encima del mínimo)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 10, 0) };
-    expect(computeEventHeight(event, 40)).toBe(40);
+    expect(computeEventHeight(event, 6, 22, 40)).toBe(40);
   });
 
   it('un evento MUY corto (5 min) respeta la altura mínima (22px default)', () => {
     const event: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 9, 5) };
-    expect(computeEventHeight(event, 60)).toBe(22);
+    expect(computeEventHeight(event, 6, 22, 60)).toBe(22);
   });
 
   it('[robustez] end anterior o igual a start (duración ≤ 0) → altura mínima, sin lanzar', () => {
     const inverted: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 10, 0), end: new Date(2024, 0, 10, 9, 0) };
-    expect(computeEventHeight(inverted, 60)).toBe(22);
+    expect(computeEventHeight(inverted, 6, 22, 60)).toBe(22);
     const same: DemoEvent = { id: '1', title: 'Cita', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 9, 0) };
-    expect(computeEventHeight(same, 60)).toBe(22);
+    expect(computeEventHeight(same, 6, 22, 60)).toBe(22);
   });
 
   it('[robustez] start/end inválidos o ausentes → altura mínima, sin lanzar', () => {
-    expect(computeEventHeight(null, 60)).toBe(22);
-    expect(computeEventHeight({ id: '1', title: 'X', start: 'invalido', end: 'tambien-invalido' }, 60)).toBe(22);
+    expect(computeEventHeight(null, 6, 22, 60)).toBe(22);
+    expect(computeEventHeight({ id: '1', title: 'X', start: 'invalido', end: 'tambien-invalido' }, 6, 22, 60)).toBe(22);
+  });
+
+  it('[corrección 4R WARNING] un evento que CRUZA MEDIANOCHE (23:30→00:30) queda dentro de [0, gridHeight] — nunca se sale de la grilla', () => {
+    // hourStart=6, hourEnd=22, hourPx=60 → gridHeight=960.
+    const event: DemoEvent = { id: '1', title: 'Cita nocturna', start: new Date(2024, 0, 10, 23, 30), end: new Date(2024, 0, 11, 0, 30) };
+    const top = computeEventTop(event, 6, 22, 60);
+    const height = computeEventHeight(event, 6, 22, 60);
+
+    expect(Number.isNaN(top)).toBe(false);
+    expect(Number.isNaN(height)).toBe(false);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(top + height).toBeLessThanOrEqual((22 - 6) * 60);
   });
 });
 
