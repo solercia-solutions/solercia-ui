@@ -108,7 +108,8 @@ export type SolCheckboxShape = 'rounded' | 'square' | 'circle';
     .sol-checkbox__box--sm { width: 16px; height: 16px; --_r: 3px; }
     .sol-checkbox__box--md { width: 20px; height: 20px; --_r: 4px; }
     .sol-checkbox__box--lg { width: 24px; height: 24px; --_r: 5px; }
-    .sol-checkbox__box--rounded { border-radius: var(--_r); }
+    /* El shape rounded sigue el radio del tema; --_r queda como fallback por tamaño. */
+    .sol-checkbox__box--rounded { border-radius: var(--sol-border-radius-sm, var(--_r)); }
     .sol-checkbox__box--square { border-radius: 2px; }
     .sol-checkbox__box--circle { border-radius: 50%; }
     .sol-checkbox__box--checked { background-color: var(--_cb-color); border-color: var(--_cb-color); }

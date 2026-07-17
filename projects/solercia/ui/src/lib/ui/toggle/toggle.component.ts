@@ -34,6 +34,11 @@ export type SolToggleSize = 'sm' | 'md';
         <span [class]="thumbClass()"></span>
       </button>
 
+      @if (stateText()) {
+        <!-- Texto decorativo del estado (ej. "Sí"/"No"): role=switch + aria-checked ya cubren la semántica -->
+        <span class="sol-toggle__state" aria-hidden="true">{{ stateText() }}</span>
+      }
+
       @if (label()) {
         <span class="sol-toggle__label">{{ label() }}</span>
       }
@@ -48,6 +53,7 @@ export type SolToggleSize = 'sm' | 'md';
       --sol-toggle-track-on: var(--sol-color-primary, #6366f1);
       --sol-toggle-thumb: var(--sol-bg-surface, #ffffff);
       --sol-toggle-label-color: var(--sol-color-text-primary, #1e293b);
+      --sol-toggle-state-color: var(--sol-color-text-secondary, #475569);
       --sol-toggle-disabled-opacity: var(--sol-disabled-opacity, 0.55);
       --sol-toggle-focus-ring: var(--sol-focus-ring, 0 0 0 3px color-mix(in srgb, var(--sol-color-primary, #6366f1) 40%, transparent));
       --sol-toggle-transition: var(--sol-transition-fast, 150ms ease);
@@ -152,6 +158,22 @@ export type SolToggleSize = 'sm' | 'md';
       transform: translateX(calc(var(--sol-toggle-sm-width) - var(--sol-toggle-sm-thumb) - var(--sol-toggle-sm-offset)));
     }
 
+    /* ---- state text (ej. "Sí"/"No") ---- */
+
+    .sol-toggle__state {
+      min-width: 1.75rem; /* evita saltos de layout al alternar entre textos */
+      font-weight: var(--sol-font-weight-bold, 600);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--sol-toggle-state-color);
+      user-select: none;
+    }
+
+    .sol-toggle--sm .sol-toggle__state,
+    .sol-toggle--md .sol-toggle__state {
+      font-size: var(--sol-font-size-sm, 0.75rem);
+    }
+
     /* ---- label ---- */
 
     .sol-toggle__label {
@@ -178,8 +200,19 @@ export class SolToggleComponent implements ControlValueAccessor {
   /** Size preset: sm or md. */
   readonly size = input<SolToggleSize>('md');
 
+  /** Optional decorative text shown beside the track when checked (e.g. "Sí"). */
+  readonly onText = input<string | undefined>(undefined);
+
+  /** Optional decorative text shown beside the track when unchecked (e.g. "No"). */
+  readonly offText = input<string | undefined>(undefined);
+
   /** Internal checked state. */
   readonly checked = signal<boolean>(false);
+
+  /** Text for the current state; empty string renders no node. */
+  readonly stateText = computed(() =>
+    (this.checked() ? this.onText() : this.offText()) ?? ''
+  );
 
   /** Computed host wrapper class. */
   readonly hostClass = computed(() => {
