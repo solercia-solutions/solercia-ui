@@ -5,11 +5,13 @@ import {
   output,
   computed,
 } from '@angular/core';
+import { SolIconComponent } from '../icon/icon.component';
 
 @Component({
   selector: 'sol-pagination',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolIconComponent],
   template: `
     <div class="sol-pagination">
       <div class="sol-pagination__size">
@@ -36,7 +38,7 @@ import {
           [disabled]="currentPage() <= 1"
           (click)="onPageChange(currentPage() - 1)"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <sol-icon name="chevron-left" size="sm" />
         </button>
         @for (p of pages(); track p) {
           <button
@@ -54,7 +56,7 @@ import {
           [disabled]="currentPage() >= totalPages()"
           (click)="onPageChange(currentPage() + 1)"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <sol-icon name="chevron-right" size="sm" />
         </button>
       </div>
     </div>

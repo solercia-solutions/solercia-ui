@@ -6,11 +6,14 @@ import {
   computed,
   HostListener,
 } from '@angular/core';
+import { SolIconComponent } from '../icon/icon.component';
+import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-interactions';
 
 @Component({
   selector: 'sol-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolIconComponent],
   template: `
     @if (open()) {
       <div
@@ -31,20 +34,7 @@ import {
                 aria-label="Cerrar"
                 (click)="close()"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <sol-icon name="x" size="md" />
               </button>
             }
           </header>
@@ -181,15 +171,17 @@ export class SolModalComponent {
   /** Computed CSS class for the panel size. */
   panelClasses = computed(() => `sol-modal-content sol-modal-${this.size()}`);
 
+  // Escape/backdrop delegan al helper compartido con sol-drawer (11-h, T01) —
+  // mismo comportamiento observable, sin duplicar el "gating" en cada overlay.
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
-    if (this.open() && this.closeable()) {
+    if (shouldCloseOnEscape(this.open(), this.closeable())) {
       this.close();
     }
   }
 
   onBackdropClick(): void {
-    if (this.closeable() && this.closeOnBackdrop()) {
+    if (shouldCloseOnBackdrop(this.closeable(), this.closeOnBackdrop())) {
       this.close();
     }
   }

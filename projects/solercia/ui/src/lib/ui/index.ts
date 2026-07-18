@@ -7,6 +7,8 @@ export type { SolSelectOption } from './select/select.component';
 export { SolTextareaComponent } from './textarea/textarea.component';
 export { SolToggleComponent } from './toggle/toggle.component';
 export { SolModalComponent } from './modal/modal.component';
+export { SolDrawerComponent } from './drawer/drawer.component';
+export type { SolDrawerSide, SolDrawerSize } from './drawer/drawer.component';
 export { SolBadgeComponent } from './badge/badge.component';
 export { SolCardComponent } from './card/card.component';
 export { SolSpinnerComponent } from './spinner/spinner.component';
@@ -30,7 +32,12 @@ export { SolViewToggleComponent } from './view-toggle/view-toggle.component';
 export type { SolViewToggleOption } from './view-toggle/view-toggle.component';
 export { SolEmptyStateComponent } from './empty-state/empty-state.component';
 export { SolStepperComponent } from './stepper/stepper.component';
-export type { SolStepperStep, SolStepperOrientation, SolStepperStepState } from './stepper/stepper.component';
+export type {
+  SolStepperStep,
+  SolStepperOrientation,
+  SolStepperStepState,
+  SolStepperNavigation,
+} from './stepper/stepper.component';
 export { SolProgressBarComponent } from './progress-bar/progress-bar.component';
 export type { SolProgressMode, SolProgressSize, SolProgressVariant } from './progress-bar/progress-bar.component';
 export { SolWizardComponent, SolWizardStepDirective } from './wizard/wizard.component';
@@ -57,3 +64,88 @@ export {
   TCPDF_ALLOWED_TAGS,
   TCPDF_ALLOWED_STYLE_PROPERTIES,
 } from './rich-editor/rich-editor-serializer';
+
+// Átomos de vocero (11-a-solercia-ui, PR3)
+export { SolAvatarComponent, hashToPaletteIndex, computeInitials } from './avatar/avatar.component';
+export type { SolAvatarSize } from './avatar/avatar.component';
+export {
+  SolScoreBadgeComponent,
+  resolveScoreTone,
+  DEFAULT_SCORE_THRESHOLDS,
+} from './score-badge/score-badge.component';
+export type { SolTone, SolScoreThreshold } from './score-badge/score-badge.component';
+export {
+  SolTrendComponent,
+  resolveTrendDirection,
+  defaultTrendFormat,
+} from './trend/trend.component';
+export type { SolTrendDirection } from './trend/trend.component';
+export { SolMessageStatusComponent } from './message-status/message-status.component';
+export type { SolMessageStatus } from './message-status/message-status.component';
+
+// sol-timeline (11-a-solercia-ui, PR4)
+export { SolTimelineComponent } from './timeline/timeline.component';
+export type {
+  TimelineNode,
+  TimelineLegendItem,
+  SolTimelineStatusResolver,
+  SolTimelineRange,
+} from './timeline/timeline.model';
+export {
+  computeGlobalRange,
+  positionRows,
+  collectUndatedNodes,
+  computeMonthAxisTicks,
+  defaultStatusToken,
+} from './timeline/timeline-position';
+export type { PositionedTimelineRow, SolTimelineAxisTick } from './timeline/timeline-position';
+
+// sol-kanban (11-a-solercia-ui, PR5a/PR5b)
+export { SolKanbanBoardComponent } from './kanban/kanban-board.component';
+export { SolKanbanColumnComponent } from './kanban/kanban-column.component';
+export { SolKanbanCardComponent } from './kanban/kanban-card.component';
+export type { KanbanCardTemplateContext } from './kanban/kanban-card.component';
+export {
+  KANBAN_ADD_ACTION,
+} from './kanban/kanban.model';
+export type {
+  KanbanItem,
+  KanbanColumn,
+  KanbanItemMoved,
+  KanbanColumnAction,
+} from './kanban/kanban.model';
+export { KanbanReorderService } from './kanban/kanban-reorder.service';
+
+// sol-chip / sol-chip-group / sol-number-input (11-f-ciclo3-ux, PR2)
+// NOTA: `SolChipSelectionStrategy`/`SINGLE_SELECT_STRATEGY`/`MULTIPLE_SELECT_STRATEGY`
+// son internos a `chip/` (no exportados aquí) — no hay input `strategy` que
+// los consuma desde afuera; superficie curada (D4), sin scope creep.
+export { SolChipComponent } from './chip/chip.component';
+export type { SolChipRole, SolChipSize } from './chip/chip.component';
+export { SolChipGroupComponent } from './chip/chip-group.component';
+export type { SolChipOption } from './chip/chip-group.component';
+export { SolNumberInputComponent } from './number-input/number-input.component';
+
+// sol-calendar (11-a-solercia-ui, PR6)
+export { SolCalendarComponent } from './calendar/calendar.component';
+export { SolCalendarHeaderComponent } from './calendar/calendar-header.component';
+export { SolCalendarGridComponent } from './calendar/calendar-grid.component';
+export type { SolCalendarEventTemplateContext } from './calendar/calendar-grid.component';
+export type {
+  SolCalendarEvent,
+  SolCalendarView,
+  SolCalendarLegendItem,
+  StateColorSet,
+} from './calendar/calendar.model';
+export { SOL_CALENDAR_COLOR, NEUTRAL_CALENDAR_COLOR, isSafeCssColor } from './calendar/calendar-color';
+export type { SolCalendarColorStrategy } from './calendar/calendar-color';
+export {
+  buildDayColumns,
+  computeEventHeight,
+  computeEventTop,
+  computeNowTop,
+  dayKey,
+  getWeekStart,
+  parseEventDate,
+} from './calendar/calendar-layout';
+export type { CalendarDayColumn } from './calendar/calendar-layout';

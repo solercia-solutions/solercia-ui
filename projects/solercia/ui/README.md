@@ -59,15 +59,19 @@ This command will compile your project, and the build artifacts will be placed i
 
 ### Publicación del paquete
 
-`@solercia/ui` se publica en GitHub Packages (registry privado, `publishConfig.registry` en
-este `package.json`). El PROYECTO Angular se construye con `ng build @solercia/ui` (NO
-`ng build ui`), que emite `dist/solercia/ui` (fesm2022 + `index.d.ts` + schematics + `LICENSE`
-+ `NOTICE`).
+`@solercia/ui` se publica en el registro **público** de npm (`registry.npmjs.org`,
+organización `solercia` — `publishConfig.registry` en este `package.json`; la nota anterior
+sobre GitHub Packages quedó obsoleta desde `07-e9`). `0.1.0` y `0.1.1` YA están publicadas ahí
+(`npm view @solercia/ui versions`) — se publicaron **manualmente** (`npm publish` local,
+usuario `camilocalderont`), no por el workflow de CI. El PROYECTO Angular se construye con
+`ng build @solercia/ui` (NO `ng build ui`), que emite `dist/solercia/ui` (fesm2022 +
+`index.d.ts` + schematics + `LICENSE` + `NOTICE`).
 
-1. Construir el paquete completo (lib + schematics):
+1. Construir el paquete completo (lib + schematics) y empaquetarlo:
 
    ```bash
    npm run build
+   cd dist/solercia/ui && npm pack
    ```
 
 2. Validar el empaquetado sin publicar de verdad (`--dry-run`, no requiere token ni red hacia
@@ -78,10 +82,35 @@ este `package.json`). El PROYECTO Angular se construye con `ng build @solercia/u
    npm publish --dry-run
    ```
 
-3. La publicación **real** está automatizada por tag (`v*`) en
-   `.github/workflows/publish-packages.yml` y bloqueada hoy por la decisión D1 del fundador
-   (owner/organización del scope `@solercia`, repositorio de alojamiento, método de
-   autenticación) — ver `openspec/07-e9-extraccion-solercia-ui/tasks.md`, PR4.
+3. **Paso pendiente del fundador — publicar `0.2.0` (NO ejecutado por el agente, gate
+   explícito del fundador):**
+
+   ```bash
+   # Versión ya bumpeada a 0.2.0 en projects/solercia/ui/package.json (PR6, T48).
+   git tag v0.2.0
+   git push origin v0.2.0   # dispara .github/workflows/publish-packages.yml (tag v*)
+   ```
+
+   La publicación por CI requiere que el secret `NPM_TOKEN` del repositorio esté configurado
+   (Automation token de npmjs.com, exento de 2FA) — **hoy está vacío/ausente**, así que el
+   workflow fallará tal como está (deuda heredada de `07-e9-extraccion-solercia-ui`, ver
+   `openspec/07-e9-extraccion-solercia-ui/state.yaml`). Antes de empujar el tag, el fundador
+   debe:
+
+   - **(a)** Generar y configurar el secret `NPM_TOKEN` (Settings → Secrets → Actions) con un
+     Automation token de un usuario con permiso de publicación en la organización npm
+     `solercia`.
+   - **(b)** **ROTAR** el token de npm usado para publicar `0.1.1` manualmente — quedó
+     expuesto en el log de una sesión anterior y sigue vigente hasta que se revoque.
+   - **(c)** Si por cualquier razón el CI no queda listo a tiempo, la alternativa es repetir el
+     mismo publish MANUAL que se usó para `0.1.1`/`0.1.0` (`cd dist/solercia/ui && npm publish
+     --access public`, autenticado como usuario con permiso en la organización `solercia`) —
+     documentarlo así en el commit de publicación si se toma esta vía, para no perder el
+     rastro de qué versiones pasaron por CI y cuáles no.
+
+   Una vez publicada `0.2.0`, los consumidores que hoy usan el tarball local (`gestion_proyectos`,
+   ver `openspec/11-a-solercia-ui/`) pueden volver a un rango semver normal
+   (`"@solercia/ui": "^0.2.0"`) contra el registro público, en vez de `file:./vendor/*.tgz`.
 
 ## Licencia
 

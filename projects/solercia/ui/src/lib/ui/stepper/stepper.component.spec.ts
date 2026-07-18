@@ -38,6 +38,7 @@ describe('SolStepperComponent', () => {
     furthestIndex: number;
     orientation: 'horizontal' | 'vertical';
     interactive: boolean;
+    navigation: 'linear' | 'free';
   }> = {}): ComponentFixture<SolStepperComponent> {
     const fixture = TestBed.createComponent(SolStepperComponent);
     fixture.componentRef.setInput('steps', inputs.steps ?? STEPS);
@@ -45,6 +46,7 @@ describe('SolStepperComponent', () => {
     if (inputs.furthestIndex !== undefined) fixture.componentRef.setInput('furthestIndex', inputs.furthestIndex);
     if (inputs.orientation) fixture.componentRef.setInput('orientation', inputs.orientation);
     if (inputs.interactive !== undefined) fixture.componentRef.setInput('interactive', inputs.interactive);
+    if (inputs.navigation) fixture.componentRef.setInput('navigation', inputs.navigation);
     fixture.detectChanges();
     return fixture;
   }
@@ -195,5 +197,62 @@ describe('SolStepperComponent', () => {
 
     list.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     expect(document.activeElement).toBe(buttons[2]); // el último navegable es el actual
+  });
+
+  // ── D7: navigation:'linear'|'free' (11-a-solercia-ui, PR3) ──────────────────
+
+  it('[spec] navigation por defecto es "linear" — retrocompatibilidad total con la API 0.1.x sin declarar el input', () => {
+    const fixture = create({ activeIndex: 1, interactive: true });
+    expect(fixture.componentInstance.navigation()).toBe('linear');
+    // mismo comportamiento que el resto de la suite (sin navigation): el futuro sigue bloqueado.
+    const buttons = stepButtons(fixture);
+    expect(buttons[3].getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('[spec] navigation="free": clic mueve a CUALQUIER etapa, incluida una nunca visitada, y emite stepSelected', () => {
+    const fixture = create({ activeIndex: 1, interactive: true, navigation: 'free' });
+    const emitted: number[] = [];
+    fixture.componentInstance.stepSelected.subscribe((i: number) => emitted.push(i));
+    const buttons = stepButtons(fixture);
+
+    // el paso 3 nunca fue alcanzado (furthestIndex por defecto = activeIndex = 1)
+    // y aun así es navegable en modo 'free' — pipeline CRM accionable.
+    expect(buttons[3].getAttribute('aria-disabled')).toBe('false');
+    buttons[3].click();
+    buttons[0].click();
+    buttons[1].click(); // actual → no re-emite
+
+    expect(emitted).toEqual([3, 0]);
+  });
+
+  it('navigation="free" no cambia el estado VISUAL (completado/actual/pendiente), solo la navegabilidad', () => {
+    const fixture = create({ activeIndex: 1, interactive: true, navigation: 'free' });
+    const buttons = stepButtons(fixture);
+
+    expect(buttons[0].classList).toContain('sol-stepper__step--completed');
+    expect(buttons[1].classList).toContain('sol-stepper__step--current');
+    expect(buttons[2].classList).toContain('sol-stepper__step--pending'); // sigue "pendiente" visualmente
+    expect(buttons[3].classList).toContain('sol-stepper__step--pending');
+  });
+
+  it('navigation="free" sin interactive=true sigue sin emitir (navigation por sí solo no activa la navegación)', () => {
+    const fixture = create({ activeIndex: 1, navigation: 'free' });
+    const emitted: number[] = [];
+    fixture.componentInstance.stepSelected.subscribe((i: number) => emitted.push(i));
+    const buttons = stepButtons(fixture);
+
+    buttons[3].click();
+    expect(emitted).toEqual([]);
+    expect(buttons.every((b) => b.tabIndex === -1)).toBe(true);
+  });
+
+  it('teclado en navigation="free": End salta al ÚLTIMO paso aunque nunca se haya visitado', () => {
+    const fixture = create({ activeIndex: 1, interactive: true, navigation: 'free' });
+    const buttons = stepButtons(fixture);
+    const list = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.sol-stepper')!;
+
+    buttons[1].focus();
+    list.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    expect(document.activeElement).toBe(buttons[3]);
   });
 });

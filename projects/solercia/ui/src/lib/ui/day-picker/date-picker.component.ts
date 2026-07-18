@@ -544,6 +544,21 @@ const POPOVER_WIDTH = 300;
     @media (prefers-reduced-motion: reduce) {
       .sol-date-picker__pop { animation: none; }
     }
+
+    /* Evita el zoom automático de iOS Safari al enfocar (requiere font-size
+       computado >= 16px). Ajuste defensivo: el campo es readonly (no abre
+       teclado nativo), pero se protege igual por consistencia con el resto
+       de átomos. Solo aplica en viewport móvil; no toca el token global
+       --sol-font-size-base ni el font-size fuera de este breakpoint.
+       Incluye el selector de la variante --sm (línea ~382): sin esa entrada,
+       su especificidad de 2 clases ganaba sobre este bloque de 1 clase y
+       el input quedaba en ~13px en móvil. */
+    @media (max-width: 640px) {
+      .sol-date-picker__input,
+      .sol-date-picker--sm .sol-date-picker__input {
+        font-size: 16px;
+      }
+    }
   `,
 })
 export class SolDatePickerComponent implements ControlValueAccessor {
