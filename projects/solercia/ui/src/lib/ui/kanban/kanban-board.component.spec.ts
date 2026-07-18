@@ -490,4 +490,71 @@ describe('SolKanbanBoardComponent', () => {
       expect(announce()).toBe('Tarjeta reordenada dentro de la columna');
     });
   });
+
+  describe('externalItemDropped (11-g-crm-contactos-y-acciones, PR2 de boki-front) — drop de un item AJENO al board', () => {
+    function mockExternalDrop(data: unknown, previousContainerId: string, containerId: string): CdkDragDrop<DemoItem[]> {
+      return {
+        previousIndex: 0,
+        currentIndex: 0,
+        container: { id: containerId },
+        previousContainer: { id: previousContainerId },
+        item: { data },
+        isPointerOverContainer: true,
+        distance: { x: 0, y: 0 },
+        dropPoint: { x: 0, y: 0 },
+        event: new MouseEvent('mouseup'),
+      } as unknown as CdkDragDrop<DemoItem[]>;
+    }
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('columns', demoColumns);
+      fixture.detectChanges();
+    });
+
+    it('fromColumnId AJENO + toColumnId propio: emite externalItemDropped con el data crudo, NUNCA itemMoved', () => {
+      const moved: KanbanItemMoved<DemoItem>[] = [];
+      const external: { toColumnId: string; data: unknown }[] = [];
+      fixture.componentInstance.itemMoved.subscribe((e) => moved.push(e));
+      fixture.componentInstance.externalItemDropped.subscribe((e) => external.push(e));
+
+      const contact = { id: 99, name: 'Laura Restrepo' };
+      dropListOf('todo').dropped.emit(mockExternalDrop(contact, 'contacts-source', 'todo'));
+      fixture.detectChanges();
+
+      expect(external).toEqual([{ toColumnId: 'todo', data: contact }]);
+      expect(moved).toEqual([]);
+      // El board NUNCA muta sus propias columnas por un drop externo.
+      expect(cardTitlesIn(0)).toEqual(['Tarea A']);
+    });
+
+    it('fromColumnId AJENO + toColumnId TAMBIÉN inexistente: no emite ni itemMoved ni externalItemDropped (evento inconsistente)', () => {
+      const moved: KanbanItemMoved<DemoItem>[] = [];
+      const external: { toColumnId: string; data: unknown }[] = [];
+      fixture.componentInstance.itemMoved.subscribe((e) => moved.push(e));
+      fixture.componentInstance.externalItemDropped.subscribe((e) => external.push(e));
+
+      // No hay `cdkDropList` real con id "columna-inexistente" — se invoca
+      // el handler del board directamente para el caso defensivo.
+      fixture.componentInstance.onItemDropped({
+        fromColumnId: 'contacts-source',
+        toColumnId: 'columna-inexistente',
+        previousIndex: 0,
+        currentIndex: 0,
+        data: { id: 1 },
+      });
+
+      expect(external).toEqual([]);
+      expect(moved).toEqual([]);
+    });
+
+    it('un drag INTERNO normal (ambas columnas propias) NUNCA emite externalItemDropped', () => {
+      const external: { toColumnId: string; data: unknown }[] = [];
+      fixture.componentInstance.externalItemDropped.subscribe((e) => external.push(e));
+
+      dropListOf('todo').dropped.emit(mockExternalDrop({ id: '1' }, 'todo', 'done'));
+      fixture.detectChanges();
+
+      expect(external).toEqual([]);
+    });
+  });
 });

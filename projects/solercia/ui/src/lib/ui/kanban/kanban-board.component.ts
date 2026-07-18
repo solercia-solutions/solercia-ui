@@ -181,6 +181,22 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
    */
   readonly itemMoved = output<KanbanItemMoved<T>>();
 
+  /**
+   * Arrastre de un item AJENO al board (11-g-crm-contactos-y-acciones, PR2
+   * de boki-front) — un consumidor externo puede conectar su propia
+   * `cdkDropList` (`[cdkDropListConnectedTo]` = ids de columna del board,
+   * obtenibles de `columns()`) para permitir soltar SUS propios items sobre
+   * una columna. `KanbanReorderService.reorder` descarta ese drop (el
+   * `fromColumnId` no es ninguna columna propia — no hay nada que
+   * reordenar), pero el board SÍ reconoce el caso: el `toColumnId` ES una
+   * columna propia y el `fromColumnId` NO lo es. En ese caso emite este
+   * output ADITIVO con el `data` crudo del item arrastrado (`CdkDrag.data`
+   * del origen) en vez de `itemMoved` — el board NUNCA muta sus propias
+   * columnas por un drop externo; el consumidor decide qué hacer (p. ej.
+   * crear una tarjeta nueva) y refresca `[columns]` cuando corresponda.
+   */
+  readonly externalItemDropped = output<{ toColumnId: string; data: unknown }>();
+
   private readonly reorderService = inject(KanbanReorderService);
   private readonly i18n = inject(SOL_I18N);
 
@@ -250,12 +266,30 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
    */
   onItemDropped(event: KanbanRawDropEvent): void {
     const result = this.reorderService.reorder(this.mirroredColumns(), event);
-    if (!result) return;
+    if (!result) {
+      this.emitExternalDropIfApplicable(event);
+      return;
+    }
     this.mirroredColumns.set(result.columns);
     this.itemMoved.emit(result.moved);
     this.announceMove(result.moved);
     // Marca el gesto como "con drop" — ver doc de `droppedThisGesture`.
     this.droppedThisGesture = true;
+  }
+
+  /**
+   * Distingue "evento inconsistente" (columna origen/destino inexistente,
+   * índice fuera de rango — se ignora, comportamiento histórico) de "drop
+   * externo válido" (`toColumnId` ES una columna propia, `fromColumnId` NO
+   * lo es — ver doc de `externalItemDropped`).
+   */
+  private emitExternalDropIfApplicable(event: KanbanRawDropEvent): void {
+    const columns = this.mirroredColumns();
+    const toColumnExists = columns.some(c => c.id === event.toColumnId);
+    const fromColumnExists = columns.some(c => c.id === event.fromColumnId);
+    if (toColumnExists && !fromColumnExists) {
+      this.externalItemDropped.emit({ toColumnId: event.toColumnId, data: event.data });
+    }
   }
 
   /**

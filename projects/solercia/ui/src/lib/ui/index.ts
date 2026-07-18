@@ -115,6 +115,12 @@ export type {
   KanbanColumnAction,
 } from './kanban/kanban.model';
 export { KanbanReorderService } from './kanban/kanban-reorder.service';
+// sol-kanban-drag-source (11-g-crm-contactos-y-acciones, PR2 de boki-front, T06):
+// origen de arrastre EXTERNO al board — única puerta de CDK para un consumidor
+// que necesita declarar SUS PROPIOS items arrastrables hacia las columnas de
+// un `sol-kanban-board` ajeno (gate ESLint T40, CDK solo dentro de ui/kanban/).
+export { SolKanbanDragSourceComponent } from './kanban/kanban-drag-source.component';
+export type { KanbanDragSourceItemContext } from './kanban/kanban-drag-source.component';
 
 // sol-chip / sol-chip-group / sol-number-input (11-f-ciclo3-ux, PR2)
 // NOTA: `SolChipSelectionStrategy`/`SINGLE_SELECT_STRATEGY`/`MULTIPLE_SELECT_STRATEGY`

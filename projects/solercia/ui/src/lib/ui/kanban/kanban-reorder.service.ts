@@ -15,6 +15,17 @@ export interface KanbanRawDropEvent {
   toColumnId: string;
   previousIndex: number;
   currentIndex: number;
+  /**
+   * Dato crudo arrastrado (`CdkDrag.data`) — OPCIONAL, aditivo (11-g-crm-
+   * contactos-y-acciones, PR2 de boki-front). `KanbanReorderService.reorder`
+   * lo IGNORA por completo (sigue resolviendo el item movido por índice
+   * dentro de las columnas propias); existe ÚNICAMENTE para que
+   * `sol-kanban-board` pueda reenviarlo en `externalItemDropped` cuando el
+   * arrastre viene de una `cdkDropList` AJENA al board (`fromColumnId` no
+   * es ninguna columna propia) — el caso de un `cdkDrag` externo conectado
+   * vía `[cdkDropListConnectedTo]` a los ids de columna del tablero.
+   */
+  data?: unknown;
 }
 
 /** Resultado de aplicar un `KanbanRawDropEvent`: columnas con NUEVA referencia + el evento público a emitir. */

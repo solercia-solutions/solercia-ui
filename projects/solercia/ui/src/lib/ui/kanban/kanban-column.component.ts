@@ -392,7 +392,7 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
    * lo reenvía al board. Descarta el caso trivial (soltar en el MISMO
    * índice, MISMO contenedor) — no hay reorden real que aplicar.
    */
-  protected onCdkDropped(event: CdkDragDrop<T[]>): void {
+  protected onCdkDropped(event: CdkDragDrop<T[], unknown>): void {
     // El anillo se enciende al ENTRAR (onCdkEntered) pero CDK solo emite
     // `exited` cuando el item se retira SIN soltar — un drop exitoso en esta
     // misma columna nunca dispara `exited`, así que se apaga acá también.
@@ -403,6 +403,11 @@ export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
       toColumnId: event.container.id,
       previousIndex: event.previousIndex,
       currentIndex: event.currentIndex,
+      // Reenvío CRUDO del dato arrastrado (11-g PR2) — usado SOLO por el
+      // board cuando el drop viene de una `cdkDropList` externa al tablero
+      // (`externalItemDropped`); un drag interno normal lo ignora por
+      // completo (`KanbanReorderService.reorder` nunca lo lee).
+      data: event.item.data,
     });
   }
 
