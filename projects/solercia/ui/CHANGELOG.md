@@ -10,6 +10,19 @@ paquete tiene solo dos consumidores potenciales — `boki-front` y, próximament
 
 ### Agregado
 
+- `sol-drawer` (11-h-sol-drawer, PR1): panel lateral (drawer / side sheet) a alto
+  completo (`100dvh`), hermano de `sol-modal` para formularios largos con contenido
+  desplegable. Lado `start`/`end` (`end` = derecha, default), ancho `sm`/`md`/`lg` por
+  tokens, header con título y cierre proyectables, contenido con scroll propio,
+  footer proyectable (`[drawerFooter]`), `role="dialog"` + `aria-modal="true"` +
+  `aria-labelledby`, focus trap propio con retorno de foco al disparador, candado de
+  scroll del body y cierre por backdrop/Escape/botón (backdrop-close por defecto
+  `true`, a diferencia de `sol-modal`). Motion por tokens
+  (`--sol-dur-base`/`--sol-ease-entrance`) con degradación a `prefers-reduced-motion`.
+  Overlay compartido (`ui/overlay/`): `overlay-interactions` (predicados puros de
+  Escape/backdrop), `body-scroll-lock` (candado con contador de referencias) y
+  `focus-trap` (ciclo de `Tab` in-house, sin `@angular/cdk/a11y`) — extraídos de
+  `sol-modal` sin cambiar su comportamiento observable (specs de regresión en verde).
 - `sol-chip` / `sol-chip-group`: átomo de selección presentacional (emoji, conteo,
   removible, deshabilitado, tamaño) + contenedor CVA con política de selección única
   (`radiogroup`/`radio`) o múltiple (`group`/`checkbox`) resuelta por Strategy
@@ -47,6 +60,10 @@ paquete tiene solo dos consumidores potenciales — `boki-front` y, próximament
 - 1023/1023 tests de la librería en verde (1016 de las nuevas incorporaciones de
   `sol-chip`/`sol-chip-group`/`sol-number-input` + 7 de la corrección de robustez
   post-review sobre foco/CVA/bounds).
+- `sol-drawer` (PR1, 11-h): 1070/1070 tests de la librería en verde (29 nuevos: 13 de
+  `sol-drawer`, 6 de `overlay-interactions`, 6 de `focus-trap`, 4 de
+  `body-scroll-lock`); `sol-modal` queda con el mismo comportamiento observable tras
+  delegar Escape/backdrop al helper compartido (specs de regresión sin tocar).
 
 ## [0.2.0] - 2026-07-16
 
