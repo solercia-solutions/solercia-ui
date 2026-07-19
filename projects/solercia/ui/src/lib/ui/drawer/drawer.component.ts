@@ -18,6 +18,17 @@ import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-i
 
 export type SolDrawerSide = 'start' | 'end';
 export type SolDrawerSize = 'sm' | 'md' | 'lg';
+/**
+ * `panel` (default): comportamiento de SIEMPRE — panel lateral que en móvil
+ * (≤640px) pasa a ancho completo (ver CSS de abajo, SIN cambios).
+ * `sheet` (PR-C4, Ola 5 GOAL §4 punto 3, "canvas de lectura en viewport
+ * móvil... tap en nodo → BOTTOM SHEET casi completo"): idéntico a `panel` en
+ * desktop (>767px) — el bottom sheet es un patrón EXCLUSIVAMENTE móvil; a
+ * ≤767px se apila desde ABAJO (no desde `side()`) ocupando ~92dvh con
+ * esquinas superiores redondeadas, en vez del slide lateral. Aditivo — NUNCA
+ * rompe la API existente, ningún consumidor actual pasa `variant`.
+ */
+export type SolDrawerVariant = 'panel' | 'sheet';
 
 /**
  * Panel lateral (drawer / side sheet) a alto completo, hermano de `sol-modal`
@@ -132,11 +143,14 @@ export type SolDrawerSize = 'sm' | 'md' | 'lg';
     }
 
     .sol-drawer-close {
+      /* PR-C4 (GOAL §4, hit-area invisible >= 44px): min-width/height reales
+         (medibles con getBoundingClientRect) — el icono interno (size md,
+         sin cambios) queda centrado, la tinta visible no crece. */
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2rem;
-      height: 2rem;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
       border: none;
       border-radius: var(--sol-border-radius-lg, 8px);
       background: transparent;
@@ -175,6 +189,33 @@ export type SolDrawerSize = 'sm' | 'md' | 'lg';
       }
     }
 
+    /* -- Variante sheet (bottom sheet, PR-C4) --------------------------
+       SOLO a <=767px (mismo breakpoint que el apilado de filas de
+       transición de flow-node-editor-drawer, Ola 5 PR-C3) — arriba de eso,
+       sheet se ve IDÉNTICO al panel lateral de siempre (el bottom sheet es
+       un patrón exclusivamente móvil). El modificador --sheet es una clase
+       ADITIVA (se agrega junto a --start/--end, nunca las reemplaza) — por
+       eso las reglas de acá ganan en cascada (mismo peso de especificidad,
+       definidas DESPUÉS en la hoja de estilos). */
+    @media (max-width: 767px) {
+      .sol-drawer-overlay--sheet {
+        align-items: flex-end;
+      }
+
+      .sol-drawer-panel--sheet {
+        width: 100vw;
+        height: min(92dvh, 100dvh);
+        max-height: 92dvh;
+        border-left: 1px solid var(--sol-border-color-default, #e5e7eb);
+        border-right: 1px solid var(--sol-border-color-default, #e5e7eb);
+        border-top-left-radius: var(--sol-border-radius-lg, 12px);
+        border-top-right-radius: var(--sol-border-radius-lg, 12px);
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        animation: sol-drawer-sheet-slide-up var(--sol-dur-base, 240ms) var(--sol-ease-entrance, cubic-bezier(0.2, 0, 0, 1));
+      }
+    }
+
     @keyframes sol-drawer-fade-in {
       from { opacity: 0; }
       to   { opacity: 1; }
@@ -183,6 +224,11 @@ export type SolDrawerSize = 'sm' | 'md' | 'lg';
     @keyframes sol-drawer-slide-in {
       from { transform: translateX(var(--sol-drawer-slide-from, 100%)); }
       to   { transform: translateX(0); }
+    }
+
+    @keyframes sol-drawer-sheet-slide-up {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
     }
 
     /* Reduced motion: aparición directa, sin desplazamiento (mismo patrón
@@ -211,6 +257,9 @@ export class SolDrawerComponent {
   /** Width preset for the drawer panel. */
   readonly size = input<SolDrawerSize>('md');
 
+  /** Visual variant — `panel` (default, unchanged) or `sheet` (PR-C4, bottom sheet on mobile only). See {@link SolDrawerVariant}. */
+  readonly variant = input<SolDrawerVariant>('panel');
+
   /** Whether the drawer can be closed by the user. */
   readonly closeable = input<boolean>(true);
 
@@ -231,11 +280,15 @@ export class SolDrawerComponent {
   readonly titleId = `sol-drawer-title-${SolDrawerComponent.nextId++}`;
 
   readonly overlayClasses = computed(
-    () => `sol-drawer-overlay sol-drawer-overlay--${this.side()}`,
+    () =>
+      `sol-drawer-overlay sol-drawer-overlay--${this.side()}` +
+      (this.variant() === 'sheet' ? ' sol-drawer-overlay--sheet' : ''),
   );
 
   readonly panelClasses = computed(
-    () => `sol-drawer-panel sol-drawer-panel--${this.side()} sol-drawer-${this.size()}`,
+    () =>
+      `sol-drawer-panel sol-drawer-panel--${this.side()} sol-drawer-${this.size()}` +
+      (this.variant() === 'sheet' ? ' sol-drawer-panel--sheet' : ''),
   );
 
   readonly closeLabel = computed(() => {

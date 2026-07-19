@@ -8,7 +8,7 @@ export { SolTextareaComponent } from './textarea/textarea.component';
 export { SolToggleComponent } from './toggle/toggle.component';
 export { SolModalComponent } from './modal/modal.component';
 export { SolDrawerComponent } from './drawer/drawer.component';
-export type { SolDrawerSide, SolDrawerSize } from './drawer/drawer.component';
+export type { SolDrawerSide, SolDrawerSize, SolDrawerVariant } from './drawer/drawer.component';
 export { SolBadgeComponent } from './badge/badge.component';
 export { SolCardComponent } from './card/card.component';
 export { SolSpinnerComponent } from './spinner/spinner.component';

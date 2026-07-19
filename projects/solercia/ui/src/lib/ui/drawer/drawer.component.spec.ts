@@ -92,6 +92,31 @@ describe('SolDrawerComponent — apertura, lados, tamaños y cierre', () => {
     fixture.detectChanges();
   });
 
+  it('PR-C4 — variant panel (default) NUNCA agrega la clase --sheet (regresión de compatibilidad)', () => {
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+
+    expect(el().querySelector('.sol-drawer-panel--sheet')).toBeNull();
+    expect(el().querySelector('.sol-drawer-overlay--sheet')).toBeNull();
+
+    fixture.componentRef.setInput('open', false);
+    fixture.detectChanges();
+  });
+
+  it('PR-C4 — variant sheet agrega --sheet a overlay y panel, ADITIVO (conserva side/size)', () => {
+    fixture.componentRef.setInput('open', true);
+    fixture.componentRef.setInput('variant', 'sheet');
+    fixture.detectChanges();
+
+    expect(el().querySelector('.sol-drawer-panel--sheet')).not.toBeNull();
+    expect(el().querySelector('.sol-drawer-overlay--sheet')).not.toBeNull();
+    expect(el().querySelector('.sol-drawer-panel--end')).not.toBeNull(); // side por defecto conservado
+    expect(el().querySelector('.sol-drawer-md')).not.toBeNull(); // size por defecto conservado
+
+    fixture.componentRef.setInput('open', false);
+    fixture.detectChanges();
+  });
+
   it('Escape solicita el cierre SOLO con el drawer abierto y cerrable', () => {
     fixture.detectChanges();
     pressEscape();
