@@ -1,6 +1,7 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  ElementRef,
   TemplateRef,
   computed,
   effect,
@@ -9,6 +10,7 @@ import {
   output,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { SOL_I18N } from '../../i18n/sol-i18n';
@@ -22,6 +24,7 @@ import {
   distanceBetween,
   midpoint,
   panBy,
+  panToRevealWorldRect,
   screenToWorld,
   type SolFlowCanvasViewport,
 } from './flow-canvas-viewport';
@@ -94,6 +97,11 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
  *    `flow-canvas-viewport.ts` (puro, sin Angular). El pan/zoom es una
  *    cuestión de VISTA, no de dominio — sigue activo en `readonly` (a
  *    diferencia de arrastrar/conectar/quitar, que sí quedan bloqueados).
+ *    `overflow: hidden` (necesario para que rueda/pinch no peleen con el
+ *    scroll nativo) reemplaza el "scroll into view" gratis que traía
+ *    `overflow: auto` del shell de PR-C1 — {@link onNodeFocus} lo restituye
+ *    paneando (nunca zoom) hacia cualquier nodo que reciba foco (Tab) fuera
+ *    del área visible.
  *  - **Aristas bezier**: curvas cúbicas con dirección horizontal (favorecen
  *    el layout BFS-por-columnas de `flow-canvas-layout.ts`) en vez de líneas
  *    rectas — ver `flow-canvas-edge-geometry.ts` (puro). El label de cada
@@ -147,6 +155,7 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
+      #canvasHost
       class="sol-flow-canvas"
       role="application"
       [attr.aria-label]="regionLabel()"
@@ -225,6 +234,7 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
               (lostpointercapture)="onNodePointerCancel(node, $event)"
               (click)="onNodeActivate(node)"
               (keydown)="onNodeKeydown(node, $event)"
+              (focus)="onNodeFocus(node)"
             >
               @if (nodeTemplate(); as tpl) {
                 <ng-container *ngTemplateOutlet="tpl; context: nodeTemplateContext(node)" />
@@ -452,6 +462,9 @@ export class SolFlowCanvasComponent {
   protected readonly viewport = signal<SolFlowCanvasViewport>(DEFAULT_VIEWPORT);
   /** Posición (espacio world) del puntero mientras hay una conexión armada — alimenta la curva fantasma. `null` = sin curva que dibujar. */
   protected readonly ghostPointerWorld = signal<SolFlowCanvasPosition | null>(null);
+
+  /** Referencia al host `.sol-flow-canvas` — solo para medir su tamaño real (`getBoundingClientRect()`) en {@link onNodeFocus}/{@link canvasRelativePoint}, nunca para mutar el DOM a mano. */
+  private readonly canvasHostRef = viewChild.required<ElementRef<HTMLElement>>('canvasHost');
 
   private dragState: DragState | null = null;
   private lastGestureWasDrag = false;
@@ -745,6 +758,29 @@ export class SolFlowCanvasComponent {
       x: current.x + delta.x * KEYBOARD_NUDGE_STEP_PX,
       y: current.y + delta.y * KEYBOARD_NUDGE_STEP_PX,
     });
+  }
+
+  /**
+   * `(focus)` de un nodo (Tab, o `target.focus()` explícito en
+   * {@link onNodePointerDown}) — panea el lienzo lo justo para que el nodo
+   * recién enfocado quede visible, NUNCA cambia el zoom (ver
+   * {@link panToRevealWorldRect}, puro).
+   *
+   * Motivación (PR-C2B, W-fix de a11y): el shell de PR-C1 usaba
+   * `overflow: auto` — el navegador hacía "scroll into view" GRATIS cuando el
+   * foco (Tab) llegaba a un nodo fuera del área visible. Este motor reemplaza
+   * ese scroll nativo por `overflow: hidden` + `transform` (pan/zoom propio,
+   * necesario para que la rueda/pinch funcionen sin pelear con el scroll del
+   * navegador) — sin este método, Tab movería el foco LÓGICO sin revelarlo
+   * VISUALMENTE, una regresión real de accesibilidad que este PR introduciría
+   * en silencio si no se corrigiera acá.
+   */
+  protected onNodeFocus(node: SolFlowCanvasNode): void {
+    const hostEl = this.canvasHostRef().nativeElement;
+    const rect = hostEl.getBoundingClientRect();
+    const position = this.resolvedPosition(node);
+    const worldRect = { x: position.x, y: position.y, width: NODE_WIDTH_PX, height: NODE_HEIGHT_PX };
+    this.viewport.update((vp) => panToRevealWorldRect(vp, worldRect, { width: rect.width, height: rect.height }));
   }
 
   private commitNodePosition(node: SolFlowCanvasNode, position: SolFlowCanvasPosition): void {

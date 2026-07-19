@@ -139,3 +139,43 @@ export function computePinchZoom(
   const ratio = currentDistance / previousDistance;
   return zoomAtScreenPoint(viewport, screenAnchor, viewport.zoom * ratio);
 }
+
+/** Margen (px de PANTALLA) que deja `panToRevealWorldRect` entre el borde del rect revelado y el borde del viewport. */
+const REVEAL_MARGIN_PX = 24;
+
+/**
+ * Ajusta el PAN (nunca el zoom — evita saltos de escala inesperados al tabular) para que `worldRect`
+ * quede completamente visible dentro de un viewport de pantalla de `viewportSize`, con
+ * {@link REVEAL_MARGIN_PX} de margen. No-op si `worldRect` ya es completamente visible, o si
+ * `viewportSize` no tiene un tamaño medible todavía (0×0 — p. ej. antes del primer layout real; nunca
+ * lanza ni produce NaN).
+ *
+ * Motivación (PR-C2B, W-fix): el shell de PR-C1 usaba `overflow: auto` — el navegador hacía
+ * "scroll into view" GRATIS cuando el foco de teclado (Tab) llegaba a un nodo fuera del viewport
+ * visible. `sol-flow-canvas` reemplaza ese scroll nativo por `overflow: hidden` + pan/zoom propio (`transform`)
+ * — sin este ajuste, Tab movería el foco LÓGICO sin revelarlo visualmente, una regresión real de
+ * accesibilidad (ver Learned del reporte de fase PR-C2B).
+ */
+export function panToRevealWorldRect(
+  viewport: SolFlowCanvasViewport,
+  worldRect: { x: number; y: number; width: number; height: number },
+  viewportSize: { width: number; height: number },
+  margin = REVEAL_MARGIN_PX,
+): SolFlowCanvasViewport {
+  if (viewportSize.width <= 0 || viewportSize.height <= 0) return viewport; // sin tamaño medible: no hay decisión segura que tomar
+
+  const topLeft = worldToScreen(viewport, { x: worldRect.x, y: worldRect.y });
+  const bottomRight = worldToScreen(viewport, { x: worldRect.x + worldRect.width, y: worldRect.y + worldRect.height });
+
+  const dx = axisRevealDelta(topLeft.x, bottomRight.x, viewportSize.width, margin);
+  const dy = axisRevealDelta(topLeft.y, bottomRight.y, viewportSize.height, margin);
+  if (dx === 0 && dy === 0) return viewport;
+  return panBy(viewport, { x: dx, y: dy });
+}
+
+/** Delta de pan de UN eje — prioriza revelar el borde de INICIO (top/left) si el rect no cabe entero entre los dos márgenes (rect más grande que el viewport visible). */
+function axisRevealDelta(startScreen: number, endScreen: number, viewportLength: number, margin: number): number {
+  if (startScreen < margin) return margin - startScreen;
+  if (endScreen > viewportLength - margin) return viewportLength - margin - endScreen;
+  return 0;
+}

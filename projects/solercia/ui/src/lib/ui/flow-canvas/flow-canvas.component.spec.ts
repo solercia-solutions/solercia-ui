@@ -1,5 +1,6 @@
 import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { vi } from 'vitest';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
 import { computeEdgeMidpoint } from './flow-canvas-edge-geometry';
@@ -861,6 +862,80 @@ describe('SolFlowCanvasComponent', () => {
       nodeSurface('a').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 
       expect(moved).toEqual([{ id: 'a', position: { x: 20, y: 20 } }]); // 10 + 10 (paso fijo) — IGUAL que sin zoom (ver test equivalente sin zoom más arriba)
+    });
+  });
+
+  describe('el foco de teclado panea el lienzo para mantenerse visible (PR-C2B — W-fix de a11y: overflow:hidden reemplaza el scroll nativo del navegador que el shell de PR-C1 obtenía gratis con overflow:auto)', () => {
+    function mockHostRect(width: number, height: number): void {
+      const hostEl = host().querySelector('.sol-flow-canvas') as HTMLElement;
+      vi.spyOn(hostEl, 'getBoundingClientRect').mockReturnValue({
+        width,
+        height,
+        top: 0,
+        left: 0,
+        right: width,
+        bottom: height,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect);
+    }
+
+    function worldTransformValues(): { panX: number; panY: number; zoom: number } {
+      const transform = (host().querySelector('.sol-flow-canvas__world') as HTMLElement).style.transform;
+      const match = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)\s*scale\(([\d.]+)\)/.exec(transform);
+      if (!match) throw new Error(`transform inesperado: "${transform}"`);
+      return { panX: Number.parseFloat(match[1]), panY: Number.parseFloat(match[2]), zoom: Number.parseFloat(match[3]) };
+    }
+
+    it('enfocar un nodo FUERA del viewport visible panea para revelarlo, sin tocar el zoom', () => {
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: 0, y: 0 } }), n({ id: 'lejos', position: { x: 3000, y: 0 } })]);
+      fixture.detectChanges();
+      mockHostRect(400, 320);
+
+      nodeSurface('lejos').dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+      fixture.detectChanges();
+
+      const values = worldTransformValues();
+      expect(values.zoom).toBe(1);
+      expect(values.panX).toBeLessThan(0); // paneó hacia la izquierda para traer x=3000 a la vista
+    });
+
+    it('enfocar un nodo YA visible (con margen de sobra a los 4 bordes) no cambia el pan', () => {
+      // (100,100), NO (10,20) de twoNodes — a esa posición cae DENTRO del margen de 24px del borde
+      // superior/izquierdo (ver el caso de límite ya cubierto en flow-canvas-viewport.spec.ts) y SÍ
+      // dispararía un pequeño ajuste; acá se aísla el caso "sin ningún ajuste necesario".
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: 100, y: 100 } })]);
+      fixture.detectChanges();
+      mockHostRect(800, 320);
+
+      nodeSurface('a').dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+      fixture.detectChanges();
+
+      expect(worldTransformValues()).toEqual({ panX: 0, panY: 0, zoom: 1 });
+    });
+
+    it('el pointerdown sobre un nodo también dispara focus() (ya lo hacía el shell de PR-C1) — panea igual si el nodo arrancaba fuera de vista', () => {
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: 0, y: 0 } }), n({ id: 'lejos', position: { x: 3000, y: 0 } })]);
+      fixture.detectChanges();
+      mockHostRect(400, 320);
+
+      nodeSurface('lejos').dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      fixture.detectChanges();
+
+      expect(worldTransformValues().panX).toBeLessThan(0);
+    });
+
+    it('[robustez] sin un tamaño medible del host (rect 0×0, p. ej. antes del primer layout real) no lanza y no cambia el pan', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+      // sin mockHostRect(): jsdom devuelve un DOMRect 0×0 por defecto — mismo caso que "sin layout real todavía".
+
+      expect(() => {
+        nodeSurface('a').dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+        fixture.detectChanges();
+      }).not.toThrow();
+      expect(worldTransformValues()).toEqual({ panX: 0, panY: 0, zoom: 1 });
     });
   });
 

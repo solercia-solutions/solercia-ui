@@ -9,6 +9,7 @@ import {
   distanceBetween,
   midpoint,
   panBy,
+  panToRevealWorldRect,
   screenToWorld,
   worldToScreen,
   zoomAtScreenPoint,
@@ -166,5 +167,62 @@ describe('computePinchZoom — dos punteros (touch)', () => {
     expect(() => computePinchZoom(DEFAULT_VIEWPORT, 0, 150, { x: 0, y: 0 })).not.toThrow();
     const next = computePinchZoom(DEFAULT_VIEWPORT, 0, 150, { x: 0, y: 0 });
     expect(next).toEqual(DEFAULT_VIEWPORT);
+  });
+});
+
+describe('panToRevealWorldRect — sigue al foco de teclado (PR-C2B, W-fix: overflow:hidden reemplaza el scroll nativo del navegador que traía "scroll into view" gratis con overflow:auto del shell de PR-C1; sin este ajuste, tabular a un nodo lejano movería el foco lógico SIN revelarlo visualmente)', () => {
+  const viewportSize = { width: 400, height: 320 };
+
+  it('un rect YA completamente visible no cambia el pan', () => {
+    const worldRect = { x: 50, y: 50, width: 180, height: 56 };
+    expect(panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, viewportSize)).toBe(DEFAULT_VIEWPORT);
+  });
+
+  it('un rect a la DERECHA del viewport panea hacia la izquierda (panX negativo) lo justo para revelarlo con margen', () => {
+    // y=100 (no 0): deja el eje Y cómodamente DENTRO del margen para aislar el ajuste al eje X.
+    const worldRect = { x: 2000, y: 100, width: 180, height: 56 };
+    const next = panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, viewportSize);
+    expect(next.panX).toBeLessThan(0);
+    expect(next.panY).toBe(0);
+    expect(next.zoom).toBe(1); // NUNCA cambia el zoom, solo el pan
+    // el borde derecho del rect (2000+180=2180) debe caer EXACTO en (viewportWidth - margen) tras el ajuste
+    expect(2180 * next.zoom + next.panX).toBeCloseTo(viewportSize.width - 24, 6);
+  });
+
+  it('un rect a la IZQUIERDA del viewport (x negativo) panea hacia la derecha (panX positivo)', () => {
+    const worldRect = { x: -500, y: 100, width: 180, height: 56 };
+    const next = panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, viewportSize);
+    expect(next.panX).toBeGreaterThan(0);
+    expect(-500 * next.zoom + next.panX).toBeCloseTo(24, 6); // borde izquierdo cae exacto en el margen
+  });
+
+  it('un rect ABAJO del viewport panea hacia arriba (panY negativo)', () => {
+    // x=100 (no 0): deja el eje X cómodamente DENTRO del margen para aislar el ajuste al eje Y.
+    const worldRect = { x: 100, y: 900, width: 180, height: 56 };
+    const next = panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, viewportSize);
+    expect(next.panY).toBeLessThan(0);
+    expect(next.panX).toBe(0);
+  });
+
+  it('un rect cuyo borde de inicio cae DENTRO del margen (pero no negativo) también se reajusta — el margen aplica incluso sin "salirse" del todo', () => {
+    const worldRect = { x: 100, y: 0, width: 180, height: 56 }; // y=0 < margen(24)
+    const next = panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, viewportSize);
+    expect(next.panY).toBe(24); // empuja el borde superior exactamente al margen
+    expect(next.panX).toBe(0);
+  });
+
+  it('respeta el zoom vigente al decidir si el rect ya es visible', () => {
+    const zoomedViewport = { panX: 0, panY: 0, zoom: 2 };
+    // en world, x=150..330 (180 de ancho); a zoom=2 en pantalla es 300..660 — se sale del viewport de 400px.
+    const worldRect = { x: 150, y: 0, width: 180, height: 56 };
+    const next = panToRevealWorldRect(zoomedViewport, worldRect, viewportSize);
+    expect(next.zoom).toBe(2);
+    expect(next.panX).toBeLessThan(0);
+  });
+
+  it('[robustez] un viewport de tamaño 0 (sin layout medible aún) es un no-op seguro, nunca NaN/lanza', () => {
+    const worldRect = { x: 99999, y: 99999, width: 180, height: 56 };
+    expect(() => panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, { width: 0, height: 0 })).not.toThrow();
+    expect(panToRevealWorldRect(DEFAULT_VIEWPORT, worldRect, { width: 0, height: 0 })).toBe(DEFAULT_VIEWPORT);
   });
 });
