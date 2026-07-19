@@ -43,8 +43,26 @@ import type {
 const NODE_WIDTH_PX = 180;
 const NODE_HEIGHT_PX = 56;
 
-/** Un gesto de pointerdown→pointerup con menos desplazamiento de PANTALLA que esto se trata como click, no como arrastre. */
+/** Un gesto de pointerdown→pointerup con menos desplazamiento de PANTALLA que esto se trata como click, no como arrastre (mouse/pen: precisión motora alta). */
 const DRAG_THRESHOLD_PX = 4;
+
+/**
+ * PR-C4 (GOAL §4, móvil) — hallazgo real del e2e móvil (`e2e/flows/
+ * flows-mobile.spec.ts`): un TAP real de dedo (`pointerType: 'touch'`)
+ * reporta varios px de "temblor" incluso inmóvil — el umbral de 4px
+ * (afinado para mouse) clasificaba un tap normal como arrastre, y
+ * `onNodeActivate` descartaba el click siguiente (`lastGestureWasDrag`),
+ * dejando el nodo SIN abrir su editor. Slop más generoso, mismo orden de
+ * magnitud que el "touch slop" estándar de las plataformas (Android
+ * `ViewConfiguration.getScaledTouchSlop()` ~8dp, iOS ~10pt) — ver
+ * {@link dragThresholdFor}.
+ */
+const DRAG_THRESHOLD_PX_TOUCH = 10;
+
+/** Umbral clic-vs-arrastre según el tipo de puntero del evento — ver {@link DRAG_THRESHOLD_PX}/{@link DRAG_THRESHOLD_PX_TOUCH}. */
+function dragThresholdFor(event: PointerEvent): number {
+  return event.pointerType === 'touch' ? DRAG_THRESHOLD_PX_TOUCH : DRAG_THRESHOLD_PX;
+}
 
 /** Paso de cada nudge por teclado (paridad a11y del arrastre) — fijo en espacio CANVAS, independiente del zoom (ver docstring de {@link onNodeKeydown}). */
 const KEYBOARD_NUDGE_STEP_PX = 10;
@@ -125,6 +143,34 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
  *    FANTASMA sigue al cursor desde el nodo origen. Es un HINT visual, NUNCA
  *    bloquea la conexión — el validador real de dominio (`entities/flow`,
  *    fuera de esta librería agnóstica) sigue siendo la fuente de verdad.
+ *
+ * **PR-C4 (GOAL §4, móvil) — 3 hallazgos de auditoría + 2 adiciones**:
+ *  1. **Pointer Events unificados**: auditado — CERO `mouse*`/`touch*` en
+ *     este componente (ni en `flow-canvas-viewport.ts`/`-connect.ts`/
+ *     `-edge-geometry.ts`/`-layout.ts`, ni en los widgets/página consumidores
+ *     de PR-C3) — el motor YA es 100% Pointer Events desde el bake-off
+ *     (C2B). Nada que unificar.
+ *  2. **Targets ≥44px con hit-area invisible**: `.sol-flow-canvas__node-
+ *     connect-handle` (28px→44×44 real, `align-self:center` para no
+ *     estirarse con node-surface), `.sol-flow-canvas__node-surface`
+ *     (min-height:44px) y `.sol-flow-canvas__edge-remove` (padding real +
+ *     margin negativo IGUAL Y OPUESTO — el hijo sigue "pesando" lo mismo
+ *     dentro del flex de la píldora, así que ésta no se agranda visualmente)
+ *     — los 3 alcanzan ≥44px reales (verificable con `getBoundingClientRect`/
+ *     Playwright `boundingBox()`, ver `e2e/flows/flows-mobile.spec.ts`).
+ *  3. **Resaltado "solo válidos"**: auditado — el hint YA distingue
+ *     `--connect-valid-target` (resalta, borde+glow verde) de
+ *     `--connect-invalid-target` (SOLO atenúa, `opacity:0.45`, sin color
+ *     propio) desde PR-C2B/C3 — ya cumple el texto literal del GOAL
+ *     ("resaltan SOLO destinos válidos"). Sin cambio de CSS/lógica; el
+ *     aria-live del conteo (PR-C3) se conserva sin tocar.
+ *  4. **Auto-layout siempre visible en móvil**: botón flotante nuevo
+ *     (`.sol-flow-canvas__auto-layout`, oculto en desktop vía
+ *     `@media (max-width:767px)`) que invoca `autoLayout()` — ver
+ *     {@link onAutoLayoutClick}.
+ *  5. **Bottom sheet móvil**: vive en `sol-drawer` (variant `sheet`, nueva),
+ *     NO en este componente — `flow-node-editor-drawer` (boki-front) es
+ *     quien la activa.
  *
  * Interacciones (documentadas porque el GESTO concreto es decisión de cada
  * motor del bake-off — la suite de aceptación compartida prueba la API, no
@@ -271,6 +317,18 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
         }
       </div>
 
+      @if (!isReadonly()) {
+        <button
+          type="button"
+          class="sol-flow-canvas__auto-layout"
+          data-testid="flow-canvas-auto-layout"
+          [attr.aria-label]="autoLayoutButtonAriaLabel()"
+          (click)="onAutoLayoutClick()"
+        >
+          {{ autoLayoutButtonLabel() }}
+        </button>
+      }
+
       <div class="sol-flow-canvas__announce" aria-live="polite" role="status">{{ announcement() }}</div>
     </div>
   `,
@@ -347,7 +405,23 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       cursor: pointer;
       font-size: var(--sol-font-size-sm, 13px);
       line-height: 1;
-      padding: 0 2px;
+      /* PR-C4 (GOAL §4, hit-area invisible ≥44px): padding real agranda el
+         botón a 44x44 (medible con getBoundingClientRect) — un margin
+         negativo IGUAL Y OPUESTO en cada lado devuelve el tamaño que la
+         píldora edge-label (flex) ve de este hijo a los 13x13px de siempre
+         (2+9+2 ancho, 0+13+0 alto), así que la píldora NO se agranda
+         visualmente. Sesgado a propósito: el padding izquierdo NO crece
+         (margin-left: 0) para no comerse el gap de 4px hacia el texto
+         vecino — casi todo el crecimiento va arriba/abajo/derecha (espacio
+         libre del lienzo). Evidencia e2e en flows-mobile.spec.ts
+         (boundingBox mayor o igual a 44x44) — jsdom no calcula layout real,
+         este cálculo no es verificable en Vitest. */
+      /* Márgen de seguridad sobre el mínimo de 44px — medido real (evidencia
+         e2e, boundingBox): el glyph "×" a font-size 13px mide ~7px de ancho
+         x ~12px de alto (no ~9x13 como se estimó al calcular por primera
+         vez) — padding ajustado con +2-3px de colchón en cada dimensión. */
+      padding: 18px 37px 18px 2px;
+      margin: -18px -35px -18px 0;
     }
 
     .sol-flow-canvas__node {
@@ -362,6 +436,16 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
 
     .sol-flow-canvas__node-surface {
       flex: 1;
+      /* PR-C4 (GOAL §4, ≥44px hit-area): un nodo con solo el label por
+         defecto (sin nodeTemplate) medía ~33-40px de alto — min-height
+         garantiza el piso real de 44px (medible con getBoundingClientRect);
+         display:flex centra el contenido (una línea o el template completo
+         de varias líneas del consumidor) dentro del alto garantizado, sin
+         inflar el diseño visual (mismo padding/borde/tipografía de siempre). */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 44px;
       text-align: left;
       padding: 10px 12px;
       background: var(--sol-bg-surface, #fff);
@@ -420,8 +504,18 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
     }
 
     .sol-flow-canvas__node-connect-handle {
+      /* PR-C4 (GOAL §4, ≥44px hit-area): ya NO se estira a la altura de
+         node-surface (align-self:center en vez del stretch heredado del
+         row) — reserva su PROPIO piso de ≥44×44px real (medible con
+         getBoundingClientRect), independiente del alto del nodo. El glyph
+         "⇢" queda centrado dentro. */
+      align-self: center;
       flex: none;
-      width: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
       border: 1px solid var(--sol-border-color-default, #e2e8f0);
       border-radius: var(--sol-border-radius-md, 8px);
       background: var(--sol-bg-surface, #fff);
@@ -439,6 +533,47 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       clip: rect(0, 0, 0, 0);
       white-space: nowrap;
       border: 0;
+    }
+
+    /* PR-C4 (GOAL §4 punto 5, auto-layout siempre visible en móvil): toolbar
+       flotante de una sola acción, fija sobre el lienzo (fuera del grupo
+       .sol-flow-canvas__world, así que NUNCA panea/zoomea con el contenido).
+       Oculto en desktop a propósito — el mandato lo pide en móvil; en
+       escritorio el drag con mouse ya es preciso y no faltaba una acción
+       equivalente antes de PR-C4. Tamaño real (min 44px), nunca un
+       pseudo-elemento — visible mientras el lienzo sea editable (oculto solo
+       en modo readonly, ver el condicional del template). */
+    .sol-flow-canvas__auto-layout {
+      display: none;
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      z-index: 4;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0 16px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--sol-border-color-default, #e2e8f0);
+      border-radius: var(--sol-border-radius-full, 999px);
+      background: var(--sol-bg-surface, #fff);
+      color: var(--sol-color-text-primary);
+      font-family: var(--sol-font-family);
+      font-size: var(--sol-font-size-sm, 13px);
+      font-weight: 600;
+      box-shadow: var(--sol-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.12));
+      cursor: pointer;
+    }
+
+    .sol-flow-canvas__auto-layout:focus-visible {
+      outline: 2px solid var(--sol-color-primary, #2563eb);
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 767px) {
+      .sol-flow-canvas__auto-layout {
+        display: inline-flex;
+      }
     }
   `,
 })
@@ -627,6 +762,16 @@ export class SolFlowCanvasComponent {
     return this.i18n.translate('shared.flowCanvas.removeConnectionLabel');
   }
 
+  protected autoLayoutButtonLabel(): string {
+    this.i18n.activeLang();
+    return this.i18n.translate('shared.flowCanvas.autoLayoutButton');
+  }
+
+  protected autoLayoutButtonAriaLabel(): string {
+    this.i18n.activeLang();
+    return this.i18n.translate('shared.flowCanvas.autoLayoutButtonAriaLabel');
+  }
+
   // --- selección / conectar ---
 
   protected onNodeActivate(node: SolFlowCanvasNode): void {
@@ -766,7 +911,7 @@ export class SolFlowCanvasComponent {
     // definición. Medirlo en canvas haría el umbral más permisivo alejado (jitter mínimo ya cruzaría 4px
     // de canvas) y más estricto acercado — ambos efectos indeseados que esta medición evita por completo.
     const screenDistance = Math.hypot(event.clientX - state.startPointer.x, event.clientY - state.startPointer.y);
-    if (screenDistance < DRAG_THRESHOLD_PX) return; // sin desplazamiento real: el click nativo que sigue resuelve selección/conexión
+    if (screenDistance < dragThresholdFor(event)) return; // sin desplazamiento real: el click nativo que sigue resuelve selección/conexión (PR-C4: umbral touch-aware, ver dragThresholdFor)
 
     this.lastGestureWasDrag = true;
     this.commitNodePosition(node, state.currentPosition); // commitNodePosition clampea a coordenadas no negativas (W4)
@@ -964,6 +1109,17 @@ export class SolFlowCanvasComponent {
    * intervalo que antes tomaba el cálculo síncrono, solo que ahora incluye
    * la carga del chunk la PRIMERA vez.
    */
+  /**
+   * PR-C4 (GOAL §4 punto 5) — dispara `autoLayout()` desde el botón flotante
+   * SIEMPRE visible en móvil (`@if (!isReadonly())` en el template ya cubre
+   * el guard de solo-lectura; este método solo existe para darle un nombre
+   * de evento propio al `(click)`, fire-and-forget igual que el efecto de
+   * `pages/flows` que ya invoca `autoLayout()` sin `await`).
+   */
+  protected onAutoLayoutClick(): void {
+    void this.autoLayout();
+  }
+
   async autoLayout(): Promise<void> {
     if (this.isReadonly()) return;
     const current = this.mirroredNodes();

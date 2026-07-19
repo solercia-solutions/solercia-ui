@@ -51,8 +51,9 @@ describe('SolFlowCanvasComponent', () => {
     return nodeEl(id).querySelector('.sol-flow-canvas__node-surface') as HTMLButtonElement;
   }
 
-  function pointerEvent(type: string, x: number, y: number, pointerId = 1): PointerEvent {
-    return new PointerEvent(type, { clientX: x, clientY: y, pointerId, bubbles: true, cancelable: true });
+  /** `pointerType` (PR-C4): default 'mouse' — TODOS los call-sites existentes (4 args) preservan el umbral de arrastre de siempre; los nuevos tests de móvil pasan 'touch' explícito. */
+  function pointerEvent(type: string, x: number, y: number, pointerId = 1, pointerType: 'mouse' | 'touch' | 'pen' = 'mouse'): PointerEvent {
+    return new PointerEvent(type, { clientX: x, clientY: y, pointerId, pointerType, bubbles: true, cancelable: true });
   }
 
   beforeEach(() => {
@@ -286,6 +287,46 @@ describe('SolFlowCanvasComponent', () => {
       surface.dispatchEvent(pointerEvent('pointerup', 100, 103.9));
 
       expect(moved).toEqual([]);
+    });
+
+    it('[touch] PR-C4 (hallazgo real del e2e móvil) — 6px de "temblor" con pointerType=touch NO cuenta como arrastre; el click posterior SÍ selecciona', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      const selected: SolFlowCanvasNodeSelectedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+      fixture.componentInstance.nodeSelected.subscribe((e) => selected.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1, 'touch'));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 106, 1, 'touch')); // 6px: por encima del umbral mouse (4px), por debajo del umbral touch nuevo
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 106, 1, 'touch'));
+      surface.click(); // el navegador SIEMPRE sintetiza un click tras un pointerup — jsdom no lo hace solo, se dispara a mano (mismo patrón que el resto del describe)
+
+      expect(moved).toEqual([]); // NO se clasificó como arrastre
+      expect(selected).toEqual([{ id: 'a' }]); // un tap real con temblor normal en un dedo SIGUE seleccionando el nodo
+    });
+
+    it('[touch] un desplazamiento REAL más allá del umbral táctil SIGUE contando como arrastre', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1, 'touch'));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 130, 1, 'touch')); // 30px — arrastre real, sin ambigüedad
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 130, 1, 'touch'));
+
+      expect(moved.length).toBe(1);
+    });
+
+    it('[mouse] el umbral de 4px NO cambia (regresión) — 6px con pointerType=mouse SIGUE contando como arrastre', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1, 'mouse'));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 106, 1, 'mouse')); // mismos 6px que el test touch de arriba, pero con mouse
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 106, 1, 'mouse'));
+
+      expect(moved.length).toBe(1);
     });
   });
 
@@ -691,6 +732,44 @@ describe('SolFlowCanvasComponent', () => {
       await fixture.componentInstance.autoLayout();
 
       expect(moved).toEqual([]);
+    });
+  });
+
+  describe('PR-C4 (móvil, GOAL §4 punto 5) — botón flotante de auto-layout siempre visible', () => {
+    function autoLayoutButton(): HTMLButtonElement | null {
+      return host().querySelector('[data-testid="flow-canvas-auto-layout"]') as HTMLButtonElement | null;
+    }
+
+    it('se renderiza con aria-label y texto visible; [readonly] lo oculta (mismo criterio que connect-handle/edge-remove)', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      const btn = autoLayoutButton();
+      expect(btn).not.toBeNull();
+      expect(btn!.getAttribute('aria-label')).toBeTruthy();
+      expect(btn!.textContent?.trim().length).toBeGreaterThan(0);
+
+      fixture.componentRef.setInput('readonly', true);
+      fixture.detectChanges();
+      expect(autoLayoutButton()).toBeNull();
+    });
+
+    it('el click invoca autoLayout() — reposiciona los nodos sin position válida y emite nodeMoved', async () => {
+      const positionless = { ...n({ id: 'b', label: 'Sin posición' }) };
+      // @ts-expect-error — runtime deliberadamente sin position (mismo patrón que el describe de autoLayout() de arriba)
+      delete positionless.position;
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: 999, y: 999 } }), positionless]);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      autoLayoutButton()!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(moved).toEqual([{ id: 'b', position: expect.any(Object) }]);
+      expect(nodeEl('a').style.left).toBe('999px'); // sin tocar
     });
   });
 
