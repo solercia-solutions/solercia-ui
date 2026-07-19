@@ -339,6 +339,19 @@ describe('SolFlowCanvasComponent', () => {
       expect(moved).toEqual([]);
       expect(nodeEl('a').style.left).toBe('10px'); // revierte a la fuente (nodes()), no a la última posición arrastrada
     });
+
+    it('un pointercancel a mitad de arrastre anuncia la cancelación por aria-live (re-check 4R SUGGESTION: las 4 mutaciones exitosas ya anunciaban, esta reversión quedaba muda)', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130));
+      surface.dispatchEvent(new PointerEvent('pointercancel', { clientX: 140, clientY: 130, pointerId: 1, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+
+      expect(host().querySelector('.sol-flow-canvas__announce')?.textContent).toBe('Se canceló el movimiento del nodo.');
+    });
   });
 
   describe('lostpointercapture — defensa contra reasignación de captura por el navegador (W5, 4R Ola 5)', () => {
@@ -397,6 +410,14 @@ describe('SolFlowCanvasComponent', () => {
       fixture.detectChanges();
 
       expect(moved[moved.length - 1].position).toEqual({ x: 0, y: 0 });
+    });
+
+    it('un nodo con `position` NEGATIVA directo del input (sin arrastre) también clampea a (0,0) al renderizar — el clamp vale en CUALQUIER rama de resolvedPosition(), no solo durante un drag (re-check 4R: hoy la única fuente es autoLayout, siempre ≥0, pero un input externo como `canvas_position` del backend podría traer negativos)', () => {
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: -25, y: -10 } }), n({ id: 'b', position: { x: 300, y: 20 } })]);
+      fixture.detectChanges();
+
+      expect(nodeEl('a').style.left).toBe('0px');
+      expect(nodeEl('a').style.top).toBe('0px');
     });
   });
 

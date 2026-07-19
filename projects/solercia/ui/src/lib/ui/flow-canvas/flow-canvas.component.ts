@@ -8,6 +8,7 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { SOL_I18N } from '../../i18n/sol-i18n';
@@ -411,8 +412,15 @@ export class SolFlowCanvasComponent {
     // ventana síncrona entre el flip y que este effect corra.
     effect(() => {
       if (!this.isReadonly()) return;
+      // Re-check 4R (SUGGESTION): solo anuncia si REALMENTE había un gesto en curso — evita "ruido"
+      // de aria-live cada vez que el consumidor flipea `readonly` sin nada activo. La lectura de
+      // `connectSourceId()` usa `untracked()` a propósito (mismo criterio que `isDragging()` en
+      // `sol-kanban-board`): este effect solo debe reaccionar cuando `isReadonly()` cambia, nunca
+      // cuando `connectSourceId` cambia por sí solo — lo que incluye el propio `.set(null)` de abajo.
+      const hadActiveGesture = this.dragState !== null || untracked(() => this.connectSourceId()) !== null;
       this.dragState = null;
       this.connectSourceId.set(null);
+      if (hadActiveGesture) this.announce('shared.flowCanvas.moveCancelledAnnouncement');
     });
   }
 
@@ -442,7 +450,11 @@ export class SolFlowCanvasComponent {
     // W4 (4R Ola 5): clamp en el PUNTO DE LECTURA — mantiene `dragState.currentPosition` sin transformar
     // (la distancia de arrastre en onNodePointerUp sigue comparando contra el delta real, sin distorsión).
     if (this.dragState && this.dragState.nodeId === node.id) return clampPosition(this.dragState.currentPosition);
-    if (this.hasValidPosition(node)) return node.position;
+    // Re-check 4R (WARNING): clampea TAMBIÉN acá — hoy la única fuente viva de `node.position` es
+    // autoLayout (siempre ≥0), pero es un input externo (p. ej. `canvas_position` desde el backend,
+    // C1-back) que podría traer coordenadas negativas; el invariante del origen (0,0), ver docstring
+    // de la clase, no puede depender de que el emisor externo siempre lo respete.
+    if (this.hasValidPosition(node)) return clampPosition(node.position);
     return { x: 0, y: 0 };
   }
 
@@ -598,6 +610,9 @@ export class SolFlowCanvasComponent {
     if (!state || state.pointerId !== event.pointerId || state.nodeId !== node.id) return; // C1: puntero/nodo ajeno, no toca el drag activo
     this.dragState = null;
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+    // Re-check 4R (SUGGESTION): las 4 mutaciones exitosas anuncian por aria-live — esta reversión
+    // quedaba muda y dejaba a un usuario de lector de pantalla sin feedback de que el gesto se abortó.
+    this.announce('shared.flowCanvas.moveCancelledAnnouncement');
   }
 
   // --- nudge por teclado (paridad a11y) ---
