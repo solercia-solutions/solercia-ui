@@ -29,6 +29,15 @@ import { describe, it, expect } from 'vitest';
  *     tamaños (10/13/16px) propias, incompatibles con la escala fija de
  *     `<sol-icon>` (16/20/24px); `minus`/`star` no tienen entrada en el
  *     registry (fuera del alcance de iconos aprobado para este cambio).
+ *   - `ui/flow-canvas/flow-canvas.component.ts` (Ola 5, PR-C1): el `<svg>`
+ *     NO es un ícono — es la superficie de dibujo de las CONEXIONES del
+ *     lienzo (líneas entre nodos + marcador de flecha), la misma categoría
+ *     que el grid propio de `ui/calendar/calendar-grid.component.ts` o el
+ *     `<canvas>` que `ui/chart/chart.component.ts` delega a Chart.js — un
+ *     motor de render de datos, no un glifo estático que `ICON_REGISTRY`
+ *     pueda modelar. El requisito de migración de este gate (spec
+ *     `solercia-ui-icon-registry`) es sobre ÍCONOS, no sobre primitivas de
+ *     visualización de datos.
  *
  * Si se agrega un ícono NUEVO a cualquier otro componente de la lib con
  * `<svg`/`<path>` inline, este test falla señalando archivo y línea.
@@ -43,6 +52,7 @@ const EXCLUDED_RELATIVE_PATHS = new Set([
   'ui/spinner/spinner.component.ts',
   'ui/button/button.component.ts',
   'ui/checkbox/checkbox.component.ts',
+  'ui/flow-canvas/flow-canvas.component.ts',
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {

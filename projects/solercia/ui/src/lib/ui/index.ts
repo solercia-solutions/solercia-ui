@@ -155,3 +155,22 @@ export {
   parseEventDate,
 } from './calendar/calendar-layout';
 export type { CalendarDayColumn } from './calendar/calendar-layout';
+
+// sol-flow-canvas (Ola 5 — openspec/GOAL-ola5-flow-canvas-y-cutover.md §4, PR-C1)
+// Contrato agnóstico del motor: PR-C2A (@foblex/flow) y PR-C2B (nativo SVG+CDK)
+// reemplazan SOLO el interior de SolFlowCanvasComponent, nunca esta API pública.
+export { SolFlowCanvasComponent } from './flow-canvas/flow-canvas.component';
+export type {
+  SolFlowCanvasPosition,
+  SolFlowCanvasNodeVisualState,
+  SolFlowCanvasNodeBadge,
+  SolFlowCanvasNode,
+  SolFlowCanvasEdgeKind,
+  SolFlowCanvasEdge,
+  SolFlowCanvasNodeMovedEvent,
+  SolFlowCanvasNodeSelectedEvent,
+  SolFlowCanvasConnectionCreatedEvent,
+  SolFlowCanvasConnectionRemovedEvent,
+  SolFlowCanvasNodeTemplateContext,
+} from './flow-canvas/flow-canvas.model';
+export { computeAutoLayoutPositions } from './flow-canvas/flow-canvas-layout';
