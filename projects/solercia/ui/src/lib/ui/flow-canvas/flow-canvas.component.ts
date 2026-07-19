@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { SOL_I18N } from '../../i18n/sol-i18n';
-import { computeAutoLayoutPositions, countNodeIds, safeTrackKey } from './flow-canvas-layout';
+import { computeAutoLayoutPositions, countEdgeIds, countNodeIds, safeTrackKey } from './flow-canvas-layout';
 import type {
   SolFlowCanvasConnectionCreatedEvent,
   SolFlowCanvasConnectionRemovedEvent,
@@ -44,9 +44,16 @@ let uniqueMarkerCounter = 0;
 
 interface DragState {
   nodeId: string;
+  /** Puntero DUEÑO de este drag (C1, 4R Ola 5) — un segundo puntero concurrente jamás debe leer/mutar este estado. */
+  pointerId: number;
   startPointer: SolFlowCanvasPosition;
   startPosition: SolFlowCanvasPosition;
   currentPosition: SolFlowCanvasPosition;
+}
+
+/** El origen (0,0) del lienzo es un límite real — un contenedor `overflow: auto` no tiene scroll negativo, así que ningún nodo debe commitear ni mostrarse en coordenadas negativas (W4, 4R Ola 5). */
+function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
+  return { x: Math.max(0, position.x), y: Math.max(0, position.y) };
 }
 
 /**
@@ -64,9 +71,12 @@ interface DragState {
  * Interacciones del shell (documentadas porque C2A/C2B pueden legítimamente
  * cambiar el GESTO concreto sin romper el contrato — la suite de aceptación
  * compartida prueba la API, no el gesto):
- *  - **Selección**: cada nodo es un `<button>` real — click y Enter/Espacio
- *    (semántica nativa del navegador sobre un botón enfocado) emiten
- *    `nodeSelected` de la MISMA forma, sin código adicional.
+ *  - **Selección**: cada nodo es un `<button>` real — click nativo, y
+ *    Enter/Espacio manejados de forma EXPLÍCITA en `onNodeKeydown` (W6, 4R
+ *    Ola 5: NO se delega en la activación nativa del navegador sobre el
+ *    botón — el contrato debe exigir Enter/Espacio incluso si un motor
+ *    C2A/C2B no usa `<button>` nativo). Ambos caminos emiten `nodeSelected`
+ *    de la MISMA forma.
  *  - **Mover un nodo (mouse)**: `pointerdown`→`pointermove`→`pointerup`
  *    sobre el nodo. Si el desplazamiento total supera {@link DRAG_THRESHOLD_PX}
  *    emite `nodeMoved`; si NO (un click esencialmente estático), el
@@ -126,7 +136,7 @@ interface DragState {
             <path d="M0,0 L8,4 L0,8 Z" class="sol-flow-canvas__edge-arrow" />
           </marker>
         </defs>
-        @for (edge of visibleEdges(); track edge.id) {
+        @for (edge of visibleEdges(); track trackEdge(edge, $index)) {
           <line
             class="sol-flow-canvas__edge-line"
             [attr.x1]="edgeLine(edge).x1"
@@ -138,7 +148,7 @@ interface DragState {
         }
       </svg>
 
-      @for (edge of visibleEdges(); track edge.id) {
+      @for (edge of visibleEdges(); track trackEdge(edge, $index)) {
         <div class="sol-flow-canvas__edge-label" [style.left.px]="edgeMidpoint(edge).x" [style.top.px]="edgeMidpoint(edge).y">
           <span class="sol-flow-canvas__edge-label-text">{{ edge.label ?? edge.kind }}</span>
           @if (!isReadonly()) {
@@ -171,9 +181,10 @@ interface DragState {
             [attr.aria-pressed]="isSelected(node)"
             [attr.aria-label]="nodeAriaLabel(node)"
             (pointerdown)="onNodePointerDown(node, $event)"
-            (pointermove)="onNodePointerMove($event)"
+            (pointermove)="onNodePointerMove(node, $event)"
             (pointerup)="onNodePointerUp(node, $event)"
-            (pointercancel)="onNodePointerUp(node, $event)"
+            (pointercancel)="onNodePointerCancel(node, $event)"
+            (lostpointercapture)="onNodePointerCancel(node, $event)"
             (click)="onNodeActivate(node)"
             (keydown)="onNodeKeydown(node, $event)"
           >
@@ -386,16 +397,32 @@ export class SolFlowCanvasComponent {
   });
 
   private readonly nodeIdFrequency = computed(() => countNodeIds(this.mirroredNodes()));
+  private readonly edgeIdFrequency = computed(() => countEdgeIds(this.visibleEdges()));
 
   constructor() {
     effect(() => {
       const incoming = (this.nodes() ?? []).filter((node): node is SolFlowCanvasNode => !!node);
       this.mirroredNodes.set(incoming);
     });
+
+    // W1+W2 (4R Ola 5): un flip de `readonly` a mitad de gesto cancela CUALQUIER mutación en curso —
+    // revierte el drag SIN emitir (la posición visual vuelve a resolvedPosition()/nodes()) y desarma
+    // "conectar". Los guards puntuales en onNodePointerMove/onNodePointerUp/onNodeActivate cubren la
+    // ventana síncrona entre el flip y que este effect corra.
+    effect(() => {
+      if (!this.isReadonly()) return;
+      this.dragState = null;
+      this.connectSourceId.set(null);
+    });
   }
 
   trackNode(node: SolFlowCanvasNode, index: number): unknown {
     return safeTrackKey(node?.id, index, this.nodeIdFrequency());
+  }
+
+  /** Fallback anti-NG0955 para edges — mismo patrón que {@link trackNode} (C2, 4R Ola 5): un `id` de edge duplicado ya no rompe el `track` del `@for`. */
+  trackEdge(edge: SolFlowCanvasEdge, index: number): unknown {
+    return safeTrackKey(edge?.id, index, this.edgeIdFrequency());
   }
 
   protected isSelected(node: SolFlowCanvasNode): boolean {
@@ -412,7 +439,9 @@ export class SolFlowCanvasComponent {
   }
 
   protected resolvedPosition(node: SolFlowCanvasNode): SolFlowCanvasPosition {
-    if (this.dragState && this.dragState.nodeId === node.id) return this.dragState.currentPosition;
+    // W4 (4R Ola 5): clamp en el PUNTO DE LECTURA — mantiene `dragState.currentPosition` sin transformar
+    // (la distancia de arrastre en onNodePointerUp sigue comparando contra el delta real, sin distorsión).
+    if (this.dragState && this.dragState.nodeId === node.id) return clampPosition(this.dragState.currentPosition);
     if (this.hasValidPosition(node)) return node.position;
     return { x: 0, y: 0 };
   }
@@ -475,12 +504,14 @@ export class SolFlowCanvasComponent {
     const source = this.connectSourceId();
     if (source !== null) {
       this.connectSourceId.set(null);
-      if (source !== node.id) {
+      // W1+W2 (4R Ola 5): guard extra de isReadonly() — el effect del constructor ya desarma
+      // connectSourceId al flipear a readonly, este guard cubre la ventana síncrona previa a que corra.
+      if (source !== node.id && !this.isReadonly()) {
         this.connectionCreated.emit({ sourceId: source, targetId: node.id });
         this.announce('shared.flowCanvas.connectionCreatedAnnouncement', { source, target: node.id });
         return;
       }
-      // Activar el MISMO nodo que armó "conectar" cancela el modo y cae a selección normal.
+      // Activar el MISMO nodo que armó "conectar" (o un flip a readonly a mitad de gesto) cancela el modo y cae a selección normal.
     }
 
     this.nodeSelected.emit({ id: node.id });
@@ -507,33 +538,43 @@ export class SolFlowCanvasComponent {
 
   protected onNodePointerDown(node: SolFlowCanvasNode, event: PointerEvent): void {
     if (this.isReadonly()) return;
+    // C1 (4R Ola 5): un drag YA activo (de OTRO puntero, sobre el mismo nodo o uno distinto) ignora por
+    // completo un segundo pointerdown — el primer puntero en arrancar gana, nunca se corrompe/reasigna.
+    if (this.dragState) return;
     const target = event.currentTarget as HTMLElement;
     target.focus();
     target.setPointerCapture?.(event.pointerId);
     const start = this.resolvedPosition(node);
     this.dragState = {
       nodeId: node.id,
+      pointerId: event.pointerId,
       startPointer: { x: event.clientX, y: event.clientY },
       startPosition: start,
       currentPosition: start,
     };
   }
 
-  protected onNodePointerMove(event: PointerEvent): void {
-    if (!this.dragState) return;
-    const dx = event.clientX - this.dragState.startPointer.x;
-    const dy = event.clientY - this.dragState.startPointer.y;
+  protected onNodePointerMove(node: SolFlowCanvasNode, event: PointerEvent): void {
+    const state = this.dragState;
+    // C1: solo el puntero DUEÑO del drag, sobre SU nodo, puede mutar dragState — un puntero/nodo ajeno no hace nada.
+    if (!state || state.pointerId !== event.pointerId || state.nodeId !== node.id) return;
+    if (this.isReadonly()) return; // W1+W2: ventana síncrona previa a que el effect del constructor revierta
+
+    const dx = event.clientX - state.startPointer.x;
+    const dy = event.clientY - state.startPointer.y;
     this.dragState = {
-      ...this.dragState,
-      currentPosition: { x: this.dragState.startPosition.x + dx, y: this.dragState.startPosition.y + dy },
+      ...state,
+      currentPosition: { x: state.startPosition.x + dx, y: state.startPosition.y + dy },
     };
   }
 
   protected onNodePointerUp(node: SolFlowCanvasNode, event: PointerEvent): void {
     const state = this.dragState;
+    // C1: el up de un puntero/nodo AJENO nunca toca el drag activo (ni lo limpia ni lo commitea).
+    if (!state || state.pointerId !== event.pointerId || state.nodeId !== node.id) return;
     this.dragState = null;
-    if (!state || state.nodeId !== node.id) return;
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+    if (this.isReadonly()) return; // W1+W2: ventana síncrona previa a que el effect del constructor revierta — no commitea
 
     const distance = Math.hypot(
       state.currentPosition.x - state.startPosition.x,
@@ -542,12 +583,35 @@ export class SolFlowCanvasComponent {
     if (distance < DRAG_THRESHOLD_PX) return; // sin desplazamiento real: el click nativo que sigue resuelve selección/conexión
 
     this.lastGestureWasDrag = true;
-    this.commitNodePosition(node, state.currentPosition);
+    this.commitNodePosition(node, state.currentPosition); // commitNodePosition clampea a coordenadas no negativas (W4)
+  }
+
+  /**
+   * `pointercancel`/`lostpointercapture` (W3+W5, 4R Ola 5) — SIEMPRE revierte, NUNCA commitea: el
+   * navegador interrumpió o reasignó el gesto (p. ej. un `pointercancel` real, o el UA reasignando la
+   * captura del puntero) y la única respuesta segura es abandonar el drag tal cual estaba ANTES de
+   * arrancar. La posición visual vuelve sola a la fuente (`resolvedPosition()` cae a `nodes()` en
+   * cuanto `dragState` es `null`) — no hace falta restaurar nada a mano.
+   */
+  protected onNodePointerCancel(node: SolFlowCanvasNode, event: PointerEvent): void {
+    const state = this.dragState;
+    if (!state || state.pointerId !== event.pointerId || state.nodeId !== node.id) return; // C1: puntero/nodo ajeno, no toca el drag activo
+    this.dragState = null;
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
   }
 
   // --- nudge por teclado (paridad a11y) ---
 
   protected onNodeKeydown(node: SolFlowCanvasNode, event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      // W6 (4R Ola 5): activación EXPLÍCITA por teclado — NO se delega en el `click` sintético que el
+      // navegador dispara para un `<button>` enfocado (un motor C2A/C2B podría no usar `<button>`
+      // nativo, y el contrato debe exigir Enter/Espacio de forma explícita). `preventDefault()` evita
+      // que el navegador dispare ADEMÁS su propio `click` nativo (doble activación).
+      event.preventDefault();
+      this.onNodeActivate(node);
+      return;
+    }
     if (this.isReadonly()) return;
     const delta = ARROW_KEY_DELTA[event.key];
     if (!delta) return;
@@ -560,8 +624,9 @@ export class SolFlowCanvasComponent {
   }
 
   private commitNodePosition(node: SolFlowCanvasNode, position: SolFlowCanvasPosition): void {
-    this.mirroredNodes.update((nodes) => nodes.map((n) => (n.id === node.id ? { ...n, position } : n)));
-    this.nodeMoved.emit({ id: node.id, position });
+    const clamped = clampPosition(position); // W4: ningún commit (arrastre o nudge) puede dejar coordenadas negativas
+    this.mirroredNodes.update((nodes) => nodes.map((n) => (n.id === node.id ? { ...n, position: clamped } : n)));
+    this.nodeMoved.emit({ id: node.id, position: clamped });
     this.announce('shared.flowCanvas.movedAnnouncement', { label: node.label });
   }
 
@@ -576,8 +641,13 @@ export class SolFlowCanvasComponent {
    * (placeholder simple — dagre/ELK real llega en PR-C3). Los nodos YA
    * posicionados NO se tocan. Emite `nodeMoved` por cada nodo repositionado
    * — el consumidor decide si persiste esa posición.
+   *
+   * No-op si `isReadonly()` es `true` (S1, 4R Ola 5) — mismo criterio que el
+   * resto de mutaciones del lienzo (arrastre, nudge, conectar, quitar): TODA
+   * mutación queda bloqueada en modo lectura, sin excepción para este método.
    */
   autoLayout(): void {
+    if (this.isReadonly()) return;
     const current = this.mirroredNodes();
     const pending = current.filter((node) => !this.hasValidPosition(node));
     if (pending.length === 0) return;

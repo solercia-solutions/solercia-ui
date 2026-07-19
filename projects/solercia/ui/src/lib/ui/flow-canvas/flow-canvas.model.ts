@@ -80,8 +80,12 @@ export interface SolFlowCanvasConnectionRemovedEvent {
 
 /** Contexto del `ng-template` de nodo proyectado: `let-node` (`$implicit`) o `let-node="node"` — mismo patrón que `KanbanCardTemplateContext`/`SolCalendarEventTemplateContext`. */
 export interface SolFlowCanvasNodeTemplateContext {
+  /** Alias posicional (`let-x`) — el mismo nodo que {@link node}. */
   $implicit: SolFlowCanvasNode;
+  /** Alias nombrado (`let-x="node"`) — el mismo nodo que {@link $implicit}. */
   node: SolFlowCanvasNode;
+  /** Espejo de `selectedId() === node.id` (input del componente) — evita que el template proyectado compare el id a mano. */
   selected: boolean;
+  /** Espejo de `highlightedNodeId() === node.id` (input del componente) — mismo motivo que {@link selected}. */
   highlighted: boolean;
 }

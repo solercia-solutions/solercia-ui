@@ -113,3 +113,19 @@ export function safeTrackKey(id: string | undefined, index: number, frequency: M
   if (id === undefined || id === null || (frequency.get(id) ?? 0) > 1) return index;
   return id;
 }
+
+/**
+ * Frecuencia de `id` entre las edges actuales — soporte de {@link safeTrackKey}
+ * aplicado a las aristas (fix NG0955 con id duplicado — antes solo los nodos
+ * tenían este resguardo; C2, 4R Ola 5). Copia mínima A PROPÓSITO de
+ * {@link countNodeIds} sobre una colección distinta (edges, no nodos) — mismo
+ * criterio de duplicación deliberada documentado arriba.
+ */
+export function countEdgeIds(edges: readonly SolFlowCanvasEdge[]): Map<string, number> {
+  const frequency = new Map<string, number>();
+  for (const edge of edges) {
+    if (!edge) continue;
+    frequency.set(edge.id, (frequency.get(edge.id) ?? 0) + 1);
+  }
+  return frequency;
+}

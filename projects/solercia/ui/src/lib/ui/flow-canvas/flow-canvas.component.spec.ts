@@ -2,6 +2,7 @@ import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
+import { computeAutoLayoutPositions } from './flow-canvas-layout';
 import { SolFlowCanvasComponent } from './flow-canvas.component';
 import type {
   SolFlowCanvasConnectionCreatedEvent,
@@ -48,8 +49,8 @@ describe('SolFlowCanvasComponent', () => {
     return nodeEl(id).querySelector('.sol-flow-canvas__node-surface') as HTMLButtonElement;
   }
 
-  function pointerEvent(type: string, x: number, y: number): PointerEvent {
-    return new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, bubbles: true, cancelable: true });
+  function pointerEvent(type: string, x: number, y: number, pointerId = 1): PointerEvent {
+    return new PointerEvent(type, { clientX: x, clientY: y, pointerId, bubbles: true, cancelable: true });
   }
 
   beforeEach(() => {
@@ -101,6 +102,32 @@ describe('SolFlowCanvasComponent', () => {
     expect(host().querySelectorAll('[data-testid^="flow-canvas-node-"]').length).toBe(0);
   });
 
+  describe('anti-NG0955 — edges con id duplicado (C2, 4R Ola 5)', () => {
+    it('dos edges con el MISMO id renderizan igual (2 líneas + 2 etiquetas) — el fallback por índice conserva el conteo, solo cambia la llave interna de reconciliación', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.componentRef.setInput('edges', [
+        e({ id: 'dup', sourceId: 'a', targetId: 'b' }),
+        e({ id: 'dup', sourceId: 'b', targetId: 'a' }),
+      ]);
+      fixture.detectChanges();
+
+      expect(host().querySelectorAll('.sol-flow-canvas__edge-line').length).toBe(2);
+      expect(host().querySelectorAll('.sol-flow-canvas__edge-label').length).toBe(2);
+    });
+
+    it('trackEdge produce llaves DISTINTAS para dos edges con el MISMO id — mismo contrato que trackNode/safeTrackKey (evita el `track` duplicado que Angular documenta como NG0955)', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      const dup1 = e({ id: 'dup', sourceId: 'a', targetId: 'b' });
+      const dup2 = e({ id: 'dup', sourceId: 'b', targetId: 'a' });
+      fixture.componentRef.setInput('edges', [dup1, dup2]);
+      fixture.detectChanges();
+
+      const key1 = fixture.componentInstance.trackEdge(dup1, 0);
+      const key2 = fixture.componentInstance.trackEdge(dup2, 1);
+      expect(key1).not.toBe(key2);
+    });
+  });
+
   describe('selección — click y teclado (mismo <button> nativo, paridad a11y gratuita)', () => {
     beforeEach(() => {
       fixture.componentRef.setInput('nodes', twoNodes);
@@ -116,9 +143,27 @@ describe('SolFlowCanvasComponent', () => {
       expect(selected).toEqual([{ id: 'a' }]);
     });
 
-    it('el nodo se renderiza como <button> real — Enter/Espacio disparan el MISMO evento click del navegador, sin lógica adicional', () => {
+    it('el nodo se renderiza como <button> real (semántica base); Enter/Espacio se manejan además de forma EXPLÍCITA en onNodeKeydown (W6)', () => {
       expect(nodeSurface('a').tagName).toBe('BUTTON');
       expect(nodeSurface('a').getAttribute('type')).toBe('button');
+    });
+
+    it('Enter sobre el nodo enfocado emite nodeSelected — activación EXPLÍCITA (W6: no se delega en el click nativo del navegador)', () => {
+      const selected: SolFlowCanvasNodeSelectedEvent[] = [];
+      fixture.componentInstance.nodeSelected.subscribe((e) => selected.push(e));
+
+      nodeSurface('a').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+      expect(selected).toEqual([{ id: 'a' }]);
+    });
+
+    it('Espacio sobre el nodo enfocado también emite nodeSelected (misma activación explícita que Enter)', () => {
+      const selected: SolFlowCanvasNodeSelectedEvent[] = [];
+      fixture.componentInstance.nodeSelected.subscribe((e) => selected.push(e));
+
+      nodeSurface('a').dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+
+      expect(selected).toEqual([{ id: 'a' }]);
     });
 
     it('[selectedId] aplica la clase de selección al nodo correspondiente', () => {
@@ -215,6 +260,187 @@ describe('SolFlowCanvasComponent', () => {
       nodeSurface('a').click();
 
       expect(selected).toEqual([{ id: 'a' }]);
+    });
+
+    it('[borde] distance === DRAG_THRESHOLD_PX (4px exactos) SÍ cuenta como arrastre y commitea (S3)', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 104)); // desplazamiento acumulado = 4px exactos
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 104));
+
+      expect(moved).toEqual([{ id: 'a', position: { x: 10, y: 24 } }]);
+    });
+
+    it('[borde] distance apenas por debajo de 4px NO emite nodeMoved — cae a click (S3)', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 103.9));
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 103.9));
+
+      expect(moved).toEqual([]);
+    });
+  });
+
+  describe('aislamiento de puntero — multi-touch no corrompe el drag (C1, 4R Ola 5)', () => {
+    beforeEach(() => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+    });
+
+    it('dos punteros concurrentes sobre nodos distintos: el primero en iniciar GANA y completa con su nodeMoved correcto; el segundo (ignorado desde el pointerdown) no interfiere', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surfaceA = nodeSurface('a');
+      const surfaceB = nodeSurface('b');
+
+      surfaceA.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1));
+      // Un segundo puntero arranca un drag en OTRO nodo mientras el primero sigue activo — debe IGNORARSE por completo.
+      surfaceB.dispatchEvent(pointerEvent('pointerdown', 500, 100, 2));
+
+      surfaceA.dispatchEvent(pointerEvent('pointermove', 140, 130, 1));
+      // El move del puntero ajeno (2) sobre B tampoco debe mover nada (B nunca entró en drag).
+      surfaceB.dispatchEvent(pointerEvent('pointermove', 540, 130, 2));
+
+      // El up del puntero ajeno (2) llega PRIMERO — no debe limpiar el drag activo de A.
+      surfaceB.dispatchEvent(pointerEvent('pointerup', 540, 130, 2));
+      surfaceA.dispatchEvent(pointerEvent('pointerup', 140, 130, 1));
+      fixture.detectChanges();
+
+      expect(moved).toEqual([{ id: 'a', position: { x: 10 + 40, y: 20 + 30 } }]);
+      expect(nodeEl('a').style.left).toBe('50px');
+      expect(nodeEl('b').style.left).toBe('300px'); // sin tocar — el segundo puntero nunca tuvo efecto
+    });
+  });
+
+  describe('pointercancel — revierte, NUNCA commitea (W3, 4R Ola 5)', () => {
+    it('un pointercancel a mitad de arrastre revierte la posición visual sin emitir nodeMoved', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130));
+      fixture.detectChanges();
+      expect(nodeEl('a').style.left).toBe('50px');
+
+      surface.dispatchEvent(new PointerEvent('pointercancel', { clientX: 140, clientY: 130, pointerId: 1, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+
+      expect(moved).toEqual([]);
+      expect(nodeEl('a').style.left).toBe('10px'); // revierte a la fuente (nodes()), no a la última posición arrastrada
+    });
+  });
+
+  describe('lostpointercapture — defensa contra reasignación de captura por el navegador (W5, 4R Ola 5)', () => {
+    it('un lostpointercapture a mitad de arrastre revierte sin commitear (mismo criterio que pointercancel)', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130));
+      fixture.detectChanges();
+      expect(nodeEl('a').style.left).toBe('50px');
+
+      surface.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+
+      expect(moved).toEqual([]);
+      expect(nodeEl('a').style.left).toBe('10px');
+    });
+  });
+
+  describe('clamp a coordenadas no negativas (W4, 4R Ola 5)', () => {
+    it('arrastrar hacia una posición negativa clampea a (0,0) — tanto en el arrastre visual como en el commit', () => {
+      fixture.componentRef.setInput('nodes', twoNodes); // 'a' arranca en (10,20)
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 50, 50)); // dx=-50,dy=-50 → (10-50,20-50)=(-40,-30) sin clamp
+      fixture.detectChanges();
+      expect(nodeEl('a').style.left).toBe('0px'); // clamp YA durante el arrastre visual
+      expect(nodeEl('a').style.top).toBe('0px');
+
+      surface.dispatchEvent(pointerEvent('pointerup', 50, 50));
+
+      expect(moved).toEqual([{ id: 'a', position: { x: 0, y: 0 } }]);
+    });
+
+    it('el nudge por teclado también clampea — no cruza (0,0)', () => {
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: 5, y: 5 } }), n({ id: 'b', position: { x: 300, y: 20 } })]);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      fixture.detectChanges(); // refresca el `node` capturado por el binding de plantilla antes del SIGUIENTE keydown
+      surface.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      fixture.detectChanges();
+
+      expect(moved[moved.length - 1].position).toEqual({ x: 0, y: 0 });
+    });
+  });
+
+  describe('readonly a mitad de gesto — el flip cancela mutaciones en curso (W1+W2, 4R Ola 5)', () => {
+    it('un drag iniciado ANTES del flip a readonly no commitea al soltar — la posición visual revierte a la fuente', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130));
+      fixture.detectChanges();
+      expect(nodeEl('a').style.left).toBe('50px'); // arrastre visual en curso, aún sin commitear
+
+      fixture.componentRef.setInput('readonly', true);
+      fixture.detectChanges();
+      expect(nodeEl('a').style.left).toBe('10px'); // el effect revierte a nodes() — SIN emitir
+
+      surface.dispatchEvent(pointerEvent('pointerup', 140, 130));
+
+      expect(moved).toEqual([]);
+      expect(nodeEl('a').style.left).toBe('10px');
+    });
+
+    it('una conexión armada ANTES del flip a readonly no completa connectionCreated al activar el destino después', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.componentRef.setInput('edges', oneEdge);
+      fixture.detectChanges();
+
+      const created: SolFlowCanvasConnectionCreatedEvent[] = [];
+      fixture.componentInstance.connectionCreated.subscribe((e) => created.push(e));
+
+      const connectHandleA = nodeEl('a').querySelector('.sol-flow-canvas__node-connect-handle') as HTMLButtonElement;
+      connectHandleA.click();
+
+      fixture.componentRef.setInput('readonly', true);
+      fixture.detectChanges();
+
+      nodeSurface('b').click();
+
+      expect(created).toEqual([]);
     });
   });
 
@@ -386,6 +612,48 @@ describe('SolFlowCanvasComponent', () => {
 
     it('si todos los nodos ya tienen posición, autoLayout() no emite nada', () => {
       fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+      fixture.componentInstance.autoLayout();
+
+      expect(moved).toEqual([]);
+    });
+
+    it('con VARIOS nodos sin posición, emite un nodeMoved por cada uno con la posición EXACTA de computeAutoLayoutPositions (W8 — no un chequeo laxo tipo not.toBeNull())', () => {
+      const positionless: SolFlowCanvasNode[] = [
+        { id: 'x', label: 'Nodo X', kind: 'default' } as unknown as SolFlowCanvasNode,
+        { id: 'y', label: 'Nodo Y', kind: 'default' } as unknown as SolFlowCanvasNode,
+        { id: 'z', label: 'Nodo Z', kind: 'default' } as unknown as SolFlowCanvasNode,
+      ];
+
+      fixture.componentRef.setInput('nodes', positionless);
+      fixture.detectChanges();
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      fixture.componentInstance.autoLayout();
+      fixture.detectChanges();
+
+      const expected = computeAutoLayoutPositions(positionless, []);
+      expect(moved).toEqual([
+        { id: 'x', position: expected.get('x') },
+        { id: 'y', position: expected.get('y') },
+        { id: 'z', position: expected.get('z') },
+      ]);
+      const distinctPositions = new Set(moved.map((m) => `${m.position.x},${m.position.y}`));
+      expect(distinctPositions.size).toBe(3); // tres posiciones DISTINTAS — cada nodo cae en su propia fila del layout
+    });
+
+    it('[readonly] autoLayout() no hace nada — TODA mutación queda bloqueada en modo lectura (S1)', () => {
+      const positionless = { ...n({ id: 'b', label: 'Sin posición' }) };
+      // @ts-expect-error — runtime deliberadamente sin position (defensivo: un input no garantiza un valor válido en runtime)
+      delete positionless.position;
+
+      fixture.componentRef.setInput('nodes', [n({ id: 'a', position: { x: 999, y: 999 } }), positionless]);
+      fixture.componentRef.setInput('readonly', true);
       fixture.detectChanges();
 
       const moved: SolFlowCanvasNodeMovedEvent[] = [];

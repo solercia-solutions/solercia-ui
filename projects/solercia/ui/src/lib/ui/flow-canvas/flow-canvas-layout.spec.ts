@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeAutoLayoutPositions, countNodeIds, safeTrackKey } from './flow-canvas-layout';
+import { computeAutoLayoutPositions, countEdgeIds, countNodeIds, safeTrackKey } from './flow-canvas-layout';
 import type { SolFlowCanvasEdge, SolFlowCanvasNode } from './flow-canvas.model';
 
 function n(id: string): SolFlowCanvasNode {
@@ -66,5 +66,18 @@ describe('countNodeIds / safeTrackKey — mismo criterio defensivo que kanban-tr
   it('id undefined siempre cae al índice', () => {
     const freq = countNodeIds([n('a')]);
     expect(safeTrackKey(undefined, 3, freq)).toBe(3);
+  });
+});
+
+describe('countEdgeIds — mismo criterio que countNodeIds, aplicado a edges (soporte de C2, fix NG0955 con edges de id duplicado)', () => {
+  it('cuenta la frecuencia de cada id de edge', () => {
+    const freq = countEdgeIds([e('a', 'b'), e('a', 'b')]); // helper e() genera el mismo id "a->b" en ambas
+    expect(freq.get('a->b')).toBe(2);
+  });
+
+  it('un id único cuenta 1', () => {
+    const freq = countEdgeIds([e('a', 'b'), e('b', 'c')]);
+    expect(freq.get('a->b')).toBe(1);
+    expect(freq.get('b->c')).toBe(1);
   });
 });

@@ -1,6 +1,7 @@
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
+import { computeAutoLayoutPositions } from './flow-canvas-layout';
 import { SolFlowCanvasComponent } from './flow-canvas.component';
 import type { SolFlowCanvasEdge, SolFlowCanvasNode, SolFlowCanvasPosition } from './flow-canvas.model';
 
@@ -43,7 +44,13 @@ export interface FlowCanvasHarnessActions {
   dragNodeBy(nodeId: string, delta: SolFlowCanvasPosition): void;
   /** Simula click/tap sobre el nodo. */
   clickNode(nodeId: string): void;
-  /** Simula la activación por TECLADO del nodo enfocado (paridad a11y — puede ser el mismo evento que `clickNode` si el motor usa `<button>` nativo). */
+  /**
+   * Simula la activación por TECLADO (Enter/Espacio) del nodo enfocado —
+   * DEBE despachar un evento de teclado real y dejar que el motor lo
+   * resuelva con su propia lógica de activación explícita; NUNCA delegar en
+   * `clickNode()` (W6, 4R Ola 5 — el contrato exige paridad a11y explícita,
+   * un motor C2A/C2B podría no usar `<button>` nativo).
+   */
   keyboardSelectNode(nodeId: string): void;
   /** Arma "conectar desde" sobre `nodeId` — primer paso de la mecánica de conexión (gesto libre por motor). */
   armConnectFrom(nodeId: string): void;
@@ -237,9 +244,11 @@ export function runFlowCanvasAcceptanceSuite(setup: FlowCanvasHarnessSetup, opti
       harness.component.autoLayout();
       harness.detectChanges();
 
-      expect(moved.map((m) => m.id)).toEqual(['b']);
+      // W8 (4R Ola 5): aserción EXACTA contra computeAutoLayoutPositions — no basta con "no nulo".
+      const expected = computeAutoLayoutPositions([positioned, positionless], []);
+      expect(moved).toEqual([{ id: 'b', position: expected.get('b') }]);
       expect(harness.query.nodePosition('a')).toEqual({ x: 777, y: 777 });
-      expect(harness.query.nodePosition('b')).not.toBeNull();
+      expect(harness.query.nodePosition('b')).toEqual(expected.get('b'));
     });
 
     itOrPending('rendersManyNodesWithinBudget', '60+ nodos renderizan dentro de un presupuesto de tiempo laxo (smoke de perf, no benchmark estricto)', () => {
@@ -319,9 +328,10 @@ function setupShellHarness(input: FlowCanvasHarnessSetupInput): FlowCanvasHarnes
         nodeSurface(id).click();
         fixture.detectChanges();
       },
-      // El nodo es un <button> real: Enter/Espacio disparan el MISMO evento `click` que el mouse — no hace falta un camino de código aparte.
+      // W6 (4R Ola 5): despacha un KeyboardEvent Enter REAL — el shell maneja Enter/Espacio de forma
+      // EXPLÍCITA en onNodeKeydown (no delega en el click nativo del <button>, ver docstring de la clase).
       keyboardSelectNode: (id) => {
-        nodeSurface(id).click();
+        nodeSurface(id).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
         fixture.detectChanges();
       },
       armConnectFrom: (id) => {
