@@ -705,6 +705,27 @@ describe('SolFlowCanvasComponent', () => {
       expect(host().querySelectorAll('.sol-flow-canvas__edge-line').length).toBe(59);
       expect(elapsedMs).toBeLessThan(2000); // presupuesto LAXO (smoke, no benchmark estricto) — ver reporte de la fase
     });
+
+    it('[PR-C2B] renderiza 120 nodos y 119 edges bezier en un presupuesto de tiempo laxo (medición explícita del bake-off, además de los 65 nodos de la suite de aceptación)', () => {
+      const manyNodes: SolFlowCanvasNode[] = Array.from({ length: 120 }, (_, i) =>
+        n({ id: `n${i}`, label: `Nodo ${i}`, position: { x: (i % 12) * 220, y: Math.floor(i / 12) * 120 } }),
+      );
+      const manyEdges: SolFlowCanvasEdge[] = Array.from({ length: 119 }, (_, i) =>
+        e({ id: `e${i}`, sourceId: `n${i}`, targetId: `n${i + 1}` }),
+      );
+
+      const start = performance.now();
+      fixture.componentRef.setInput('nodes', manyNodes);
+      fixture.componentRef.setInput('edges', manyEdges);
+      fixture.detectChanges();
+      const elapsedMs = performance.now() - start;
+
+      expect(host().querySelectorAll('[data-testid^="flow-canvas-node-"]').length).toBe(120);
+      expect(host().querySelectorAll('.sol-flow-canvas__edge-line').length).toBe(119);
+      // presupuesto LAXO (smoke sobre jsdom, NO un benchmark de paint/compositing real de navegador — ver
+      // "Perf" del reporte de fase para la advertencia completa sobre el alcance de esta medición).
+      expect(elapsedMs).toBeLessThan(4000);
+    });
   });
 
   describe('pan/zoom del lienzo (PR-C2B — motor nativo SVG+Pointer Events)', () => {
