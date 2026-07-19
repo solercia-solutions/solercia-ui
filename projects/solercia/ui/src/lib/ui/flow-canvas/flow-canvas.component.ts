@@ -12,7 +12,19 @@ import {
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { SOL_I18N } from '../../i18n/sol-i18n';
+import { computeValidConnectionTargets } from './flow-canvas-connect';
+import { computeEdgeMidpoint, computeEdgePathD } from './flow-canvas-edge-geometry';
 import { computeAutoLayoutPositions, countEdgeIds, countNodeIds, safeTrackKey } from './flow-canvas-layout';
+import {
+  DEFAULT_VIEWPORT,
+  computePinchZoom,
+  computeWheelZoom,
+  distanceBetween,
+  midpoint,
+  panBy,
+  screenToWorld,
+  type SolFlowCanvasViewport,
+} from './flow-canvas-viewport';
 import type {
   SolFlowCanvasConnectionCreatedEvent,
   SolFlowCanvasConnectionRemovedEvent,
@@ -24,14 +36,14 @@ import type {
   SolFlowCanvasPosition,
 } from './flow-canvas.model';
 
-/** Tamaño supuesto de un nodo para calcular el punto medio de las aristas (el shell no mide el DOM real — motor mínimo, ver docstring de la clase). */
+/** Tamaño supuesto de un nodo para calcular el punto medio de las aristas (el motor no mide el DOM real). */
 const NODE_WIDTH_PX = 180;
 const NODE_HEIGHT_PX = 56;
 
-/** Un gesto de pointerdown→pointerup con menos desplazamiento que esto se trata como click, no como arrastre. */
+/** Un gesto de pointerdown→pointerup con menos desplazamiento de PANTALLA que esto se trata como click, no como arrastre. */
 const DRAG_THRESHOLD_PX = 4;
 
-/** Paso de cada nudge por teclado (paridad a11y del arrastre). */
+/** Paso de cada nudge por teclado (paridad a11y del arrastre) — fijo en espacio CANVAS, independiente del zoom (ver docstring de {@link onNodeKeydown}). */
 const KEYBOARD_NUDGE_STEP_PX = 10;
 
 const ARROW_KEY_DELTA: Record<string, SolFlowCanvasPosition> = {
@@ -47,8 +59,11 @@ interface DragState {
   nodeId: string;
   /** Puntero DUEÑO de este drag (C1, 4R Ola 5) — un segundo puntero concurrente jamás debe leer/mutar este estado. */
   pointerId: number;
+  /** Posición de PANTALLA (`event.clientX/Y` crudos) al arrancar — sirve para el umbral clic-vs-arrastre (ver {@link onNodePointerUp}), SIEMPRE en pantalla, nunca en canvas. */
   startPointer: SolFlowCanvasPosition;
+  /** Posición inicial del nodo en espacio CANVAS (world). */
   startPosition: SolFlowCanvasPosition;
+  /** Posición vigente del nodo en espacio CANVAS (world) — ya convertida desde el delta de pantalla dividiendo por el zoom (PR-C2B). */
   currentPosition: SolFlowCanvasPosition;
 }
 
@@ -59,58 +74,71 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
 
 /**
  * `sol-flow-canvas` — contrato AGNÓSTICO del motor de un lienzo tipo n8n
- * (Ola 5, `openspec/GOAL-ola5-flow-canvas-y-cutover.md` §4, PR-C1).
+ * (Ola 5, `openspec/GOAL-ola5-flow-canvas-y-cutover.md` §4).
  *
  * API PÚBLICA ESTABLE (inputs/outputs/`autoLayout()`/proyección de
- * template): PR-C2A (`@foblex/flow`) y PR-C2B (nativo SVG+CDK) REEMPLAZAN
- * SOLO el interior de esta clase — la API de acá NUNCA cambia entre ambos
- * bake-offs. La implementación de ESTE PR es un shell MÍNIMO adrede: render
- * estático posicionado absoluto + SVG de líneas rectas, sin pan/zoom, sin
- * bezier, sin minimapa — la {@link autoLayout} real (dagre/ELK) y el motor
- * de render sofisticado llegan en PR-C2A, PR-C2B y PR-C3 (GOAL §4).
+ * template): esta clase NUNCA cambia su contrato público entre bake-offs —
+ * solo el INTERIOR de la implementación difiere.
  *
- * Interacciones del shell (documentadas porque C2A/C2B pueden legítimamente
- * cambiar el GESTO concreto sin romper el contrato — la suite de aceptación
- * compartida prueba la API, no el gesto):
+ * **Esta es la implementación de PR-C2B** (motor nativo SVG + Pointer Events,
+ * CDK evaluado y descartado — ver `Learned` del reporte de fase: ni
+ * `DragDropModule` ni `ScrollingModule` aportan algo que Pointer Events +
+ * `transform` no resuelvan mejor para un lienzo 2D con pan/zoom propio, y el
+ * arrastre de nodos YA usaba Pointer Events nativos desde PR-C1 — "CDK
+ * reservado a `ui/kanban/`"). Reemplaza el interior MÍNIMO del shell de
+ * PR-C1 (render absoluto estático + líneas rectas, sin pan/zoom) por:
+ *  - **Pan/zoom del lienzo**: arrastrar el FONDO panea; rueda/pinch de dos
+ *    punteros hace zoom anclado al cursor/punto medio. Un único `transform:
+ *    translate(pan) scale(zoom)` sobre `.sol-flow-canvas__world` (grupo
+ *    interno que envuelve edges+nodos) — ver {@link worldTransform} y
+ *    `flow-canvas-viewport.ts` (puro, sin Angular). El pan/zoom es una
+ *    cuestión de VISTA, no de dominio — sigue activo en `readonly` (a
+ *    diferencia de arrastrar/conectar/quitar, que sí quedan bloqueados).
+ *  - **Aristas bezier**: curvas cúbicas con dirección horizontal (favorecen
+ *    el layout BFS-por-columnas de `flow-canvas-layout.ts`) en vez de líneas
+ *    rectas — ver `flow-canvas-edge-geometry.ts` (puro). El label de cada
+ *    arista se posiciona sobre el punto real de la curva (t=0.5), no sobre
+ *    el punto medio de una recta.
+ *  - **Tap-para-conectar refinado**: la MECÁNICA sigue siendo la de PR-C1
+ *    (arma origen → activa destino, API de eventos sin cambios) — el
+ *    refinamiento es puramente VISUAL: mientras está armado, los destinos
+ *    VÁLIDOS (sin auto-loop, sin duplicar una conexión existente, sin cerrar
+ *    un ciclo — ver `flow-canvas-connect.ts`, puro) se resaltan y una curva
+ *    FANTASMA sigue al cursor desde el nodo origen. Es un HINT visual, NUNCA
+ *    bloquea la conexión — el validador real de dominio (`entities/flow`,
+ *    fuera de esta librería agnóstica) sigue siendo la fuente de verdad.
+ *
+ * Interacciones (documentadas porque el GESTO concreto es decisión de cada
+ * motor del bake-off — la suite de aceptación compartida prueba la API, no
+ * el gesto):
  *  - **Selección**: cada nodo es un `<button>` real — click nativo, y
  *    Enter/Espacio manejados de forma EXPLÍCITA en `onNodeKeydown` (W6, 4R
  *    Ola 5: NO se delega en la activación nativa del navegador sobre el
- *    botón — el contrato debe exigir Enter/Espacio incluso si un motor
- *    C2A/C2B no usa `<button>` nativo). Ambos caminos emiten `nodeSelected`
- *    de la MISMA forma.
+ *    botón). Ambos caminos emiten `nodeSelected` de la MISMA forma.
  *  - **Mover un nodo (mouse)**: `pointerdown`→`pointermove`→`pointerup`
- *    sobre el nodo. Si el desplazamiento total supera {@link DRAG_THRESHOLD_PX}
- *    emite `nodeMoved`; si NO (un click esencialmente estático), el
- *    `pointerup` no hace nada y el `click` nativo que sigue resuelve
- *    selección/conexión — evita un `nodeMoved` espurio en cada click. Tras
- *    un arrastre REAL, el click sintético que el navegador dispara después
- *    se descarta explícitamente (`lastGestureWasDrag`) para no
- *    además-seleccionar el nodo que se acaba de soltar.
+ *    sobre el nodo. El umbral clic-vs-arrastre ({@link DRAG_THRESHOLD_PX}) se
+ *    mide en PANTALLA (PR-C2B: precisión motora humana, zoom-invariante — NO
+ *    en espacio canvas, que sería más permisivo alejado y más estricto
+ *    acercado). Un `pointerdown` sobre un nodo NUNCA burbujea a convertirse
+ *    además en un pan de fondo (`stopPropagation` explícito).
  *  - **Mover un nodo (teclado)**: flechas sobre el nodo enfocado — nudge de
- *    {@link KEYBOARD_NUDGE_STEP_PX}px y emite `nodeMoved`. Paridad a11y
- *    real del arrastre (el CDK no la trae gratis — mismo criterio que
- *    `sol-kanban-board`, que resuelve la paridad con un `<select>` en vez de
- *    reimplementar el drag de CDK por teclado).
+ *    {@link KEYBOARD_NUDGE_STEP_PX}px FIJOS en espacio canvas (el zoom NUNCA
+ *    afecta el paso — a11y: la navegación por teclado es predecible sin
+ *    importar cuánto esté acercado el lienzo).
  *  - **Crear conexión**: cada nodo tiene un botón "conectar desde" — al
  *    activarlo arma el origen; activar OTRO nodo completa la conexión
  *    (`connectionCreated`). Activar el MISMO nodo, o `Escape`, cancela el
- *    modo. Deliberado: "mecánica de la API, no del gesto" (GOAL §4) — el
- *    gesto real de C2A/C2B (arrastrar una línea vs. tap-tap) puede diferir
- *    por completo sin tocar el contrato de eventos.
+ *    modo.
  *  - **Quitar conexión**: botón "×" sobre la etiqueta de cada arista.
- *  - **`readonly`**: oculta/deshabilita TODA mutación (arrastre, nudge,
- *    conectar, quitar) — la selección sigue activa (no es una mutación del
- *    grafo).
+ *  - **`readonly`**: oculta/deshabilita TODA mutación del GRAFO (arrastre,
+ *    nudge, conectar, quitar) — la selección y el pan/zoom siguen activos
+ *    (no son mutaciones del grafo).
  *
  * Espejo interno (`mirroredNodes`, mismo patrón que `sol-kanban-board`):
  * mantiene una copia propia de `nodes()`, re-sembrada en cada cambio del
  * input, mutada LOCALMENTE en cada interacción (feedback visual inmediato)
  * y SIEMPRE acompañada del output correspondiente para que el consumidor
- * persista. A diferencia de `sol-kanban-board`, este shell NO necesita
- * posponer el re-seed durante un gesto activo: el arrastre no usa CDK ni
- * `@for`-reconciliation de listas — el nodo arrastrado nunca se
- * destruye/recrea a mitad de gesto, así que no hay condición de carrera que
- * blindar.
+ * persista.
  */
 @Component({
   selector: 'sol-flow-canvas',
@@ -123,91 +151,101 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       role="application"
       [attr.aria-label]="regionLabel()"
       (keydown.escape)="cancelConnect()"
+      (pointerdown)="onCanvasPointerDown($event)"
+      (pointermove)="onCanvasPointerMove($event)"
+      (pointerup)="onCanvasPointerUp($event)"
+      (pointercancel)="onCanvasPointerCancel($event)"
+      (lostpointercapture)="onCanvasPointerCancel($event)"
+      (wheel)="onCanvasWheel($event)"
     >
-      <svg class="sol-flow-canvas__edges" aria-hidden="true">
-        <defs>
-          <marker
-            [attr.id]="markerId"
-            markerWidth="8"
-            markerHeight="8"
-            refX="7"
-            refY="4"
-            orient="auto-start-reverse"
-          >
-            <path d="M0,0 L8,4 L0,8 Z" class="sol-flow-canvas__edge-arrow" />
-          </marker>
-        </defs>
+      <div class="sol-flow-canvas__world" [style.transform]="worldTransform()">
+        <svg class="sol-flow-canvas__edges" aria-hidden="true">
+          <defs>
+            <marker
+              [attr.id]="markerId"
+              markerWidth="8"
+              markerHeight="8"
+              refX="7"
+              refY="4"
+              orient="auto-start-reverse"
+            >
+              <path d="M0,0 L8,4 L0,8 Z" class="sol-flow-canvas__edge-arrow" />
+            </marker>
+          </defs>
+          @for (edge of visibleEdges(); track trackEdge(edge, $index)) {
+            <path
+              class="sol-flow-canvas__edge-line"
+              [attr.d]="edgePathD(edge)"
+              [attr.marker-end]="'url(#' + markerId + ')'"
+            />
+          }
+          @if (ghostEdgePathD(); as ghostD) {
+            <path class="sol-flow-canvas__edge-ghost" [attr.d]="ghostD" [attr.marker-end]="'url(#' + markerId + ')'" />
+          }
+        </svg>
+
         @for (edge of visibleEdges(); track trackEdge(edge, $index)) {
-          <line
-            class="sol-flow-canvas__edge-line"
-            [attr.x1]="edgeLine(edge).x1"
-            [attr.y1]="edgeLine(edge).y1"
-            [attr.x2]="edgeLine(edge).x2"
-            [attr.y2]="edgeLine(edge).y2"
-            [attr.marker-end]="'url(#' + markerId + ')'"
-          />
-        }
-      </svg>
-
-      @for (edge of visibleEdges(); track trackEdge(edge, $index)) {
-        <div class="sol-flow-canvas__edge-label" [style.left.px]="edgeMidpoint(edge).x" [style.top.px]="edgeMidpoint(edge).y">
-          <span class="sol-flow-canvas__edge-label-text">{{ edge.label ?? edge.kind }}</span>
-          @if (!isReadonly()) {
-            <button
-              type="button"
-              class="sol-flow-canvas__edge-remove"
-              [attr.aria-label]="removeConnectionLabel()"
-              (click)="onRemoveConnection(edge)"
-            >
-              ×
-            </button>
-          }
-        </div>
-      }
-
-      @for (node of mirroredNodes(); track trackNode(node, $index)) {
-        <div
-          class="sol-flow-canvas__node"
-          [class.sol-flow-canvas__node--selected]="isSelected(node)"
-          [class.sol-flow-canvas__node--highlighted]="isHighlighted(node)"
-          [class.sol-flow-canvas__node--connect-source]="connectSourceId() === node.id"
-          [attr.data-visual-state]="node.visualState ?? 'idle'"
-          [attr.data-testid]="'flow-canvas-node-' + node.id"
-          [style.left.px]="resolvedPosition(node).x"
-          [style.top.px]="resolvedPosition(node).y"
-        >
-          <button
-            type="button"
-            class="sol-flow-canvas__node-surface"
-            [attr.aria-pressed]="isSelected(node)"
-            [attr.aria-label]="nodeAriaLabel(node)"
-            (pointerdown)="onNodePointerDown(node, $event)"
-            (pointermove)="onNodePointerMove(node, $event)"
-            (pointerup)="onNodePointerUp(node, $event)"
-            (pointercancel)="onNodePointerCancel(node, $event)"
-            (lostpointercapture)="onNodePointerCancel(node, $event)"
-            (click)="onNodeActivate(node)"
-            (keydown)="onNodeKeydown(node, $event)"
-          >
-            @if (nodeTemplate(); as tpl) {
-              <ng-container *ngTemplateOutlet="tpl; context: nodeTemplateContext(node)" />
-            } @else {
-              <span class="sol-flow-canvas__node-label">{{ node.label }}</span>
+          <div class="sol-flow-canvas__edge-label" [style.left.px]="edgeMidpoint(edge).x" [style.top.px]="edgeMidpoint(edge).y">
+            <span class="sol-flow-canvas__edge-label-text">{{ edge.label ?? edge.kind }}</span>
+            @if (!isReadonly()) {
+              <button
+                type="button"
+                class="sol-flow-canvas__edge-remove"
+                [attr.aria-label]="removeConnectionLabel()"
+                (click)="onRemoveConnection(edge)"
+              >
+                ×
+              </button>
             }
-          </button>
+          </div>
+        }
 
-          @if (!isReadonly()) {
+        @for (node of mirroredNodes(); track trackNode(node, $index)) {
+          <div
+            class="sol-flow-canvas__node"
+            [class.sol-flow-canvas__node--selected]="isSelected(node)"
+            [class.sol-flow-canvas__node--highlighted]="isHighlighted(node)"
+            [class.sol-flow-canvas__node--connect-source]="connectSourceId() === node.id"
+            [class.sol-flow-canvas__node--connect-valid-target]="isValidConnectTarget(node)"
+            [class.sol-flow-canvas__node--connect-invalid-target]="isInvalidConnectTarget(node)"
+            [attr.data-visual-state]="node.visualState ?? 'idle'"
+            [attr.data-testid]="'flow-canvas-node-' + node.id"
+            [style.left.px]="resolvedPosition(node).x"
+            [style.top.px]="resolvedPosition(node).y"
+          >
             <button
               type="button"
-              class="sol-flow-canvas__node-connect-handle"
-              [attr.aria-label]="connectFromLabel(node)"
-              (click)="onStartConnect(node, $event)"
+              class="sol-flow-canvas__node-surface"
+              [attr.aria-pressed]="isSelected(node)"
+              [attr.aria-label]="nodeAriaLabel(node)"
+              (pointerdown)="onNodePointerDown(node, $event)"
+              (pointermove)="onNodePointerMove(node, $event)"
+              (pointerup)="onNodePointerUp(node, $event)"
+              (pointercancel)="onNodePointerCancel(node, $event)"
+              (lostpointercapture)="onNodePointerCancel(node, $event)"
+              (click)="onNodeActivate(node)"
+              (keydown)="onNodeKeydown(node, $event)"
             >
-              ⇢
+              @if (nodeTemplate(); as tpl) {
+                <ng-container *ngTemplateOutlet="tpl; context: nodeTemplateContext(node)" />
+              } @else {
+                <span class="sol-flow-canvas__node-label">{{ node.label }}</span>
+              }
             </button>
-          }
-        </div>
-      }
+
+            @if (!isReadonly()) {
+              <button
+                type="button"
+                class="sol-flow-canvas__node-connect-handle"
+                [attr.aria-label]="connectFromLabel(node)"
+                (click)="onStartConnect(node, $event)"
+              >
+                ⇢
+              </button>
+            }
+          </div>
+        }
+      </div>
 
       <div class="sol-flow-canvas__announce" aria-live="polite" role="status">{{ announcement() }}</div>
     </div>
@@ -222,9 +260,19 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       position: relative;
       width: 100%;
       min-height: 320px;
-      overflow: auto;
+      overflow: hidden;
       background: var(--sol-bg-sunken, var(--sol-bg-page, #f8fafc));
       border-radius: var(--sol-border-radius-lg, 12px);
+      /* PR-C2B: pan (arrastre) y pinch-zoom propios vía Pointer Events — el navegador NUNCA debe
+         interceptarlos como scroll/zoom nativo de la página. */
+      touch-action: none;
+    }
+
+    .sol-flow-canvas__world {
+      position: absolute;
+      inset: 0;
+      transform-origin: 0 0;
+      will-change: transform;
     }
 
     .sol-flow-canvas__edges {
@@ -239,6 +287,13 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
     .sol-flow-canvas__edge-line {
       stroke: var(--sol-border-color-default, #94a3b8);
       stroke-width: 2;
+      fill: none;
+    }
+
+    .sol-flow-canvas__edge-ghost {
+      stroke: var(--sol-color-info, #3b82f6);
+      stroke-width: 2;
+      stroke-dasharray: 6 4;
       fill: none;
     }
 
@@ -292,6 +347,7 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       cursor: grab;
       font-family: var(--sol-font-family);
       color: var(--sol-color-text-primary);
+      transition: opacity 0.15s ease;
     }
 
     .sol-flow-canvas__node-surface:focus-visible {
@@ -310,6 +366,16 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
     .sol-flow-canvas__node--connect-source .sol-flow-canvas__node-surface {
       border-style: dashed;
       border-color: var(--sol-color-info, #3b82f6);
+    }
+
+    .sol-flow-canvas__node--connect-valid-target .sol-flow-canvas__node-surface {
+      border-style: dashed;
+      border-color: var(--sol-color-success, #10b981);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--sol-color-success, #10b981) 25%, transparent);
+    }
+
+    .sol-flow-canvas__node--connect-invalid-target .sol-flow-canvas__node-surface {
+      opacity: 0.45;
     }
 
     .sol-flow-canvas__node[data-visual-state='running'] .sol-flow-canvas__node-surface {
@@ -362,10 +428,7 @@ export class SolFlowCanvasComponent {
   /**
    * Alias `readonly` (nombre público exacto que pide el contrato) — la
    * propiedad TS se llama `isReadonly` a propósito: `readonly` es palabra
-   * reservada como MODIFICADOR de miembro de clase; nombrar el campo TS
-   * igual (`readonly readonly = input(...)`) es sintácticamente ambiguo y
-   * mejor evitado. `alias` de `input()` desacopla el nombre del binding
-   * público del nombre de la propiedad interna, sin cambiar la API.
+   * reservada como MODIFICADOR de miembro de clase.
    */
   readonly isReadonly = input<boolean>(false, { alias: 'readonly' });
 
@@ -385,8 +448,15 @@ export class SolFlowCanvasComponent {
   protected readonly announcement = signal('');
   protected readonly markerId = `sol-flow-canvas-arrow-${uniqueMarkerCounter++}`;
 
+  /** Estado del viewport (pan/zoom) — PR-C2B. Es una cuestión de VISTA: nunca se bloquea en `readonly` ni se resetea cuando cambian `nodes()`/`edges()`. */
+  protected readonly viewport = signal<SolFlowCanvasViewport>(DEFAULT_VIEWPORT);
+  /** Posición (espacio world) del puntero mientras hay una conexión armada — alimenta la curva fantasma. `null` = sin curva que dibujar. */
+  protected readonly ghostPointerWorld = signal<SolFlowCanvasPosition | null>(null);
+
   private dragState: DragState | null = null;
   private lastGestureWasDrag = false;
+  /** Punteros activos que arrancaron sobre el FONDO (nunca sobre un nodo — ver `stopPropagation` en {@link onNodePointerDown}) — 1 puntero = pan, 2 = pinch. */
+  private readonly backgroundPointers = new Map<number, SolFlowCanvasPosition>();
 
   private readonly nodesById = computed(() => new Map(this.mirroredNodes().map((node) => [node.id, node])));
 
@@ -395,6 +465,19 @@ export class SolFlowCanvasComponent {
     return (this.edges() ?? []).filter(
       (edge): edge is SolFlowCanvasEdge => !!edge && byId.has(edge.sourceId) && byId.has(edge.targetId),
     );
+  });
+
+  /** Destinos válidos del origen armado (sin auto-loop, sin duplicar, sin cerrar un ciclo — ver `flow-canvas-connect.ts`). Set vacío sin conexión armada. */
+  protected readonly validConnectTargetIds = computed(() => {
+    const sourceId = this.connectSourceId();
+    if (sourceId === null) return new Set<string>();
+    return computeValidConnectionTargets(this.mirroredNodes(), this.visibleEdges(), sourceId);
+  });
+
+  /** `translate(pan) scale(zoom)` — mismo criterio que `flow-canvas-viewport.ts::worldToScreen` (world se escala primero, se traslada después). */
+  protected readonly worldTransform = computed(() => {
+    const vp = this.viewport();
+    return `translate(${vp.panX}px, ${vp.panY}px) scale(${vp.zoom})`;
   });
 
   private readonly nodeIdFrequency = computed(() => countNodeIds(this.mirroredNodes()));
@@ -406,20 +489,14 @@ export class SolFlowCanvasComponent {
       this.mirroredNodes.set(incoming);
     });
 
-    // W1+W2 (4R Ola 5): un flip de `readonly` a mitad de gesto cancela CUALQUIER mutación en curso —
-    // revierte el drag SIN emitir (la posición visual vuelve a resolvedPosition()/nodes()) y desarma
-    // "conectar". Los guards puntuales en onNodePointerMove/onNodePointerUp/onNodeActivate cubren la
-    // ventana síncrona entre el flip y que este effect corra.
+    // W1+W2 (4R Ola 5, heredado de PR-C1): un flip de `readonly` a mitad de gesto cancela CUALQUIER
+    // mutación en curso — revierte el drag SIN emitir y desarma "conectar" (curva fantasma incluida,
+    // PR-C2B). El pan/zoom NUNCA se toca acá — no es una mutación del grafo (ver docstring de la clase).
     effect(() => {
       if (!this.isReadonly()) return;
-      // Re-check 4R (SUGGESTION): solo anuncia si REALMENTE había un gesto en curso — evita "ruido"
-      // de aria-live cada vez que el consumidor flipea `readonly` sin nada activo. La lectura de
-      // `connectSourceId()` usa `untracked()` a propósito (mismo criterio que `isDragging()` en
-      // `sol-kanban-board`): este effect solo debe reaccionar cuando `isReadonly()` cambia, nunca
-      // cuando `connectSourceId` cambia por sí solo — lo que incluye el propio `.set(null)` de abajo.
       const hadActiveGesture = this.dragState !== null || untracked(() => this.connectSourceId()) !== null;
       this.dragState = null;
-      this.connectSourceId.set(null);
+      this.disarmConnect();
       if (hadActiveGesture) this.announce('shared.flowCanvas.moveCancelledAnnouncement');
     });
   }
@@ -428,7 +505,7 @@ export class SolFlowCanvasComponent {
     return safeTrackKey(node?.id, index, this.nodeIdFrequency());
   }
 
-  /** Fallback anti-NG0955 para edges — mismo patrón que {@link trackNode} (C2, 4R Ola 5): un `id` de edge duplicado ya no rompe el `track` del `@for`. */
+  /** Fallback anti-NG0955 para edges — mismo patrón que {@link trackNode}. */
   trackEdge(edge: SolFlowCanvasEdge, index: number): unknown {
     return safeTrackKey(edge?.id, index, this.edgeIdFrequency());
   }
@@ -441,19 +518,25 @@ export class SolFlowCanvasComponent {
     return this.highlightedNodeId() === node.id;
   }
 
+  protected isValidConnectTarget(node: SolFlowCanvasNode): boolean {
+    return this.connectSourceId() !== null && this.validConnectTargetIds().has(node.id);
+  }
+
+  /** El origen armado NUNCA es "inválido" (ya tiene su propio estilo vía `--connect-source`) — solo los DEMÁS nodos no-válidos se atenúan. */
+  protected isInvalidConnectTarget(node: SolFlowCanvasNode): boolean {
+    const sourceId = this.connectSourceId();
+    if (sourceId === null || sourceId === node.id) return false;
+    return !this.validConnectTargetIds().has(node.id);
+  }
+
   private hasValidPosition(node: SolFlowCanvasNode): boolean {
     const position = node?.position;
     return !!position && Number.isFinite(position.x) && Number.isFinite(position.y);
   }
 
   protected resolvedPosition(node: SolFlowCanvasNode): SolFlowCanvasPosition {
-    // W4 (4R Ola 5): clamp en el PUNTO DE LECTURA — mantiene `dragState.currentPosition` sin transformar
-    // (la distancia de arrastre en onNodePointerUp sigue comparando contra el delta real, sin distorsión).
+    // W4 (4R Ola 5): clamp en el PUNTO DE LECTURA — mantiene `dragState.currentPosition` sin transformar.
     if (this.dragState && this.dragState.nodeId === node.id) return clampPosition(this.dragState.currentPosition);
-    // Re-check 4R (WARNING): clampea TAMBIÉN acá — hoy la única fuente viva de `node.position` es
-    // autoLayout (siempre ≥0), pero es un input externo (p. ej. `canvas_position` desde el backend,
-    // C1-back) que podría traer coordenadas negativas; el invariante del origen (0,0), ver docstring
-    // de la clase, no puede depender de que el emisor externo siempre lo respete.
     if (this.hasValidPosition(node)) return clampPosition(node.position);
     return { x: 0, y: 0 };
   }
@@ -463,19 +546,32 @@ export class SolFlowCanvasComponent {
     return { x: position.x + NODE_WIDTH_PX / 2, y: position.y + NODE_HEIGHT_PX / 2 };
   }
 
-  protected edgeLine(edge: SolFlowCanvasEdge): { x1: number; y1: number; x2: number; y2: number } {
+  /** Atributo `d` de la curva bezier de una arista — ver `flow-canvas-edge-geometry.ts` (puro). Extremos ausentes → sin curva (mismo criterio de robustez que `visibleEdges()`, defensivo aunque `visibleEdges()` ya filtra). */
+  protected edgePathD(edge: SolFlowCanvasEdge): string {
     const byId = this.nodesById();
     const source = byId.get(edge.sourceId);
     const target = byId.get(edge.targetId);
-    if (!source || !target) return { x1: 0, y1: 0, x2: 0, y2: 0 };
-    const from = this.nodeCenter(source);
-    const to = this.nodeCenter(target);
-    return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+    if (!source || !target) return '';
+    return computeEdgePathD(this.nodeCenter(source), this.nodeCenter(target));
   }
 
+  /** Punto SOBRE la curva bezier (t=0.5) para el label de la arista — reemplaza el punto medio de la recta del shell de PR-C1. */
   protected edgeMidpoint(edge: SolFlowCanvasEdge): SolFlowCanvasPosition {
-    const line = this.edgeLine(edge);
-    return { x: (line.x1 + line.x2) / 2, y: (line.y1 + line.y2) / 2 };
+    const byId = this.nodesById();
+    const source = byId.get(edge.sourceId);
+    const target = byId.get(edge.targetId);
+    if (!source || !target) return { x: 0, y: 0 };
+    return computeEdgeMidpoint(this.nodeCenter(source), this.nodeCenter(target));
+  }
+
+  /** Curva fantasma (origen armado → cursor) mientras hay una conexión en curso — `null` esconde el `@if` del template. */
+  protected ghostEdgePathD(): string | null {
+    const sourceId = this.connectSourceId();
+    const pointerWorld = this.ghostPointerWorld();
+    if (sourceId === null || pointerWorld === null) return null;
+    const source = this.nodesById().get(sourceId);
+    if (!source) return null;
+    return computeEdgePathD(this.nodeCenter(source), pointerWorld);
   }
 
   protected nodeTemplateContext(node: SolFlowCanvasNode): SolFlowCanvasNodeTemplateContext {
@@ -508,14 +604,13 @@ export class SolFlowCanvasComponent {
 
   protected onNodeActivate(node: SolFlowCanvasNode): void {
     if (this.lastGestureWasDrag) {
-      // El click sintético que sigue a un arrastre REAL no debe además seleccionar/conectar.
       this.lastGestureWasDrag = false;
       return;
     }
 
     const source = this.connectSourceId();
     if (source !== null) {
-      this.connectSourceId.set(null);
+      this.disarmConnect();
       // W1+W2 (4R Ola 5): guard extra de isReadonly() — el effect del constructor ya desarma
       // connectSourceId al flipear a readonly, este guard cubre la ventana síncrona previa a que corra.
       if (source !== node.id && !this.isReadonly()) {
@@ -537,7 +632,13 @@ export class SolFlowCanvasComponent {
   }
 
   protected cancelConnect(): void {
+    this.disarmConnect();
+  }
+
+  /** Desarma "conectar" (cancelar/completar/flip a readonly) — SIEMPRE limpia también la curva fantasma, mismo criterio en los 3 casos (PR-C2B). */
+  private disarmConnect(): void {
     this.connectSourceId.set(null);
+    this.ghostPointerWorld.set(null);
   }
 
   protected onRemoveConnection(edge: SolFlowCanvasEdge): void {
@@ -546,9 +647,13 @@ export class SolFlowCanvasComponent {
     this.announce('shared.flowCanvas.connectionRemovedAnnouncement');
   }
 
-  // --- arrastre por mouse (pointer events nativos — CDK está reservado a ui/kanban/) ---
+  // --- arrastre por mouse (pointer events nativos — CDK evaluado y descartado, ver docstring de la clase) ---
 
   protected onNodePointerDown(node: SolFlowCanvasNode, event: PointerEvent): void {
+    // PR-C2B: un pointerdown sobre un nodo NUNCA debe además arrancar un pan de fondo — incondicional,
+    // incluso si el resto del método corta abajo por readonly/drag-ya-activo (mismo comportamiento sea
+    // cual sea el modo, en vez de que readonly "degrade" sorpresivamente el gesto a un pan).
+    event.stopPropagation();
     if (this.isReadonly()) return;
     // C1 (4R Ola 5): un drag YA activo (de OTRO puntero, sobre el mismo nodo o uno distinto) ignora por
     // completo un segundo pointerdown — el primer puntero en arrancar gana, nunca se corrompe/reasigna.
@@ -572,8 +677,13 @@ export class SolFlowCanvasComponent {
     if (!state || state.pointerId !== event.pointerId || state.nodeId !== node.id) return;
     if (this.isReadonly()) return; // W1+W2: ventana síncrona previa a que el effect del constructor revierta
 
-    const dx = event.clientX - state.startPointer.x;
-    const dy = event.clientY - state.startPointer.y;
+    // PR-C2B: conversión de coordenadas pantalla→canvas — un delta de PANTALLA (`clientX/Y`) representa
+    // menos distancia real en el canvas cuanto más acercado está el zoom (a 2x, 40px de pantalla = 20px
+    // de canvas). Dividir por `zoom` es la operación inversa exacta del `scale(zoom)` del transform del
+    // mundo — ver `screenToWorld`/`worldToScreen` en flow-canvas-viewport.ts.
+    const zoom = this.viewport().zoom;
+    const dx = (event.clientX - state.startPointer.x) / zoom;
+    const dy = (event.clientY - state.startPointer.y) / zoom;
     this.dragState = {
       ...state,
       currentPosition: { x: state.startPosition.x + dx, y: state.startPosition.y + dy },
@@ -588,41 +698,40 @@ export class SolFlowCanvasComponent {
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
     if (this.isReadonly()) return; // W1+W2: ventana síncrona previa a que el effect del constructor revierta — no commitea
 
-    const distance = Math.hypot(
-      state.currentPosition.x - state.startPosition.x,
-      state.currentPosition.y - state.startPosition.y,
-    );
-    if (distance < DRAG_THRESHOLD_PX) return; // sin desplazamiento real: el click nativo que sigue resuelve selección/conexión
+    // PR-C2B: el umbral clic-vs-arrastre se mide en PANTALLA (`event.clientX/Y` crudos contra
+    // `state.startPointer`, ambos en espacio pantalla), NUNCA en espacio canvas — es una cuestión de
+    // precisión motora HUMANA (cuánto tiembla un dedo/mouse en píxeles de pantalla), zoom-invariante por
+    // definición. Medirlo en canvas haría el umbral más permisivo alejado (jitter mínimo ya cruzaría 4px
+    // de canvas) y más estricto acercado — ambos efectos indeseados que esta medición evita por completo.
+    const screenDistance = Math.hypot(event.clientX - state.startPointer.x, event.clientY - state.startPointer.y);
+    if (screenDistance < DRAG_THRESHOLD_PX) return; // sin desplazamiento real: el click nativo que sigue resuelve selección/conexión
 
     this.lastGestureWasDrag = true;
     this.commitNodePosition(node, state.currentPosition); // commitNodePosition clampea a coordenadas no negativas (W4)
   }
 
   /**
-   * `pointercancel`/`lostpointercapture` (W3+W5, 4R Ola 5) — SIEMPRE revierte, NUNCA commitea: el
-   * navegador interrumpió o reasignó el gesto (p. ej. un `pointercancel` real, o el UA reasignando la
-   * captura del puntero) y la única respuesta segura es abandonar el drag tal cual estaba ANTES de
-   * arrancar. La posición visual vuelve sola a la fuente (`resolvedPosition()` cae a `nodes()` en
-   * cuanto `dragState` es `null`) — no hace falta restaurar nada a mano.
+   * `pointercancel`/`lostpointercapture` (W3+W5, 4R Ola 5) — SIEMPRE revierte, NUNCA commitea.
    */
   protected onNodePointerCancel(node: SolFlowCanvasNode, event: PointerEvent): void {
     const state = this.dragState;
     if (!state || state.pointerId !== event.pointerId || state.nodeId !== node.id) return; // C1: puntero/nodo ajeno, no toca el drag activo
     this.dragState = null;
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
-    // Re-check 4R (SUGGESTION): las 4 mutaciones exitosas anuncian por aria-live — esta reversión
-    // quedaba muda y dejaba a un usuario de lector de pantalla sin feedback de que el gesto se abortó.
     this.announce('shared.flowCanvas.moveCancelledAnnouncement');
   }
 
   // --- nudge por teclado (paridad a11y) ---
 
+  /**
+   * El paso ({@link KEYBOARD_NUDGE_STEP_PX}) es SIEMPRE canvas-space, nunca se escala por zoom (PR-C2B,
+   * a11y): la navegación por teclado representa "cuánto se movió el DATO", igual que el nudge del mouse
+   * commitea en canvas-space — el zoom es puramente una cuestión de VISTA y no debe alterar cuánto se
+   * mueve un nodo por cada pulsación de flecha (impredecible para un usuario de teclado si dependiera del
+   * zoom vigente).
+   */
   protected onNodeKeydown(node: SolFlowCanvasNode, event: KeyboardEvent): void {
     if (event.key === 'Enter' || event.key === ' ') {
-      // W6 (4R Ola 5): activación EXPLÍCITA por teclado — NO se delega en el `click` sintético que el
-      // navegador dispara para un `<button>` enfocado (un motor C2A/C2B podría no usar `<button>`
-      // nativo, y el contrato debe exigir Enter/Espacio de forma explícita). `preventDefault()` evita
-      // que el navegador dispare ADEMÁS su propio `click` nativo (doble activación).
       event.preventDefault();
       this.onNodeActivate(node);
       return;
@@ -650,16 +759,92 @@ export class SolFlowCanvasComponent {
     this.announcement.set(this.i18n.translate(key, params));
   }
 
+  // --- pan/zoom del lienzo (PR-C2B — ver flow-canvas-viewport.ts, puro) ---
+
+  /**
+   * Arranca el seguimiento de un puntero de FONDO — nunca se dispara para un puntero que arrancó sobre un
+   * nodo (`stopPropagation` en {@link onNodePointerDown}) ni sobre el botón "conectar desde"/"×" (sin
+   * listener de pointerdown propio, así que si el `pointerup` llega casi de inmediato el pan resultante es
+   * ~(0,0), inofensivo — el `click` que resuelve esos botones es un evento aparte, no lo interfiere esto).
+   */
+  protected onCanvasPointerDown(event: PointerEvent): void {
+    const target = event.currentTarget as HTMLElement;
+    target.setPointerCapture?.(event.pointerId);
+    this.backgroundPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  }
+
+  protected onCanvasPointerMove(event: PointerEvent): void {
+    const current: SolFlowCanvasPosition = { x: event.clientX, y: event.clientY };
+
+    if (this.backgroundPointers.has(event.pointerId)) {
+      if (this.backgroundPointers.size >= 2) {
+        this.applyPinchMove(event.pointerId, current, event);
+      } else {
+        const previous = this.backgroundPointers.get(event.pointerId) as SolFlowCanvasPosition;
+        this.backgroundPointers.set(event.pointerId, current);
+        const delta = { x: current.x - previous.x, y: current.y - previous.y };
+        this.viewport.update((vp) => panBy(vp, delta));
+      }
+    }
+
+    // Curva fantasma: sigue al puntero mientras haya una conexión armada, sin importar si ESTE puntero
+    // también está paneando/pinchando (solapamiento raro en uso real — inofensivo dejarlo actualizar igual).
+    if (this.connectSourceId() !== null) {
+      this.ghostPointerWorld.set(screenToWorld(this.viewport(), this.canvasRelativePoint(current, event)));
+    }
+  }
+
+  protected onCanvasPointerUp(event: PointerEvent): void {
+    this.backgroundPointers.delete(event.pointerId);
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+  }
+
+  protected onCanvasPointerCancel(event: PointerEvent): void {
+    this.backgroundPointers.delete(event.pointerId);
+  }
+
+  protected onCanvasWheel(event: WheelEvent): void {
+    event.preventDefault(); // repropone la rueda como zoom del lienzo — nunca debe además hacer scroll de la página
+    const anchor = this.canvasRelativePoint({ x: event.clientX, y: event.clientY }, event);
+    this.viewport.update((vp) => computeWheelZoom(vp, event.deltaY, anchor));
+  }
+
+  /**
+   * Segundo puntero de fondo activo → pinch. La distancia PREVIA se lee ANTES de sobrescribir la posición
+   * de `pointerId` en el mapa (si no, "previa" y "actual" serían el mismo valor) — la razón entre ambas
+   * distancias es el factor de zoom INCREMENTAL de este solo `pointermove` (se compone con el siguiente
+   * `pointermove` del otro puntero, no hace falta recordar la distancia "inicial" del pinch completo).
+   */
+  private applyPinchMove(pointerId: number, current: SolFlowCanvasPosition, event: Event): void {
+    const otherEntry = [...this.backgroundPointers.entries()].find(([id]) => id !== pointerId);
+    if (!otherEntry) return; // defensivo — no debería ocurrir con size>=2, pero nunca lanzar por esto
+    const [, otherPosition] = otherEntry;
+    const previousPosition = this.backgroundPointers.get(pointerId) as SolFlowCanvasPosition;
+
+    const previousDistance = distanceBetween(previousPosition, otherPosition);
+    const currentDistance = distanceBetween(current, otherPosition);
+    const anchor = this.canvasRelativePoint(midpoint(current, otherPosition), event);
+
+    this.backgroundPointers.set(pointerId, current);
+    this.viewport.update((vp) => computePinchZoom(vp, previousDistance, currentDistance, anchor));
+  }
+
+  /** `clientX/Y` (pantalla del navegador) → "screen" relativo al host `.sol-flow-canvas` (resta `getBoundingClientRect()`), la convención que espera `flow-canvas-viewport.ts`. */
+  private canvasRelativePoint(clientPoint: SolFlowCanvasPosition, event: Event): SolFlowCanvasPosition {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    return { x: clientPoint.x - rect.left, y: clientPoint.y - rect.top };
+  }
+
   /**
    * Calcula y aplica una posición a TODO nodo actual sin `position` válido
-   * (ver {@link hasValidPosition}) usando {@link computeAutoLayoutPositions}
-   * (placeholder simple — dagre/ELK real llega en PR-C3). Los nodos YA
-   * posicionados NO se tocan. Emite `nodeMoved` por cada nodo repositionado
-   * — el consumidor decide si persiste esa posición.
+   * usando {@link computeAutoLayoutPositions} (placeholder simple — dagre/ELK
+   * real llega en PR-C3). Los nodos YA posicionados NO se tocan. Emite
+   * `nodeMoved` por cada nodo repositionado. Opera 100% en espacio CANVAS
+   * (igual que `node.position` siempre) — el pan/zoom vigente NUNCA entra en
+   * este cálculo, no hay conversión de coordenadas que hacer acá (a
+   * diferencia del arrastre, que sí consume `clientX/Y` de pantalla).
    *
-   * No-op si `isReadonly()` es `true` (S1, 4R Ola 5) — mismo criterio que el
-   * resto de mutaciones del lienzo (arrastre, nudge, conectar, quitar): TODA
-   * mutación queda bloqueada en modo lectura, sin excepción para este método.
+   * No-op si `isReadonly()` es `true` (S1, 4R Ola 5).
    */
   autoLayout(): void {
     if (this.isReadonly()) return;

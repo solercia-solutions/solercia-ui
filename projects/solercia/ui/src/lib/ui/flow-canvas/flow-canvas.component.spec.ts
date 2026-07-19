@@ -2,6 +2,7 @@ import { Component, TemplateRef, viewChild } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { createCatalogCheckedI18nStub } from '../../testing/i18n-catalog';
+import { computeEdgeMidpoint } from './flow-canvas-edge-geometry';
 import { computeAutoLayoutPositions } from './flow-canvas-layout';
 import { SolFlowCanvasComponent } from './flow-canvas.component';
 import type {
@@ -703,6 +704,308 @@ describe('SolFlowCanvasComponent', () => {
       expect(host().querySelectorAll('[data-testid^="flow-canvas-node-"]').length).toBe(60);
       expect(host().querySelectorAll('.sol-flow-canvas__edge-line').length).toBe(59);
       expect(elapsedMs).toBeLessThan(2000); // presupuesto LAXO (smoke, no benchmark estricto) — ver reporte de la fase
+    });
+  });
+
+  describe('pan/zoom del lienzo (PR-C2B — motor nativo SVG+Pointer Events)', () => {
+    function worldEl(): HTMLElement {
+      return host().querySelector('.sol-flow-canvas__world') as HTMLElement;
+    }
+
+    function worldTransformValues(): { panX: number; panY: number; zoom: number } {
+      const transform = worldEl().style.transform;
+      const match = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)\s*scale\(([\d.]+)\)/.exec(transform);
+      if (!match) throw new Error(`transform inesperado: "${transform}"`);
+      return { panX: Number.parseFloat(match[1]), panY: Number.parseFloat(match[2]), zoom: Number.parseFloat(match[3]) };
+    }
+
+    function canvasRoot(): HTMLElement {
+      return host().querySelector('.sol-flow-canvas') as HTMLElement;
+    }
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+    });
+
+    it('el viewport arranca en pan=(0,0) y zoom=1 (mismo criterio que el shell — coordenadas world=screen por defecto)', () => {
+      expect(worldTransformValues()).toEqual({ panX: 0, panY: 0, zoom: 1 });
+    });
+
+    it('arrastrar el FONDO (no un nodo) panea el lienzo — el transform del grupo interno refleja el delta de pantalla', () => {
+      const root = canvasRoot();
+      root.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      root.dispatchEvent(pointerEvent('pointermove', 130, 115));
+      fixture.detectChanges();
+
+      expect(worldTransformValues()).toEqual({ panX: 30, panY: 15, zoom: 1 });
+    });
+
+    it('soltar el fondo NO emite nodeMoved (panear es una vista, no una mutación del grafo)', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const root = canvasRoot();
+      root.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      root.dispatchEvent(pointerEvent('pointermove', 160, 160));
+      root.dispatchEvent(pointerEvent('pointerup', 160, 160));
+
+      expect(moved).toEqual([]);
+    });
+
+    it('arrastrar un NODO no arranca ADEMÁS un pan de fondo (el pointerdown del nodo no burbujea — stopPropagation)', () => {
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130));
+      fixture.detectChanges();
+
+      expect(worldTransformValues()).toEqual({ panX: 0, panY: 0, zoom: 1 });
+    });
+
+    it('el pan funciona igual en modo readonly — NO es una mutación del grafo (a diferencia de arrastrar un nodo)', () => {
+      fixture.componentRef.setInput('readonly', true);
+      fixture.detectChanges();
+
+      const root = canvasRoot();
+      root.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      root.dispatchEvent(pointerEvent('pointermove', 120, 90));
+      fixture.detectChanges();
+
+      expect(worldTransformValues()).toEqual({ panX: 20, panY: -10, zoom: 1 });
+    });
+
+    it('la rueda del mouse hace zoom (deltaY negativo acerca) y se clampea en el extremo', () => {
+      const root = canvasRoot();
+      root.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 50, clientY: 50, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(worldTransformValues().zoom).toBeGreaterThan(1);
+
+      root.dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 50, clientY: 50, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(worldTransformValues().zoom).toBe(2.5); // MAX_ZOOM (flow-canvas-viewport.ts)
+    });
+
+    it('pinch de dos punteros hace zoom — separar los dedos acerca (2x total, compuesto en dos pasos incrementales)', () => {
+      const root = canvasRoot();
+      root.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1));
+      root.dispatchEvent(pointerEvent('pointerdown', 200, 100, 2));
+      // distancia 100 -> 200 (2x), movida en dos pasos (uno por puntero) — ver applyPinchMove en el componente
+      root.dispatchEvent(pointerEvent('pointermove', 50, 100, 1));
+      root.dispatchEvent(pointerEvent('pointermove', 250, 100, 2));
+      fixture.detectChanges();
+
+      expect(worldTransformValues().zoom).toBeCloseTo(2, 5);
+    });
+
+    describe('conversión de coordenadas pantalla→canvas al arrastrar un nodo bajo zoom', () => {
+      it('con zoom clampeado a 2.5x, un delta de PANTALLA de 40px mueve el nodo 16px en espacio canvas (40/2.5)', () => {
+        canvasRoot().dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 0, clientY: 0, bubbles: true, cancelable: true }));
+        fixture.detectChanges();
+        expect(worldTransformValues()).toEqual({ panX: 0, panY: 0, zoom: 2.5 }); // ancla en (0,0): sin deriva de pan
+
+        const moved: SolFlowCanvasNodeMovedEvent[] = [];
+        fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+        const surface = nodeSurface('a');
+        surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+        surface.dispatchEvent(pointerEvent('pointermove', 140, 100));
+        surface.dispatchEvent(pointerEvent('pointerup', 140, 100));
+
+        expect(moved).toEqual([{ id: 'a', position: { x: 10 + 16, y: 20 } }]);
+      });
+
+      it('el umbral clic-vs-arrastre se mide en PANTALLA, no en canvas: con zoom=2.5x, 4px de pantalla (=1.6px de canvas) YA cuentan como arrastre', () => {
+        canvasRoot().dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 0, clientY: 0, bubbles: true, cancelable: true }));
+        fixture.detectChanges();
+
+        const moved: SolFlowCanvasNodeMovedEvent[] = [];
+        fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+        const surface = nodeSurface('a');
+        surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+        surface.dispatchEvent(pointerEvent('pointermove', 104, 100)); // 4px EXACTOS de pantalla
+        surface.dispatchEvent(pointerEvent('pointerup', 104, 100));
+
+        expect(moved.length).toBe(1); // si el umbral se midiera en canvas (1.6px < 4px), esto NO emitiría nada
+      });
+    });
+
+    it('el nudge por teclado sigue moviendo el nodo en pasos FIJOS de canvas, sin importar el zoom (a11y: el zoom no rompe la navegación por teclado)', () => {
+      canvasRoot().dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 0, clientY: 0, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(worldTransformValues().zoom).toBe(2.5);
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+      nodeSurface('a').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+      expect(moved).toEqual([{ id: 'a', position: { x: 20, y: 20 } }]); // 10 + 10 (paso fijo) — IGUAL que sin zoom (ver test equivalente sin zoom más arriba)
+    });
+  });
+
+  describe('aristas — curvas bezier (PR-C2B, reemplazan las líneas rectas del shell de PR-C1)', () => {
+    it('cada edge visible se renderiza como <path> con un atributo `d` que empieza en el centro del nodo origen y termina en el centro del destino', () => {
+      fixture.componentRef.setInput('nodes', twoNodes); // a:(10,20) b:(300,20) — tamaño asumido 180x56 -> centros (100,48) y (390,48)
+      fixture.componentRef.setInput('edges', oneEdge);
+      fixture.detectChanges();
+
+      const path = host().querySelector('.sol-flow-canvas__edge-line') as SVGPathElement;
+      expect(path.tagName.toLowerCase()).toBe('path');
+      const d = path.getAttribute('d') ?? '';
+      expect(d.startsWith('M 100,48 C ')).toBe(true);
+      expect(d.trim().endsWith('390,48')).toBe(true);
+    });
+
+    it('el label de la arista se posiciona en el punto SOBRE la curva bezier (computeEdgeMidpoint), no en un punto medio arbitrario', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.componentRef.setInput('edges', oneEdge);
+      fixture.detectChanges();
+
+      const label = host().querySelector('.sol-flow-canvas__edge-label') as HTMLElement;
+      const expected = computeEdgeMidpoint({ x: 100, y: 48 }, { x: 390, y: 48 });
+      expect(Number.parseFloat(label.style.left)).toBeCloseTo(expected.x, 5);
+      expect(Number.parseFloat(label.style.top)).toBeCloseTo(expected.y, 5);
+    });
+  });
+
+  describe('resaltado de destinos válidos al conectar (PR-C2B — refinamiento visual del tap-para-conectar de PR-C1)', () => {
+    const three: SolFlowCanvasNode[] = [
+      n({ id: 'a', position: { x: 0, y: 0 } }),
+      n({ id: 'b', position: { x: 200, y: 0 } }),
+      n({ id: 'c', position: { x: 400, y: 0 } }),
+    ];
+
+    function connectHandle(id: string): HTMLButtonElement {
+      return nodeEl(id).querySelector('.sol-flow-canvas__node-connect-handle') as HTMLButtonElement;
+    }
+
+    function hasValidClass(id: string): boolean {
+      return nodeEl(id).classList.contains('sol-flow-canvas__node--connect-valid-target');
+    }
+
+    function hasInvalidClass(id: string): boolean {
+      return nodeEl(id).classList.contains('sol-flow-canvas__node--connect-invalid-target');
+    }
+
+    it('al armar conectar desde "a" sin aristas previas, "b" y "c" quedan marcados como destino válido — "a" nunca es su propio destino', () => {
+      fixture.componentRef.setInput('nodes', three);
+      fixture.detectChanges();
+
+      connectHandle('a').click();
+      fixture.detectChanges();
+
+      expect(hasValidClass('b')).toBe(true);
+      expect(hasValidClass('c')).toBe(true);
+      expect(hasValidClass('a')).toBe(false);
+      expect(hasInvalidClass('a')).toBe(false); // el origen tiene su propio estilo (--connect-source), no el de "inválido"
+    });
+
+    it('un destino ya conectado (a->b existente) NO queda marcado como válido al re-armar desde "a" — evita duplicar la conexión', () => {
+      fixture.componentRef.setInput('nodes', three);
+      fixture.componentRef.setInput('edges', [e({ id: 'a->b', sourceId: 'a', targetId: 'b' })]);
+      fixture.detectChanges();
+
+      connectHandle('a').click();
+      fixture.detectChanges();
+
+      expect(hasValidClass('b')).toBe(false);
+      expect(hasInvalidClass('b')).toBe(true);
+      expect(hasValidClass('c')).toBe(true);
+    });
+
+    it('un destino que cerraría un ciclo (a->b->c, armar desde "c") NO queda marcado como válido', () => {
+      fixture.componentRef.setInput('nodes', three);
+      fixture.componentRef.setInput('edges', [
+        e({ id: 'a->b', sourceId: 'a', targetId: 'b' }),
+        e({ id: 'b->c', sourceId: 'b', targetId: 'c' }),
+      ]);
+      fixture.detectChanges();
+
+      connectHandle('c').click();
+      fixture.detectChanges();
+
+      expect(hasValidClass('a')).toBe(false);
+      expect(hasValidClass('b')).toBe(false);
+      expect(hasInvalidClass('a')).toBe(true);
+      expect(hasInvalidClass('b')).toBe(true);
+    });
+
+    it('el resaltado es un HINT visual — clickear un destino "inválido" (cerraría ciclo) SIGUE completando la conexión, la mecánica de la API no cambia', () => {
+      fixture.componentRef.setInput('nodes', three);
+      fixture.componentRef.setInput('edges', [e({ id: 'a->b', sourceId: 'a', targetId: 'b' })]);
+      fixture.detectChanges();
+
+      const created: SolFlowCanvasConnectionCreatedEvent[] = [];
+      fixture.componentInstance.connectionCreated.subscribe((ev) => created.push(ev));
+
+      connectHandle('c').click(); // arma desde 'c'; 'a' cerraría un ciclo (a->b->c->a) y por tanto NO es "válido"
+      nodeSurface('a').click();
+
+      expect(created).toEqual([{ sourceId: 'c', targetId: 'a' }]); // el validador real (entities/flow) decide la legalidad final, no este hint
+    });
+
+    it('el resaltado se retira al cancelar con Escape', () => {
+      fixture.componentRef.setInput('nodes', three);
+      fixture.detectChanges();
+
+      connectHandle('a').click();
+      fixture.detectChanges();
+      expect(hasValidClass('b')).toBe(true);
+
+      host().querySelector('.sol-flow-canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+
+      expect(hasValidClass('b')).toBe(false);
+      expect(hasInvalidClass('b')).toBe(false);
+    });
+  });
+
+  describe('curva fantasma al conectar (PR-C2B)', () => {
+    it('al armar conectar y mover el puntero sobre el fondo, aparece un <path> fantasma que parte del centro del origen', () => {
+      fixture.componentRef.setInput('nodes', twoNodes); // 'a' en (10,20) -> centro (100,48)
+      fixture.detectChanges();
+
+      const connectHandleA = nodeEl('a').querySelector('.sol-flow-canvas__node-connect-handle') as HTMLButtonElement;
+      connectHandleA.click();
+      fixture.detectChanges();
+      expect(host().querySelector('.sol-flow-canvas__edge-ghost')).toBeNull(); // sin movimiento del puntero todavía
+
+      (host().querySelector('.sol-flow-canvas') as HTMLElement).dispatchEvent(pointerEvent('pointermove', 500, 500));
+      fixture.detectChanges();
+
+      const ghost = host().querySelector('.sol-flow-canvas__edge-ghost') as SVGPathElement;
+      expect(ghost).toBeTruthy();
+      expect(ghost.getAttribute('d')?.startsWith('M 100,48 C ')).toBe(true);
+    });
+
+    it('la curva fantasma desaparece al completar la conexión', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      nodeEl('a').querySelector<HTMLButtonElement>('.sol-flow-canvas__node-connect-handle')!.click();
+      (host().querySelector('.sol-flow-canvas') as HTMLElement).dispatchEvent(pointerEvent('pointermove', 500, 500));
+      fixture.detectChanges();
+      expect(host().querySelector('.sol-flow-canvas__edge-ghost')).toBeTruthy();
+
+      nodeSurface('b').click();
+      fixture.detectChanges();
+
+      expect(host().querySelector('.sol-flow-canvas__edge-ghost')).toBeNull();
+    });
+
+    it('la curva fantasma desaparece al cancelar con Escape', () => {
+      fixture.componentRef.setInput('nodes', twoNodes);
+      fixture.detectChanges();
+
+      nodeEl('a').querySelector<HTMLButtonElement>('.sol-flow-canvas__node-connect-handle')!.click();
+      (host().querySelector('.sol-flow-canvas') as HTMLElement).dispatchEvent(pointerEvent('pointermove', 500, 500));
+      fixture.detectChanges();
+      expect(host().querySelector('.sol-flow-canvas__edge-ghost')).toBeTruthy();
+
+      host().querySelector('.sol-flow-canvas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+
+      expect(host().querySelector('.sol-flow-canvas__edge-ghost')).toBeNull();
     });
   });
 });

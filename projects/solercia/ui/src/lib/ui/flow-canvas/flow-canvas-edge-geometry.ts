@@ -29,7 +29,7 @@ export function computeEdgeControlPoints(
   };
 }
 
-/** Atributo `d` de un `<path>` SVG — curva cúbica `M origen C c1 c2 destino`. */
+/** Atributo `d` de un elemento SVG "path" — curva cúbica `M origen C c1 c2 destino`. */
 export function computeEdgePathD(source: SolFlowCanvasPosition, target: SolFlowCanvasPosition): string {
   const { c1, c2 } = computeEdgeControlPoints(source, target);
   return `M ${source.x},${source.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${target.x},${target.y}`;
