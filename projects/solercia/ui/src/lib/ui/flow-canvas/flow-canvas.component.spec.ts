@@ -807,6 +807,24 @@ describe('SolFlowCanvasComponent', () => {
       expect(worldTransformValues().zoom).toBe(2.5); // MAX_ZOOM (flow-canvas-viewport.ts)
     });
 
+    it('[readonly] la rueda del mouse SÍ cambia el zoom (S1, 4R Ola 5: el pan/zoom es VISTA, no mutación del grafo) — el drag de un nodo sigue bloqueado', () => {
+      fixture.componentRef.setInput('readonly', true);
+      fixture.detectChanges();
+
+      const root = canvasRoot();
+      root.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 50, clientY: 50, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      expect(worldTransformValues().zoom).toBeGreaterThan(1);
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130));
+      surface.dispatchEvent(pointerEvent('pointerup', 140, 130));
+      expect(moved).toEqual([]); // readonly sigue bloqueando el arrastre — el wheel de arriba NO lo destraba
+    });
+
     it('pinch de dos punteros hace zoom — separar los dedos acerca (2x total, compuesto en dos pasos incrementales)', () => {
       const root = canvasRoot();
       root.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1));
@@ -817,6 +835,27 @@ describe('SolFlowCanvasComponent', () => {
       fixture.detectChanges();
 
       expect(worldTransformValues().zoom).toBeCloseTo(2, 5);
+    });
+
+    it('[readonly] el pinch de dos punteros SÍ panea/zoomea (S1, 4R Ola 5: el pan/zoom es VISTA, no mutación del grafo) — el drag de un nodo sigue bloqueado', () => {
+      fixture.componentRef.setInput('readonly', true);
+      fixture.detectChanges();
+
+      const root = canvasRoot();
+      root.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1));
+      root.dispatchEvent(pointerEvent('pointerdown', 200, 100, 2));
+      root.dispatchEvent(pointerEvent('pointermove', 50, 100, 1));
+      root.dispatchEvent(pointerEvent('pointermove', 250, 100, 2));
+      fixture.detectChanges();
+      expect(worldTransformValues().zoom).toBeCloseTo(2, 5);
+
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 3));
+      surface.dispatchEvent(pointerEvent('pointermove', 140, 130, 3));
+      surface.dispatchEvent(pointerEvent('pointerup', 140, 130, 3));
+      expect(moved).toEqual([]); // readonly sigue bloqueando el arrastre — el pinch de arriba NO lo destraba
     });
 
     describe('conversión de coordenadas pantalla→canvas al arrastrar un nodo bajo zoom', () => {
@@ -852,6 +891,56 @@ describe('SolFlowCanvasComponent', () => {
       });
     });
 
+    describe('C1 (4R Ola 5) — zoom a mitad de drag NO corrompe la posición del nodo (bug: onCanvasWheel/applyPinchMove no consultan dragState)', () => {
+      it('un WheelEvent de zoom entre dos pointermove del MISMO drag acumula cada segmento con SU zoom vigente — nunca el zoom final retroactivo', () => {
+        const moved: SolFlowCanvasNodeMovedEvent[] = [];
+        fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+        const surface = nodeSurface('a'); // arranca en (10,20), zoom=1
+        surface.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+        surface.dispatchEvent(pointerEvent('pointermove', 140, 100)); // segmento 1: +40px pantalla con zoom=1 → +40 world
+
+        // Zoom CONCURRENTE a mitad de drag — onCanvasWheel (línea ~842) nunca consulta dragState, a propósito (ver su JSDoc).
+        canvasRoot().dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 0, clientY: 0, bubbles: true, cancelable: true }));
+        fixture.detectChanges();
+        expect(worldTransformValues().zoom).toBe(2.5); // MAX_ZOOM, clampeado — determinista
+
+        surface.dispatchEvent(pointerEvent('pointermove', 180, 100)); // segmento 2: +40px pantalla con zoom=2.5 → +16 world
+        surface.dispatchEvent(pointerEvent('pointerup', 180, 100));
+
+        // Correcto (fix aplicado): 10 + (40/1) + (40/2.5) = 10 + 40 + 16 = 66.
+        // Código PRE-FIX (dividía el delta TOTAL de pantalla —80px— por el zoom FINAL —2.5—, re-escalando
+        // retroactivamente el tramo ya recorrido bajo zoom=1): commiteaba x=42 (10 + 80/2.5) — un salto
+        // visible hacia atrás, desde x=50 (tras el primer segmento) a x=42 al soltar.
+        expect(moved).toEqual([{ id: 'a', position: { x: 66, y: 20 } }]);
+      });
+
+      it('un pinch de fondo (dos punteros AJENOS, nunca el dueño del drag) a mitad del arrastre tampoco corrompe la posición final', () => {
+        const moved: SolFlowCanvasNodeMovedEvent[] = [];
+        fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+        const surface = nodeSurface('a'); // arranca en (10,20), zoom=1
+        surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1));
+        surface.dispatchEvent(pointerEvent('pointermove', 140, 100, 1)); // segmento 1: +40px pantalla con zoom=1 → +40 world
+
+        // Pinch de DOS punteros de FONDO (2 y 3 — nunca el 1, dueño exclusivo del drag) concurrente —
+        // applyPinchMove (línea ~854) tampoco consulta dragState, a propósito (ver su JSDoc).
+        const root = canvasRoot();
+        root.dispatchEvent(pointerEvent('pointerdown', 100, 100, 2));
+        root.dispatchEvent(pointerEvent('pointerdown', 200, 100, 3));
+        root.dispatchEvent(pointerEvent('pointermove', 0, 100, 2)); // distancia 100→200 (2x) → zoom pasa de 1 a 2
+        fixture.detectChanges();
+        expect(worldTransformValues().zoom).toBe(2);
+
+        surface.dispatchEvent(pointerEvent('pointermove', 180, 100, 1)); // segmento 2: +40px pantalla con zoom=2 → +20 world
+        surface.dispatchEvent(pointerEvent('pointerup', 180, 100, 1));
+
+        // Correcto: 10 + (40/1) + (40/2) = 10 + 40 + 20 = 70.
+        expect(moved).toEqual([{ id: 'a', position: { x: 70, y: 20 } }]);
+        expect(nodeEl('b').style.left).toBe('300px'); // el nodo ajeno al drag/pinch no se mueve
+      });
+    });
+
     it('el nudge por teclado sigue moviendo el nodo en pasos FIJOS de canvas, sin importar el zoom (a11y: el zoom no rompe la navegación por teclado)', () => {
       canvasRoot().dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 0, clientY: 0, bubbles: true, cancelable: true }));
       fixture.detectChanges();
@@ -862,6 +951,37 @@ describe('SolFlowCanvasComponent', () => {
       nodeSurface('a').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 
       expect(moved).toEqual([{ id: 'a', position: { x: 20, y: 20 } }]); // 10 + 10 (paso fijo) — IGUAL que sin zoom (ver test equivalente sin zoom más arriba)
+    });
+
+    /**
+     * W1 (4R Ola 5, línea base de costo — deuda DOCUMENTADA, no resuelta acá; ver JSDoc de la sección
+     * "pan/zoom del lienzo" en flow-canvas.component.ts, candidato a coalescing con requestAnimationFrame
+     * en el refactor de gestos de C3). Mide solo el costo de despachar+mutar el signal `viewport` por
+     * evento — sin acoplar el costo de `detectChanges()`/render (ver "perf — smoke con 60+ nodos" aparte).
+     * Medido en corrida local (jsdom, sin build de producción): ~5.3ms/100 eventos, muy por debajo del
+     * presupuesto laxo de 2000ms.
+     */
+    it('línea base — 100 pointermove de un pan sostenido sobre 60 nodos caben en un presupuesto laxo', () => {
+      const manyNodes: SolFlowCanvasNode[] = Array.from({ length: 60 }, (_, i) =>
+        n({ id: `n${i}`, label: `Nodo ${i}`, position: { x: (i % 10) * 220, y: Math.floor(i / 10) * 120 } }),
+      );
+      fixture.componentRef.setInput('nodes', manyNodes);
+      fixture.detectChanges();
+
+      const root = canvasRoot();
+      root.dispatchEvent(pointerEvent('pointerdown', 0, 0));
+
+      const start = performance.now();
+      for (let i = 1; i <= 100; i++) {
+        root.dispatchEvent(pointerEvent('pointermove', i, i));
+      }
+      const elapsedMs = performance.now() - start;
+
+      root.dispatchEvent(pointerEvent('pointerup', 100, 100));
+      fixture.detectChanges();
+
+      expect(worldTransformValues()).toEqual({ panX: 100, panY: 100, zoom: 1 }); // el pan acumula los 100 pasos, uno por uno
+      expect(elapsedMs).toBeLessThan(2000); // presupuesto LAXO (smoke jsdom) — medido en corrida local: ~5.3ms/100 eventos (ver JSDoc arriba)
     });
   });
 

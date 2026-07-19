@@ -62,11 +62,19 @@ interface DragState {
   nodeId: string;
   /** Puntero DUEÑO de este drag (C1, 4R Ola 5) — un segundo puntero concurrente jamás debe leer/mutar este estado. */
   pointerId: number;
-  /** Posición de PANTALLA (`event.clientX/Y` crudos) al arrancar — sirve para el umbral clic-vs-arrastre (ver {@link onNodePointerUp}), SIEMPRE en pantalla, nunca en canvas. */
+  /** Posición de PANTALLA (`event.clientX/Y` crudos) al arrancar — sirve EXCLUSIVAMENTE para el umbral clic-vs-arrastre (ver {@link onNodePointerUp}), SIEMPRE en pantalla, nunca en canvas. NUNCA se actualiza durante el drag (a diferencia de {@link lastPointer}) — el umbral mide el desplazamiento TOTAL desde el inicio. */
   startPointer: SolFlowCanvasPosition;
+  /**
+   * Posición de PANTALLA del `pointermove` MÁS RECIENTE — arranca igual a {@link startPointer} y se
+   * actualiza en CADA `pointermove` (C1, 4R Ola 5 — fix del bug "zoom a mitad de drag corrompe la
+   * posición"). Cada segmento consume el delta desde ESTE punto, nunca desde `startPointer`, así un
+   * cambio de zoom a mitad de gesto (rueda/pinch de fondo concurrente) solo re-escala el segmento
+   * SIGUIENTE, jamás el tramo ya recorrido — ver {@link onNodePointerMove}.
+   */
+  lastPointer: SolFlowCanvasPosition;
   /** Posición inicial del nodo en espacio CANVAS (world). */
   startPosition: SolFlowCanvasPosition;
-  /** Posición vigente del nodo en espacio CANVAS (world) — ya convertida desde el delta de pantalla dividiendo por el zoom (PR-C2B). */
+  /** Posición vigente del nodo en espacio CANVAS (world) — acumulada SEGMENTO a SEGMENTO en cada `pointermove`, cada uno convertido con el zoom VIGENTE al momento de ESE segmento (nunca con el zoom final) — ver {@link onNodePointerMove}. */
   currentPosition: SolFlowCanvasPosition;
 }
 
@@ -101,7 +109,9 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
  *    scroll nativo) reemplaza el "scroll into view" gratis que traía
  *    `overflow: auto` del shell de PR-C1 — {@link onNodeFocus} lo restituye
  *    paneando (nunca zoom) hacia cualquier nodo que reciba foco (Tab) fuera
- *    del área visible.
+ *    del área visible. La rueda/el pinch corren de forma INDEPENDIENTE de un
+ *    arrastre de nodo en curso — a propósito (C1, 4R Ola 5): ver el JSDoc de
+ *    {@link onNodePointerMove} para el porqué y el fix del bug asociado.
  *  - **Aristas bezier**: curvas cúbicas con dirección horizontal (favorecen
  *    el layout BFS-por-columnas de `flow-canvas-layout.ts`) en vez de líneas
  *    rectas — ver `flow-canvas-edge-geometry.ts` (puro). El label de cada
@@ -128,7 +138,11 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
  *    mide en PANTALLA (PR-C2B: precisión motora humana, zoom-invariante — NO
  *    en espacio canvas, que sería más permisivo alejado y más estricto
  *    acercado). Un `pointerdown` sobre un nodo NUNCA burbujea a convertirse
- *    además en un pan de fondo (`stopPropagation` explícito).
+ *    además en un pan de fondo (`stopPropagation` explícito). El delta de
+ *    pantalla→canvas se acumula por SEGMENTO con el zoom vigente de cada
+ *    `pointermove` (C1, 4R Ola 5) — un cambio de zoom a mitad de gesto (rueda
+ *    del mouse sostenido, o pinch de fondo concurrente) nunca corrompe el
+ *    tramo ya recorrido, ver {@link onNodePointerMove}.
  *  - **Mover un nodo (teclado)**: flechas sobre el nodo enfocado — nudge de
  *    {@link KEYBOARD_NUDGE_STEP_PX}px FIJOS en espacio canvas (el zoom NUNCA
  *    afecta el paso — a11y: la navegación por teclado es predecible sin
@@ -679,11 +693,33 @@ export class SolFlowCanvasComponent {
       nodeId: node.id,
       pointerId: event.pointerId,
       startPointer: { x: event.clientX, y: event.clientY },
+      lastPointer: { x: event.clientX, y: event.clientY },
       startPosition: start,
       currentPosition: start,
     };
   }
 
+  /**
+   * C1 (4R Ola 5) — fix del bug "zoom a mitad de drag corrompe la posición": acumula el delta de
+   * PANTALLA por SEGMENTO (desde {@link DragState.lastPointer}, nunca desde `startPointer`) y lo
+   * convierte con el zoom VIGENTE en CADA `pointermove` — nunca con el zoom final. Es matemáticamente
+   * correcto bajo CUALQUIER secuencia de zooms durante el drag: si el zoom cambia a mitad de gesto
+   * (rueda del mouse con el puntero sostenido, o pinch de fondo concurrente — {@link onCanvasWheel} y
+   * `applyPinchMove` NUNCA consultan `dragState`, a propósito), el segmento YA acumulado con el zoom
+   * viejo queda intacto; solo el segmento SIGUIENTE usa el zoom nuevo.
+   *
+   * Alternativa descartada — "zoom exclusivo del gesto" (bloquear wheel/pinch mientras `dragState !=
+   * null`): más simple de implementar, pero degrada la UX — un usuario que sostiene un nodo y gira la
+   * rueda (trackpad, gesto accidental o intencional) esperaría que el zoom siga respondiendo, igual que
+   * en Figma/n8n. La solución incremental preserva esa expectativa sin sacrificar corrección, al costo
+   * de un campo extra (`lastPointer`) en `DragState`.
+   *
+   * (Bug pre-fix: `dx = (event.clientX - state.startPointer.x) / zoomVigente` dividía el delta TOTAL de
+   * pantalla desde el INICIO del drag por el zoom ACTUAL — si el zoom cambiaba a mitad de gesto, el
+   * tramo ya recorrido bajo el zoom viejo se re-escalaba retroactivamente y el nodo "saltaba" visualmente
+   * al soltar/commitear. Ver el test "zoom a mitad de drag" en flow-canvas.component.spec.ts, que
+   * documenta el valor corrupto exacto que producía el código anterior.)
+   */
   protected onNodePointerMove(node: SolFlowCanvasNode, event: PointerEvent): void {
     const state = this.dragState;
     // C1: solo el puntero DUEÑO del drag, sobre SU nodo, puede mutar dragState — un puntero/nodo ajeno no hace nada.
@@ -695,11 +731,13 @@ export class SolFlowCanvasComponent {
     // de canvas). Dividir por `zoom` es la operación inversa exacta del `scale(zoom)` del transform del
     // mundo — ver `screenToWorld`/`worldToScreen` en flow-canvas-viewport.ts.
     const zoom = this.viewport().zoom;
-    const dx = (event.clientX - state.startPointer.x) / zoom;
-    const dy = (event.clientY - state.startPointer.y) / zoom;
+    const currentPointer: SolFlowCanvasPosition = { x: event.clientX, y: event.clientY };
+    const dx = (currentPointer.x - state.lastPointer.x) / zoom;
+    const dy = (currentPointer.y - state.lastPointer.y) / zoom;
     this.dragState = {
       ...state,
-      currentPosition: { x: state.startPosition.x + dx, y: state.startPosition.y + dy },
+      lastPointer: currentPointer,
+      currentPosition: { x: state.currentPosition.x + dx, y: state.currentPosition.y + dy },
     };
   }
 
@@ -797,6 +835,17 @@ export class SolFlowCanvasComponent {
 
   // --- pan/zoom del lienzo (PR-C2B — ver flow-canvas-viewport.ts, puro) ---
 
+  /*
+   * W1 (4R Ola 5, deuda DOCUMENTADA — NO implementada en este ciclo; el refactor de gestos ya está
+   * agendado para PR-C3, cuando este componente (904L, 5 responsabilidades) se divida): los handlers de
+   * ESTA sección ({@link onCanvasPointerMove}, {@link onCanvasWheel}, {@link applyPinchMove}) son de alta
+   * frecuencia — un `pointermove`/`wheel` de usuario puede disparar decenas por segundo — y cada uno
+   * escribe el signal `viewport`/`ghostPointerWorld` SIN agrupar (batch) los eventos del mismo frame.
+   * Candidato a coalescing con `requestAnimationFrame` en ese refactor. Línea base medida hoy (smoke
+   * sobre jsdom, NO paint/compositing real de navegador): ~5.3ms/100 eventos de pan sostenido sobre 60
+   * nodos — ver el test "línea base — 100 pointermove..." en flow-canvas.component.spec.ts.
+   */
+
   /**
    * Arranca el seguimiento de un puntero de FONDO — nunca se dispara para un puntero que arrancó sobre un
    * nodo (`stopPropagation` en {@link onNodePointerDown}) ni sobre el botón "conectar desde"/"×" (sin
@@ -839,6 +888,12 @@ export class SolFlowCanvasComponent {
     this.backgroundPointers.delete(event.pointerId);
   }
 
+  /**
+   * Corre de forma INDEPENDIENTE de {@link dragState} — a propósito (C1, 4R Ola 5): el zoom sigue
+   * respondiendo aunque haya un nodo siendo arrastrado. {@link onNodePointerMove} acumula su delta POR
+   * SEGMENTO con el zoom vigente en cada momento, así que un cambio de zoom a mitad de gesto nunca
+   * corrompe la posición ya recorrida — ver su JSDoc para el fix completo.
+   */
   protected onCanvasWheel(event: WheelEvent): void {
     event.preventDefault(); // repropone la rueda como zoom del lienzo — nunca debe además hacer scroll de la página
     const anchor = this.canvasRelativePoint({ x: event.clientX, y: event.clientY }, event);
@@ -850,6 +905,10 @@ export class SolFlowCanvasComponent {
    * de `pointerId` en el mapa (si no, "previa" y "actual" serían el mismo valor) — la razón entre ambas
    * distancias es el factor de zoom INCREMENTAL de este solo `pointermove` (se compone con el siguiente
    * `pointermove` del otro puntero, no hace falta recordar la distancia "inicial" del pinch completo).
+   *
+   * Corre de forma INDEPENDIENTE de {@link dragState} — a propósito (C1, 4R Ola 5, mismo criterio que
+   * {@link onCanvasWheel}): un pinch de fondo (dos punteros AJENOS al que arrastra un nodo) sigue
+   * zoomeando sin corromper el drag activo — ver el JSDoc de {@link onNodePointerMove}.
    */
   private applyPinchMove(pointerId: number, current: SolFlowCanvasPosition, event: Event): void {
     const otherEntry = [...this.backgroundPointers.entries()].find(([id]) => id !== pointerId);
