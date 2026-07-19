@@ -6,13 +6,17 @@ import {
   output,
 } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
-import type { SolIconName } from '../icon/icon.component';
+import type { SolIconName, SolIconSize } from '../icon/icon.component';
 
 /** Estilo visual del botón de ícono, alineado con las variantes de `sol-button`. */
 export type SolIconButtonVariant = 'default' | 'danger' | 'ghost';
 
-/** Tamaño (cuadrado) del botón de ícono. */
-export type SolIconButtonSize = 'sm' | 'md' | 'lg';
+/**
+ * Tamaño (cuadrado) del botón de ícono. `touch` (44px, PR-C4, Ola 5 GOAL §4):
+ * ADITIVO, mismo criterio que `SolButtonSize` — cero impacto en consumidores
+ * existentes.
+ */
+export type SolIconButtonSize = 'sm' | 'md' | 'lg' | 'touch';
 
 /**
  * Botón cuadrado de solo ícono, con `aria-label` obligatorio por accesibilidad.
@@ -38,7 +42,7 @@ export type SolIconButtonSize = 'sm' | 'md' | 'lg';
       [attr.aria-label]="ariaLabel()"
       (click)="onClick($event)"
     >
-      <sol-icon [name]="icon()" [size]="size()" />
+      <sol-icon [name]="icon()" [size]="iconSize()" />
     </button>
   `,
   styles: `
@@ -108,6 +112,8 @@ export type SolIconButtonSize = 'sm' | 'md' | 'lg';
     .sol-icon-btn--sm { width: 32px; height: 32px; }
     .sol-icon-btn--md { width: 36px; height: 36px; }
     .sol-icon-btn--lg { width: 40px; height: 40px; }
+    /* PR-C4 (≥44px hit-area, GOAL §4): preset ADITIVO, real y medible. */
+    .sol-icon-btn--touch { width: 44px; height: 44px; }
   `,
 })
 export class SolIconButtonComponent {
@@ -136,6 +142,17 @@ export class SolIconButtonComponent {
   readonly cssClass = computed(
     () => `sol-icon-btn sol-icon-btn--${this.variant()} sol-icon-btn--${this.size()}`,
   );
+
+  /**
+   * `sol-icon`'s own size preset ('sm'|'md'|'lg', no 'touch' — el ícono es
+   * SOLO la "tinta" visible, PR-C4/GOAL §4: crece el botón, no el ícono).
+   * `touch` (44px) mapea al ícono 'lg' — el mismo glyph que ya se veía en un
+   * botón `lg` (40px), solo con más padding invisible alrededor.
+   */
+  readonly iconSize = computed<SolIconSize>(() => {
+    const current = this.size();
+    return current === 'touch' ? 'lg' : current;
+  });
 
   onClick(event: MouseEvent): void {
     if (this.disabled()) {

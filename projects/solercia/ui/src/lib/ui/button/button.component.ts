@@ -7,7 +7,13 @@ import {
 } from '@angular/core';
 
 export type SolButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
-export type SolButtonSize = 'sm' | 'md' | 'lg';
+/**
+ * `sm`/`md`/`lg` (32/36/40px): tamaños de SIEMPRE, sin cambios. `touch`
+ * (44px, PR-C4, Ola 5 GOAL §4 — "TODOS" los targets de la paleta/drawer a
+ * ≥44px de hit-area): ADITIVO — ningún consumidor existente lo usaba antes
+ * de este cambio, cero impacto visual en botones ya desplegados.
+ */
+export type SolButtonSize = 'sm' | 'md' | 'lg' | 'touch';
 
 @Component({
   selector: 'sol-button',
@@ -169,6 +175,14 @@ export type SolButtonSize = 'sm' | 'md' | 'lg';
     .sol-btn--lg {
       font-size: var(--sol-font-size-base, 14px);
       height: 40px;
+      padding: 0 20px;
+    }
+    /* PR-C4 (≥44px hit-area, GOAL §4): preset ADITIVO — real, medible con
+       getBoundingClientRect, para acciones táctiles fuera de escritorio
+       (paleta de nodos, footer del editor de nodo). */
+    .sol-btn--touch {
+      font-size: var(--sol-font-size-base, 14px);
+      height: 44px;
       padding: 0 20px;
     }
 
