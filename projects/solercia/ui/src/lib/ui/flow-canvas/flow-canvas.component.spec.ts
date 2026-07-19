@@ -317,6 +317,42 @@ describe('SolFlowCanvasComponent', () => {
       expect(moved.length).toBe(1);
     });
 
+    it('[touch][borde] 9.9px de temblor NO cuenta como arrastre — apenas por debajo del umbral táctil (10px, mismo patrón que el borde de mouse 3.9/4)', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1, 'touch'));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 109.9, 1, 'touch'));
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 109.9, 1, 'touch'));
+
+      expect(moved).toEqual([]);
+    });
+
+    it('[touch][borde] 10px exactos de desplazamiento SÍ cuenta como arrastre y commitea (mismo patrón que el borde de mouse 3.9/4)', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1, 'touch'));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 110, 1, 'touch'));
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 110, 1, 'touch'));
+
+      expect(moved).toEqual([{ id: 'a', position: { x: 10, y: 30 } }]);
+    });
+
+    it('[pen] usa el umbral de PRECISIÓN (4px), NUNCA el táctil (10px) — 6px con pointerType=pen ya cuenta como arrastre (ver JSDoc de dragThresholdFor)', () => {
+      const moved: SolFlowCanvasNodeMovedEvent[] = [];
+      fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
+
+      const surface = nodeSurface('a');
+      surface.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1, 'pen'));
+      surface.dispatchEvent(pointerEvent('pointermove', 100, 106, 1, 'pen')); // 6px: por encima del umbral pen/mouse (4px), por debajo del táctil (10px)
+      surface.dispatchEvent(pointerEvent('pointerup', 100, 106, 1, 'pen'));
+
+      expect(moved.length).toBe(1); // si pen usara el umbral táctil (10px), esto NO commitearía
+    });
+
     it('[mouse] el umbral de 4px NO cambia (regresión) — 6px con pointerType=mouse SIGUE contando como arrastre', () => {
       const moved: SolFlowCanvasNodeMovedEvent[] = [];
       fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
@@ -942,6 +978,44 @@ describe('SolFlowCanvasComponent', () => {
       surface.dispatchEvent(pointerEvent('pointermove', 140, 130, 3));
       surface.dispatchEvent(pointerEvent('pointerup', 140, 130, 3));
       expect(moved).toEqual([]); // readonly sigue bloqueando el arrastre — el pinch de arriba NO lo destraba
+    });
+
+    /**
+     * CRITICAL (4R post PR-C4, hit-areas NO zoom-invariantes) — RED antes del
+     * fix: `--sol-flow-canvas-zoom` no existía en absoluto, así que
+     * `getPropertyValue` siempre devolvía `''` sin importar el zoom vigente.
+     * La compensación CSS de los 3 targets (`calc(44px / var(--sol-flow-
+     * canvas-zoom, 1))`, ver los estilos de `.sol-flow-canvas__node-surface`/
+     * `-node-connect-handle`/`-edge-remove`) depende por completo de que este
+     * valor refleje el zoom vigente en TODO momento — estos tests cubren el
+     * lado JS/Angular del binding (jsdom no calcula layout real: el tamaño
+     * FÍSICO resultante en px se mide en `e2e/flows/flows-mobile.spec.ts`,
+     * FLOW-E2E-M04, a zoom≠1 — ver su JSDoc para las medidas exactas pre-fix).
+     */
+    describe('CRITICAL (4R post PR-C4) — --sol-flow-canvas-zoom en el host (alimenta la compensación CSS de las 3 hit-areas)', () => {
+      it('el host expone --sol-flow-canvas-zoom = "1" con el viewport por defecto', () => {
+        expect(canvasRoot().style.getPropertyValue('--sol-flow-canvas-zoom').trim()).toBe('1');
+      });
+
+      it('--sol-flow-canvas-zoom sigue al zoom de la rueda del mouse (clampeado a MAX_ZOOM)', () => {
+        canvasRoot().dispatchEvent(new WheelEvent('wheel', { deltaY: -100000, clientX: 0, clientY: 0, bubbles: true, cancelable: true }));
+        fixture.detectChanges();
+
+        expect(worldTransformValues().zoom).toBe(2.5); // MAX_ZOOM
+        expect(canvasRoot().style.getPropertyValue('--sol-flow-canvas-zoom').trim()).toBe('2.5');
+      });
+
+      it('--sol-flow-canvas-zoom sigue al zoom del pinch de dos punteros', () => {
+        const root = canvasRoot();
+        root.dispatchEvent(pointerEvent('pointerdown', 100, 100, 1));
+        root.dispatchEvent(pointerEvent('pointerdown', 200, 100, 2));
+        root.dispatchEvent(pointerEvent('pointermove', 50, 100, 1));
+        root.dispatchEvent(pointerEvent('pointermove', 250, 100, 2));
+        fixture.detectChanges();
+
+        expect(worldTransformValues().zoom).toBeCloseTo(2, 5);
+        expect(Number.parseFloat(root.style.getPropertyValue('--sol-flow-canvas-zoom'))).toBeCloseTo(2, 5);
+      });
     });
 
     describe('conversión de coordenadas pantalla→canvas al arrastrar un nodo bajo zoom', () => {

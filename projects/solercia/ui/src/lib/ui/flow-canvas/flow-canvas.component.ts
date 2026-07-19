@@ -59,7 +59,20 @@ const DRAG_THRESHOLD_PX = 4;
  */
 const DRAG_THRESHOLD_PX_TOUCH = 10;
 
-/** Umbral clic-vs-arrastre según el tipo de puntero del evento — ver {@link DRAG_THRESHOLD_PX}/{@link DRAG_THRESHOLD_PX_TOUCH}. */
+/**
+ * Umbral clic-vs-arrastre según el tipo de puntero del evento — ver
+ * {@link DRAG_THRESHOLD_PX}/{@link DRAG_THRESHOLD_PX_TOUCH}. Solo
+ * `pointerType === 'touch'` (yema de un dedo) cae al umbral TÁCTIL más
+ * permisivo — `'pen'` (lápiz óptico/stylus) usa el mismo umbral de
+ * PRECISIÓN que `'mouse'` a propósito (WARNING, 4R post PR-C4): la punta de
+ * un lápiz ofrece la misma precisión motora que un cursor de mouse
+ * (contacto puntual, sin el "temblor" natural de una yema de dedo que
+ * motiva el slop táctil más generoso — ver el JSDoc de
+ * {@link DRAG_THRESHOLD_PX_TOUCH}), mismo criterio que el "touch slop"
+ * diferenciado de las plataformas nativas (Android distingue
+ * `MotionEvent.TOOL_TYPE_STYLUS` de `TOOL_TYPE_FINGER`, con un slop menor
+ * para el primero).
+ */
 function dragThresholdFor(event: PointerEvent): number {
   return event.pointerType === 'touch' ? DRAG_THRESHOLD_PX_TOUCH : DRAG_THRESHOLD_PX;
 }
@@ -150,14 +163,24 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
  *     `-edge-geometry.ts`/`-layout.ts`, ni en los widgets/página consumidores
  *     de PR-C3) — el motor YA es 100% Pointer Events desde el bake-off
  *     (C2B). Nada que unificar.
- *  2. **Targets ≥44px con hit-area invisible**: `.sol-flow-canvas__node-
- *     connect-handle` (28px→44×44 real, `align-self:center` para no
- *     estirarse con node-surface), `.sol-flow-canvas__node-surface`
- *     (min-height:44px) y `.sol-flow-canvas__edge-remove` (padding real +
- *     margin negativo IGUAL Y OPUESTO — el hijo sigue "pesando" lo mismo
- *     dentro del flex de la píldora, así que ésta no se agranda visualmente)
- *     — los 3 alcanzan ≥44px reales (verificable con `getBoundingClientRect`/
- *     Playwright `boundingBox()`, ver `e2e/flows/flows-mobile.spec.ts`).
+ *  2. **Targets ≥44px con hit-area invisible, zoom-invariante (CRITICAL +
+ *     WARNING corregidos en la re-auditoría 4R post PR-C4)**:
+ *     `.sol-flow-canvas__node-connect-handle` (28px→`--sol-flow-canvas-hit-
+ *     min` real, `align-self:center` para no estirarse con node-surface),
+ *     `.sol-flow-canvas__node-surface` (min-height:`--sol-flow-canvas-hit-
+ *     min`) y `.sol-flow-canvas__edge-remove` (`width`/`height` fijos a
+ *     `--sol-flow-canvas-hit-min`, margin negativo EXACTAMENTE igual y
+ *     opuesto por lado — el hijo sigue "pesando" 13×13px dentro del flex de
+ *     la píldora, el tamaño "de siempre", así que ésta no se agranda
+ *     visualmente) — los 3 alcanzan ≥44px FÍSICOS reales a CUALQUIER zoom
+ *     del rango (0.25x-2.5x, `flow-canvas-viewport.ts`), no solo a zoom=1:
+ *     `--sol-flow-canvas-zoom` (seteado en el binding del host) compensa el
+ *     `scale(zoom)` de `.sol-flow-canvas__world` — CRITICAL de la
+ *     re-auditoría: sin esta compensación, un piso de 44px CSS encogía a
+ *     ~22-29px FÍSICOS a ~0.5x (medido real con Playwright `boundingBox()`,
+ *     ver `e2e/flows/flows-mobile.spec.ts`, FLOW-E2E-M04/M05, y los tests de
+ *     `flow-canvas.component.spec.ts` que cubren el binding `--sol-flow-
+ *     canvas-zoom`).
  *  3. **Resaltado "solo válidos"**: auditado — el hint YA distingue
  *     `--connect-valid-target` (resalta, borde+glow verde) de
  *     `--connect-invalid-target` (SOLO atenúa, `opacity:0.45`, sin color
@@ -219,6 +242,7 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       class="sol-flow-canvas"
       role="application"
       [attr.aria-label]="regionLabel()"
+      [style.--sol-flow-canvas-zoom]="viewport().zoom"
       (keydown.escape)="cancelConnect()"
       (pointerdown)="onCanvasPointerDown($event)"
       (pointermove)="onCanvasPointerMove($event)"
@@ -348,6 +372,22 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       /* PR-C2B: pan (arrastre) y pinch-zoom propios vía Pointer Events — el navegador NUNCA debe
          interceptarlos como scroll/zoom nativo de la página. */
       touch-action: none;
+      /* CRITICAL (4R post PR-C4, hit-areas NO zoom-invariantes): --sol-flow-canvas-zoom (seteado
+         en el binding del host, [style.--sol-flow-canvas-zoom]="viewport().zoom") alimenta este
+         derivado. Los pisos >=44px de node-surface/connect-handle/edge-remove (ver sus 3 reglas más
+         abajo) viven DENTRO de .sol-flow-canvas__world, que recibe scale(zoom) — un mínimo fijo
+         en px CSS encoge su tamaño FÍSICO proporcionalmente al zoom (a 0.25x, un piso de 44px CSS
+         queda en ~11px reales, muy por debajo del mínimo táctil de plataforma). La compensación
+         inversa (44px / zoom) devuelve el piso FÍSICO a 44px en CUALQUIER zoom del rango
+         (MIN_ZOOM/MAX_ZOOM de flow-canvas-viewport.ts, hoy 0.25x-2.5x) — el min(...) topa el
+         resultado en el propio límite matemático del extremo MIN_ZOOM (44px / 0.25 = 176px), para
+         que el tope quede explícito y documentado en vez de depender implícitamente de un rango
+         externo que podría cambiar. Evidencia e2e en flows-mobile.spec.ts (FLOW-E2E-M04, medido
+         también a zoom≠1 — RED antes del fix: connect-handle 21.85×21.85px, node-surface 28.95px de
+         alto, edge-remove 22.85×23.84px, los 3 a ~0.4966x) — jsdom no calcula layout real, este
+         cálculo no es verificable en Vitest (mismo criterio que el resto de mediciones de
+         getBoundingClientRect de este componente). */
+      --sol-flow-canvas-hit-min: min(calc(44px / var(--sol-flow-canvas-zoom, 1)), 176px);
     }
 
     .sol-flow-canvas__world {
@@ -405,23 +445,42 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
       cursor: pointer;
       font-size: var(--sol-font-size-sm, 13px);
       line-height: 1;
-      /* PR-C4 (GOAL §4, hit-area invisible ≥44px): padding real agranda el
-         botón a 44x44 (medible con getBoundingClientRect) — un margin
-         negativo IGUAL Y OPUESTO en cada lado devuelve el tamaño que la
-         píldora edge-label (flex) ve de este hijo a los 13x13px de siempre
-         (2+9+2 ancho, 0+13+0 alto), así que la píldora NO se agranda
-         visualmente. Sesgado a propósito: el padding izquierdo NO crece
-         (margin-left: 0) para no comerse el gap de 4px hacia el texto
-         vecino — casi todo el crecimiento va arriba/abajo/derecha (espacio
-         libre del lienzo). Evidencia e2e en flows-mobile.spec.ts
-         (boundingBox mayor o igual a 44x44) — jsdom no calcula layout real,
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      /* flex-shrink:0 (mismo criterio que .sol-flow-canvas__node-connect-
+         handle, flex:none más abajo en este archivo): sin esto, el flex
+         container (.sol-flow-canvas__edge-label) reparte el shrink entre
+         ESTE botón y el texto vecino cuando ambos no caben — el width
+         explícito (ver más abajo) terminaba renderizado por debajo de los
+         44px pedidos (medido real: 38.06px en vez de 44px). flex:none
+         congela flex-grow:0 (ya era el default) y flex-shrink:0 — el hit-
+         area real nunca se achica sin importar el texto vecino. */
+      flex: none;
+      /* WARNING (4R post PR-C4, footprint asimétrico + docstring falso —
+         CORREGIDO): la versión anterior afirmaba "margin negativo IGUAL Y
+         OPUESTO en cada lado" pero NO lo era — padding 18/37/18/2 contra
+         margin -18/-35/-18/0 dejaba el lado derecho y el izquierdo
+         descuadrados en +2px cada uno (37-35=2, 2-0=2), agrandando la
+         píldora sin que el comentario lo confesara. Rediseño: width/height
+         explícitos (no padding sobre el contenido — evita depender de la
+         métrica real, variable entre navegadores, del glyph "×") fijan el
+         hit-area real a --sol-flow-canvas-hit-min (44px equivalente,
+         compensado por el zoom vigente — CRITICAL, ver .sol-flow-canvas);
+         margin usa el shorthand de UN solo valor (mismo cálculo en los 4
+         lados), así que es EXACTAMENTE igual y opuesto por construcción, no
+         por coincidencia numérica que se puede desalinear en un cambio
+         futuro. Neto en AMBAS dimensiones: hit-min + 2×margin = 13px — la
+         píldora ve siempre los mismos 13×13px "de siempre" (el tamaño antes
+         de este hit-area invisible), mientras el botón real mide
+         --sol-flow-canvas-hit-min centrado en el glyph. Evidencia e2e en
+         flows-mobile.spec.ts: boundingBox >=44x44 a CUALQUIER zoom del
+         rango (FLOW-E2E-M04) + los edge-remove de 2 aristas adyacentes no
+         se solapan entre sí (FLOW-E2E-M05) — jsdom no calcula layout real,
          este cálculo no es verificable en Vitest. */
-      /* Márgen de seguridad sobre el mínimo de 44px — medido real (evidencia
-         e2e, boundingBox): el glyph "×" a font-size 13px mide ~7px de ancho
-         x ~12px de alto (no ~9x13 como se estimó al calcular por primera
-         vez) — padding ajustado con +2-3px de colchón en cada dimensión. */
-      padding: 18px 37px 18px 2px;
-      margin: -18px -35px -18px 0;
+      width: var(--sol-flow-canvas-hit-min, 44px);
+      height: var(--sol-flow-canvas-hit-min, 44px);
+      margin: calc((13px - var(--sol-flow-canvas-hit-min, 44px)) / 2);
     }
 
     .sol-flow-canvas__node {
@@ -441,11 +500,18 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
          garantiza el piso real de 44px (medible con getBoundingClientRect);
          display:flex centra el contenido (una línea o el template completo
          de varias líneas del consumidor) dentro del alto garantizado, sin
-         inflar el diseño visual (mismo padding/borde/tipografía de siempre). */
+         inflar el diseño visual (mismo padding/borde/tipografía de siempre).
+         CRITICAL (4R post PR-C4): var(--sol-flow-canvas-hit-min) (ver
+         .sol-flow-canvas, derivado de --sol-flow-canvas-zoom) compensa
+         el scale(zoom) de .sol-flow-canvas__world — sin esto, el piso
+         de 44px CSS encogía a ~29px FÍSICOS incluso a ~0.5x (medido real,
+         RED pre-fix). El nodo puede crecer su caja mínima al alejar el
+         lienzo — aceptable y estándar (un target táctil nunca debe encoger
+         por debajo del piso de accesibilidad, sin importar el zoom). */
       display: flex;
       flex-direction: column;
       justify-content: center;
-      min-height: 44px;
+      min-height: var(--sol-flow-canvas-hit-min, 44px);
       text-align: left;
       padding: 10px 12px;
       background: var(--sol-bg-surface, #fff);
@@ -508,14 +574,19 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
          node-surface (align-self:center en vez del stretch heredado del
          row) — reserva su PROPIO piso de ≥44×44px real (medible con
          getBoundingClientRect), independiente del alto del nodo. El glyph
-         "⇢" queda centrado dentro. */
+         "⇢" queda centrado dentro. CRITICAL (4R post PR-C4): el piso usa
+         var(--sol-flow-canvas-hit-min), compensado por el zoom vigente
+         del lienzo (ver el comentario de .sol-flow-canvas) — mismo
+         criterio que .sol-flow-canvas__node-surface; sin esto, medía
+         21.85×21.85px FÍSICOS a ~0.5x (RED pre-fix, getBoundingClientRect
+         real vía Playwright, ver flows-mobile.spec.ts/FLOW-E2E-M04). */
       align-self: center;
       flex: none;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 44px;
-      min-height: 44px;
+      min-width: var(--sol-flow-canvas-hit-min, 44px);
+      min-height: var(--sol-flow-canvas-hit-min, 44px);
       border: 1px solid var(--sol-border-color-default, #e2e8f0);
       border-radius: var(--sol-border-radius-md, 8px);
       background: var(--sol-bg-surface, #fff);
