@@ -27,6 +27,15 @@ import type { SolFlowCanvasEdge, SolFlowCanvasNode, SolFlowCanvasPosition } from
  *
  * Casos mínimos (brief PR-C1) — el shell de este PR los pasa TODOS; cero
  * `pending`.
+ *
+ * **Cambio de contrato post-bake-off (W3, 4R Ola 5 PR-C3)**: `autoLayout()`
+ * pasó de síncrono a `Promise<void>` porque `computeAutoLayoutPositions`
+ * (`flow-canvas-layout.ts`) ahora carga `@dagrejs/dagre` vía `import()`
+ * dinámico — el chunk (~100kB) salía del bundle EAGER de toda la app antes
+ * de este fix (fuga de bundle detectada en el 4R posterior al bake-off,
+ * medida con `ng build --configuration production`). Es el ÚNICO ajuste
+ * necesario en esta suite: el caso `autoLayoutPositionsUnpositionedNodes` es
+ * el único que invoca `autoLayout()` directamente, y ahora hace `await`.
  */
 
 // --- Contrato del harness (motor-agnóstico) ---
@@ -232,7 +241,16 @@ export function runFlowCanvasAcceptanceSuite(setup: FlowCanvasHarnessSetup, opti
       expect(harness.query.nodeVisualState('c')).toBe('idle');
     });
 
-    itOrPending('autoLayoutPositionsUnpositionedNodes', 'autoLayout() posiciona SOLO los nodos sin posición válida — los ya posicionados no se tocan', () => {
+    // W3 (4R Ola 5 post PR-C3, fuga de bundle) — CAMBIO DE CONTRATO
+    // DELIBERADO sobre este harness compartido: `autoLayout()` pasó de
+    // síncrono a `Promise<void>` porque `computeAutoLayoutPositions` ahora
+    // carga `@dagrejs/dagre` vía `import()` dinámico (el chunk lazy sale del
+    // bundle eager — ver docstring de `flow-canvas-layout.ts`). Este es el
+    // ÚNICO caso de la suite que invoca `autoLayout()` directamente; se
+    // vuelve `async` y hace `await` de AMBAS llamadas (`autoLayout()` y
+    // `computeAutoLayoutPositions()`) — el resto de la suite (arrastre,
+    // conectar, selección…) no toca este método y queda sin cambios.
+    itOrPending('autoLayoutPositionsUnpositionedNodes', 'autoLayout() posiciona SOLO los nodos sin posición válida — los ya posicionados no se tocan', async () => {
       const positioned: SolFlowCanvasNode = { id: 'a', label: 'A', kind: 'default', position: { x: 777, y: 777 } };
       const positionless = { id: 'b', label: 'B', kind: 'default' } as unknown as SolFlowCanvasNode;
       const harness = setup({ nodes: [positioned, positionless], edges: [] });
@@ -241,11 +259,11 @@ export function runFlowCanvasAcceptanceSuite(setup: FlowCanvasHarnessSetup, opti
       const moved: { id: string; position: SolFlowCanvasPosition }[] = [];
       harness.component.nodeMoved.subscribe((e) => moved.push(e));
 
-      harness.component.autoLayout();
+      await harness.component.autoLayout();
       harness.detectChanges();
 
       // W8 (4R Ola 5): aserción EXACTA contra computeAutoLayoutPositions — no basta con "no nulo".
-      const expected = computeAutoLayoutPositions([positioned, positionless], []);
+      const expected = await computeAutoLayoutPositions([positioned, positionless], []);
       expect(moved).toEqual([{ id: 'b', position: expected.get('b') }]);
       expect(harness.query.nodePosition('a')).toEqual({ x: 777, y: 777 });
       expect(harness.query.nodePosition('b')).toEqual(expected.get('b'));

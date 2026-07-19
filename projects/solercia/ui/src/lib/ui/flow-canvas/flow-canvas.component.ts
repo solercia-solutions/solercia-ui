@@ -943,22 +943,34 @@ export class SolFlowCanvasComponent {
 
   /**
    * Calcula y aplica una posición a TODO nodo actual sin `position` válido
-   * usando {@link computeAutoLayoutPositions} (placeholder simple — dagre/ELK
-   * real llega en PR-C3). Los nodos YA posicionados NO se tocan. Emite
+   * usando {@link computeAutoLayoutPositions} (dagre real, PR-C3 — con
+   * fallback BFS síncrono si el chunk lazy falla, ver W2 en
+   * `flow-canvas-layout.ts`). Los nodos YA posicionados NO se tocan. Emite
    * `nodeMoved` por cada nodo repositionado. Opera 100% en espacio CANVAS
    * (igual que `node.position` siempre) — el pan/zoom vigente NUNCA entra en
    * este cálculo, no hay conversión de coordenadas que hacer acá (a
    * diferencia del arrastre, que sí consume `clientX/Y` de pantalla).
    *
    * No-op si `isReadonly()` es `true` (S1, 4R Ola 5).
+   *
+   * **W3 (4R Ola 5 post PR-C3, fuga de bundle) — CAMBIO DE CONTRATO
+   * DELIBERADO**: pasa de síncrono a `Promise<void>` porque
+   * `computeAutoLayoutPositions` ahora carga `@dagrejs/dagre` vía `import()`
+   * dinámico (el módulo entero se saca del chunk eager, no solo la
+   * instancia — ver docstring de `flow-canvas-layout.ts`). Consumidores
+   * existentes que llamaban `autoLayout()` de forma "fire-and-forget" (el
+   * effect de `pages/flows`) siguen funcionando sin `await` — el nodo queda
+   * sin posición hasta que la promesa resuelve, que es exactamente el mismo
+   * intervalo que antes tomaba el cálculo síncrono, solo que ahora incluye
+   * la carga del chunk la PRIMERA vez.
    */
-  autoLayout(): void {
+  async autoLayout(): Promise<void> {
     if (this.isReadonly()) return;
     const current = this.mirroredNodes();
     const pending = current.filter((node) => !this.hasValidPosition(node));
     if (pending.length === 0) return;
 
-    const computed = computeAutoLayoutPositions(current, this.edges() ?? []);
+    const computed = await computeAutoLayoutPositions(current, this.edges() ?? []);
     const updates: SolFlowCanvasNodeMovedEvent[] = [];
     this.mirroredNodes.update((nodes) =>
       nodes.map((node) => {

@@ -612,8 +612,15 @@ describe('SolFlowCanvasComponent', () => {
     });
   });
 
+  /**
+   * W3 (4R Ola 5 post PR-C3, fuga de bundle) — `autoLayout()` pasó de
+   * síncrono a `Promise<void>` (delega en `computeAutoLayoutPositions`, que
+   * ahora carga `@dagrejs/dagre` vía `import()` dinámico — ver docstring de
+   * `flow-canvas-layout.ts`). CAMBIO DE CONTRATO DELIBERADO: cada caso de
+   * este describe ahora es `async` y hace `await` de la llamada.
+   */
   describe('autoLayout() — posiciona SOLO los nodos sin posición válida', () => {
-    it('un nodo sin position válido recibe una posición calculada y emite nodeMoved; el nodo YA posicionado no se toca', () => {
+    it('un nodo sin position válido recibe una posición calculada y emite nodeMoved; el nodo YA posicionado no se toca', async () => {
       const positionless = { ...n({ id: 'b', label: 'Sin posición' }) };
       // @ts-expect-error — runtime deliberadamente sin position (defensivo: un input no garantiza un valor válido en runtime)
       delete positionless.position;
@@ -624,7 +631,7 @@ describe('SolFlowCanvasComponent', () => {
       const moved: SolFlowCanvasNodeMovedEvent[] = [];
       fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
 
-      fixture.componentInstance.autoLayout();
+      await fixture.componentInstance.autoLayout();
       fixture.detectChanges();
 
       expect(moved.length).toBe(1);
@@ -633,18 +640,18 @@ describe('SolFlowCanvasComponent', () => {
       expect(nodeEl('b').style.left).not.toBe(''); // recibió una posición
     });
 
-    it('si todos los nodos ya tienen posición, autoLayout() no emite nada', () => {
+    it('si todos los nodos ya tienen posición, autoLayout() no emite nada', async () => {
       fixture.componentRef.setInput('nodes', twoNodes);
       fixture.detectChanges();
 
       const moved: SolFlowCanvasNodeMovedEvent[] = [];
       fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
-      fixture.componentInstance.autoLayout();
+      await fixture.componentInstance.autoLayout();
 
       expect(moved).toEqual([]);
     });
 
-    it('con VARIOS nodos sin posición, emite un nodeMoved por cada uno con la posición EXACTA de computeAutoLayoutPositions (W8 — no un chequeo laxo tipo not.toBeNull())', () => {
+    it('con VARIOS nodos sin posición, emite un nodeMoved por cada uno con la posición EXACTA de computeAutoLayoutPositions (W8 — no un chequeo laxo tipo not.toBeNull())', async () => {
       const positionless: SolFlowCanvasNode[] = [
         { id: 'x', label: 'Nodo X', kind: 'default' } as unknown as SolFlowCanvasNode,
         { id: 'y', label: 'Nodo Y', kind: 'default' } as unknown as SolFlowCanvasNode,
@@ -657,10 +664,10 @@ describe('SolFlowCanvasComponent', () => {
       const moved: SolFlowCanvasNodeMovedEvent[] = [];
       fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
 
-      fixture.componentInstance.autoLayout();
+      await fixture.componentInstance.autoLayout();
       fixture.detectChanges();
 
-      const expected = computeAutoLayoutPositions(positionless, []);
+      const expected = await computeAutoLayoutPositions(positionless, []);
       expect(moved).toEqual([
         { id: 'x', position: expected.get('x') },
         { id: 'y', position: expected.get('y') },
@@ -670,7 +677,7 @@ describe('SolFlowCanvasComponent', () => {
       expect(distinctPositions.size).toBe(3); // tres posiciones DISTINTAS — cada nodo cae en su propia fila del layout
     });
 
-    it('[readonly] autoLayout() no hace nada — TODA mutación queda bloqueada en modo lectura (S1)', () => {
+    it('[readonly] autoLayout() no hace nada — TODA mutación queda bloqueada en modo lectura (S1)', async () => {
       const positionless = { ...n({ id: 'b', label: 'Sin posición' }) };
       // @ts-expect-error — runtime deliberadamente sin position (defensivo: un input no garantiza un valor válido en runtime)
       delete positionless.position;
@@ -681,7 +688,7 @@ describe('SolFlowCanvasComponent', () => {
 
       const moved: SolFlowCanvasNodeMovedEvent[] = [];
       fixture.componentInstance.nodeMoved.subscribe((e) => moved.push(e));
-      fixture.componentInstance.autoLayout();
+      await fixture.componentInstance.autoLayout();
 
       expect(moved).toEqual([]);
     });
