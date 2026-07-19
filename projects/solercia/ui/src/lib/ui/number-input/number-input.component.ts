@@ -106,14 +106,21 @@ import { SolIconComponent } from '../icon/icon.component';
   styles: `
     :host {
       display: inline-block;
+      /* Paridad de theming con sol-input (mismo criterio de tokens v2 con
+         fallback v1 — ver input.component.ts): el borde/fondo/radio/alto
+         son los MISMOS tokens, así el stepper se ve "de la casa" en vez de
+         un control aparte con bordes que no combinan con el resto de los
+         controles del formulario. */
       --sol-number-input-bg: var(--sol-input-bg, var(--sol-bg-surface, #ffffff));
       --sol-number-input-text: var(--sol-color-text-primary, #1e293b);
-      --sol-number-input-border: var(--sol-border-color-default, #cbd5e1);
+      --sol-number-input-border: var(--sol-input-border, var(--sol-border-width-default, 1px) solid var(--sol-border-color-default, #cbd5e1));
+      --sol-number-input-focus-border: var(--sol-input-focus-border, var(--sol-border-width-default, 1px) solid var(--sol-color-primary, #6366f1));
+      --sol-number-input-focus-ring: var(--sol-input-focus-ring, 0 0 0 2px color-mix(in srgb, var(--sol-color-primary, #6366f1) 20%, transparent));
       --sol-number-input-btn-text: var(--sol-color-text-secondary, #475569);
       --sol-number-input-hover-bg: var(--sol-color-bg-hover, rgba(0, 0, 0, 0.04));
-      --sol-number-input-focus-ring: var(--sol-color-primary, #6366f1);
       --sol-number-input-disabled-opacity: var(--sol-disabled-opacity, 0.55);
       --sol-number-input-radius: var(--sol-input-radius, var(--sol-border-radius-md, 0.5rem));
+      --sol-number-input-height: var(--sol-size-input-height, 2.25rem);
       --sol-number-input-font-size: var(--sol-font-size-base, 0.875rem);
       --sol-number-input-transition: var(--sol-dur-fast, 150ms) var(--sol-ease, ease);
     }
@@ -121,10 +128,22 @@ import { SolIconComponent } from '../icon/icon.component';
     .sol-number-input {
       display: inline-flex;
       align-items: stretch;
-      border: 1px solid var(--sol-number-input-border);
+      height: var(--sol-number-input-height);
+      border: var(--sol-number-input-border);
       border-radius: var(--sol-number-input-radius);
       overflow: hidden;
       background: var(--sol-number-input-bg);
+      box-sizing: border-box;
+      transition: border-color var(--sol-number-input-transition), box-shadow var(--sol-number-input-transition);
+    }
+
+    /* :focus-within (no :focus): el foco real recae en el <input> central,
+       nunca en el div contenedor — mismo criterio visual que sol-input al
+       enfocarse (borde + anillo), pero disparado por cualquier hijo
+       enfocado (campo o botones −/+). */
+    .sol-number-input:focus-within {
+      border: var(--sol-number-input-focus-border);
+      box-shadow: var(--sol-number-input-focus-ring);
     }
 
     .sol-number-input--disabled {
@@ -144,11 +163,11 @@ import { SolIconComponent } from '../icon/icon.component';
     }
 
     .sol-number-input__btn--decrement {
-      border-right: 1px solid var(--sol-number-input-border);
+      border-right: var(--sol-number-input-border);
     }
 
     .sol-number-input__btn--increment {
-      border-left: 1px solid var(--sol-number-input-border);
+      border-left: var(--sol-number-input-border);
     }
 
     .sol-number-input__btn:hover:not(:disabled) {
@@ -156,7 +175,7 @@ import { SolIconComponent } from '../icon/icon.component';
     }
 
     .sol-number-input__btn:focus-visible {
-      outline: 2px solid var(--sol-number-input-focus-ring);
+      outline: 2px solid var(--sol-color-primary, #6366f1);
       outline-offset: -2px;
     }
 
