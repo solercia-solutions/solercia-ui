@@ -10,7 +10,7 @@ function e(sourceId: string, targetId: string): SolFlowCanvasEdge {
   return { id: `${sourceId}->${targetId}`, sourceId, targetId, kind: 'always' };
 }
 
-describe('computeAutoLayoutPositions — capas por BFS desde raíces (placeholder simple; dagre/ELK real llega en PR-C3)', () => {
+describe('computeAutoLayoutPositions — motor dagre real (Ola 5 PR-C3; placeholder BFS reemplazado, mismas propiedades exigidas por este contrato)', () => {
   it('cadena lineal a->b->c: cada nodo en su propia columna, en orden creciente de x', () => {
     const positions = computeAutoLayoutPositions([n('a'), n('b'), n('c')], [e('a', 'b'), e('b', 'c')]);
     expect(positions.get('a')!.x).toBeLessThan(positions.get('b')!.x);
@@ -48,6 +48,38 @@ describe('computeAutoLayoutPositions — capas por BFS desde raíces (placeholde
     const b = computeAutoLayoutPositions([n('a'), n('z')], []);
     expect(a.get('a')).toEqual(b.get('a'));
     expect(a.get('z')).toEqual(b.get('z'));
+  });
+
+  it('ninguna coordenada es negativa (el lienzo clampea a >=0 — el layout arranca ya normalizado, sin depender de ese clamp)', () => {
+    const positions = computeAutoLayoutPositions([n('a'), n('b'), n('c')], [e('a', 'b'), e('a', 'c')]);
+    for (const position of positions.values()) {
+      expect(position.x).toBeGreaterThanOrEqual(0);
+      expect(position.y).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('DIAMANTE de 4 nodos: la rama larga (dos saltos) queda MÁS lejos en x que la corta (mismo camino más largo gana el rango, criterio de red de Sugiyama que dagre implementa)', () => {
+    // a -> b -> d (2 saltos) y a -> c -> ... realmente ambos caminos miden 2 acá;
+    // se arma un camino de 3 saltos (a->b->c->d) en paralelo a uno de 1 salto
+    // (a->d) para que quede inequívoco cuál layout "ranking real" (dagre)
+    // separa mejor que un BFS de primer-toque puro.
+    const positions = computeAutoLayoutPositions(
+      [n('a'), n('b'), n('c'), n('d')],
+      [e('a', 'b'), e('b', 'c'), e('c', 'd'), e('a', 'd')],
+    );
+    expect(positions.get('a')!.x).toBeLessThan(positions.get('b')!.x);
+    expect(positions.get('b')!.x).toBeLessThan(positions.get('c')!.x);
+    expect(positions.get('c')!.x).toBeLessThan(positions.get('d')!.x);
+  });
+
+  it('MINIMIZA cruces de aristas entre 2 columnas (a,b -> x,y con a->y/b->x cruzados): el orden de filas se REACOMODA para evitar el cruce — un BFS con orden alfabético fijo NO lo logra (diferenciador real vs. el placeholder anterior)', () => {
+    const positions = computeAutoLayoutPositions([n('a'), n('b'), n('x'), n('y')], [e('a', 'y'), e('b', 'x')]);
+    const aAboveB = positions.get('a')!.y < positions.get('b')!.y;
+    const yAboveX = positions.get('y')!.y < positions.get('x')!.y;
+    // Sin cruce: si "a" queda arriba de "b", su destino "y" también debe quedar
+    // arriba de "x" (el destino de "b") — dagre reordena las filas para lograrlo;
+    // un BFS con orden alfabético fijo (x antes que y, SIEMPRE) no podía.
+    expect(aAboveB).toBe(yAboveX);
   });
 });
 

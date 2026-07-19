@@ -651,11 +651,22 @@ export class SolFlowCanvasComponent {
     this.nodeSelected.emit({ id: node.id });
   }
 
+  /**
+   * PR-C3 (GOAL §4, "señal accesible del hint de destinos válidos"): el
+   * anuncio `aria-live` incluye la CANTIDAD de destinos válidos junto con el
+   * origen — sin esto, el resaltado visual (`--connect-valid-target`/
+   * `--connect-invalid-target`) es invisible para un lector de pantalla
+   * (deuda documentada en `EVALUACION-MOTORES.md`: "gap de a11y del hint,
+   * documentado, no silencioso"). `validConnectTargetIds()` se lee DESPUÉS
+   * de fijar `connectSourceId` — los signals de Angular se recalculan de
+   * forma síncrona a la lectura, no hace falta esperar un tick.
+   */
   protected onStartConnect(node: SolFlowCanvasNode, event: Event): void {
     event.stopPropagation();
     if (this.isReadonly()) return;
     this.connectSourceId.set(node.id);
-    this.announce('shared.flowCanvas.connectArmedAnnouncement', { label: node.label });
+    const validTargetCount = this.validConnectTargetIds().size;
+    this.announce('shared.flowCanvas.connectArmedAnnouncement', { label: node.label, count: validTargetCount });
   }
 
   protected cancelConnect(): void {

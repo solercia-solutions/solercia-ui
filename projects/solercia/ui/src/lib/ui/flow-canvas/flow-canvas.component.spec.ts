@@ -1160,6 +1160,29 @@ describe('SolFlowCanvasComponent', () => {
       expect(created).toEqual([{ sourceId: 'c', targetId: 'a' }]); // el validador real (entities/flow) decide la legalidad final, no este hint
     });
 
+    it('PR-C3 — al armar conectar, el anuncio aria-live incluye la CANTIDAD de destinos válidos (a11y del hint visual, mandato GOAL §4 PR-C3)', () => {
+      const i18n = TestBed.inject(SOL_I18N);
+      const translateSpy = vi.spyOn(i18n, 'translate');
+      fixture.componentRef.setInput('nodes', three); // a,b,c sin aristas: desde "a" son válidos "b" y "c" (2)
+      fixture.detectChanges();
+
+      connectHandle('a').click();
+
+      expect(translateSpy).toHaveBeenCalledWith('shared.flowCanvas.connectArmedAnnouncement', { label: 'a', count: 2 });
+    });
+
+    it('PR-C3 — el conteo del anuncio refleja los destinos YA descartados (duplicado/ciclo), no solo el total de nodos', () => {
+      const i18n = TestBed.inject(SOL_I18N);
+      const translateSpy = vi.spyOn(i18n, 'translate');
+      fixture.componentRef.setInput('nodes', three);
+      fixture.componentRef.setInput('edges', [e({ id: 'a->b', sourceId: 'a', targetId: 'b' })]); // "b" ya conectado -> solo "c" válido
+      fixture.detectChanges();
+
+      connectHandle('a').click();
+
+      expect(translateSpy).toHaveBeenCalledWith('shared.flowCanvas.connectArmedAnnouncement', { label: 'a', count: 1 });
+    });
+
     it('el resaltado se retira al cancelar con Escape', () => {
       fixture.componentRef.setInput('nodes', three);
       fixture.detectChanges();
