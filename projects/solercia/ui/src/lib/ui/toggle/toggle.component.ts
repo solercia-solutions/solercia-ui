@@ -27,6 +27,7 @@ export type SolToggleSize = 'sm' | 'md';
         type="button"
         role="switch"
         [attr.aria-checked]="checked()"
+        [attr.aria-label]="ariaLabel() || null"
         [class]="trackClass()"
         [disabled]="disabled()"
         (click)="toggle()"
@@ -193,6 +194,17 @@ export type SolToggleSize = 'sm' | 'md';
 export class SolToggleComponent implements ControlValueAccessor {
   /** Optional label displayed beside the toggle. */
   readonly label = input<string>('');
+
+  /**
+   * Accessible name applied to the inner `button[role="switch"]`.
+   *
+   * The host element is not the switch, so an `aria-label` bound on
+   * `<sol-toggle>` never reaches the control that screen readers announce.
+   * Use this input whenever the toggle ships without a visible `label`
+   * (e.g. a switch inside a table row, where the row already carries the
+   * visible text). Empty string renders no attribute.
+   */
+  readonly ariaLabel = input<string>('');
 
   /** Whether the toggle is disabled. */
   readonly disabled = input<boolean>(false);

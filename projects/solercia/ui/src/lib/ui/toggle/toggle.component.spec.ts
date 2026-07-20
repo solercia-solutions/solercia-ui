@@ -74,6 +74,50 @@ describe('SolToggleComponent — switch con ControlValueAccessor', () => {
 });
 
 /**
+ * Nombre accesible (ariaLabel): el host `<sol-toggle>` NO es el switch, así
+ * que un `aria-label` puesto sobre el host jamás llega al control que anuncian
+ * los lectores de pantalla. Este input lo reenvía al `button[role="switch"]`
+ * interno — imprescindible cuando el toggle va sin `label` visible (p. ej. en
+ * una fila de tabla que ya trae el texto).
+ */
+describe('SolToggleComponent — nombre accesible del switch (ariaLabel)', () => {
+  let fixture: ComponentFixture<SolToggleComponent>;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [SolToggleComponent] });
+    fixture = TestBed.createComponent(SolToggleComponent);
+    fixture.detectChanges();
+  });
+
+  function switchEl(): HTMLButtonElement {
+    return (fixture.nativeElement as HTMLElement).querySelector('button[role="switch"]')!;
+  }
+
+  it('sin ariaLabel NO emite el atributo (no inventa un nombre vacío)', () => {
+    expect(switchEl().hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('con ariaLabel lo aplica al button[role="switch"] interno, no al host', () => {
+    fixture.componentRef.setInput('ariaLabel', 'Activa o desactiva el flujo dispatch');
+    fixture.detectChanges();
+
+    expect(switchEl().getAttribute('aria-label')).toBe('Activa o desactiva el flujo dispatch');
+    expect((fixture.nativeElement as HTMLElement).getAttribute('aria-label')).toBeNull();
+  });
+
+  it('el nombre accesible sobrevive al alternar el estado', () => {
+    fixture.componentRef.setInput('ariaLabel', 'Notificaciones por correo');
+    fixture.detectChanges();
+
+    switchEl().click();
+    fixture.detectChanges();
+
+    expect(switchEl().getAttribute('aria-checked')).toBe('true');
+    expect(switchEl().getAttribute('aria-label')).toBe('Notificaciones por correo');
+  });
+});
+
+/**
  * Textos de estado onText/offText (CP-1): cuando se proveen, el toggle
  * muestra el texto del estado actual junto al track ("Sí"/"No"). El texto es
  * decorativo (aria-hidden) porque role="switch" + aria-checked ya cubren la
