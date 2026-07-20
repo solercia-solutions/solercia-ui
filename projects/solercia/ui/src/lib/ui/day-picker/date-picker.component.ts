@@ -15,6 +15,7 @@ import {
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { SOL_I18N } from '../../i18n/sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
+import { SolFloatingPanelDirective } from '../overlay/floating-panel.directive';
 
 /** Vista activa del calendario dentro del popover. */
 type DatePickerView = 'days' | 'months' | 'years';
@@ -139,7 +140,10 @@ const POPOVER_WIDTH = 300;
  *
  * Presentación: un campo de texto de solo lectura con ícono de calendario que,
  * al enfocar o hacer clic, abre un popover con posicionamiento manual (arriba
- * o abajo según el viewport), que cierra con clic-fuera o Escape.
+ * o abajo según el viewport), que cierra con clic-fuera o Escape. El popover
+ * se portalea a `document.body` mediante la directiva compartida
+ * `solFloatingPanel`, de modo que flota por encima de un `sol-modal` o un
+ * `sol-drawer` sin que sus contenedores con `overflow` lo recorten.
  *
  * API dual: funciona como componente controlado (`value` + `valueChange`) y
  * como `ControlValueAccessor` (ngModel / reactive forms). Emite siempre
@@ -153,7 +157,7 @@ const POPOVER_WIDTH = 300;
   selector: 'sol-date-picker',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SolIconComponent],
+  imports: [SolIconComponent, SolFloatingPanelDirective],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -165,6 +169,7 @@ const POPOVER_WIDTH = 300;
     <div class="sol-date-picker" [class.sol-date-picker--sm]="size() === 'sm'">
       <!-- Campo disparador -->
       <div
+        #field
         class="sol-date-picker__field"
         [class.sol-date-picker__field--open]="isOpen()"
         [class.sol-date-picker__field--disabled]="isDisabled()"
@@ -198,12 +203,21 @@ const POPOVER_WIDTH = 300;
         </button>
       </div>
 
-      <!-- Popover -->
+      <!-- Popover: se portalea a document.body con position:fixed (directiva
+           compartida solFloatingPanel) para que ningún ancestro con overflow
+           o backdrop-filter lo recorte — típicamente .sol-modal-body o el
+           cuerpo de un sol-drawer. Ancho propio (matchTriggerWidth:false) y
+           alineación por el borde derecho cuando no cabe hacia la derecha. -->
       @if (isOpen()) {
         <div
+          #pop
           class="sol-date-picker__pop"
+          [solFloatingPanel]="field"
+          [matchTriggerWidth]="false"
+          [flipThreshold]="popoverHeight"
+          [align]="alignEnd() ? 'end' : 'start'"
+          (dropUpChange)="dropUp.set($event)"
           [class.sol-date-picker__pop--up]="dropUp()"
-          [class.sol-date-picker__pop--end]="alignEnd()"
           role="dialog"
           [attr.aria-label]="dialogAria()"
           (keydown)="onPopoverKeydown($event)"
@@ -396,12 +410,15 @@ const POPOVER_WIDTH = 300;
     }
     .sol-date-picker__trigger-btn:disabled { cursor: not-allowed; }
 
-    /* ── Popover ── */
+    /* ── Popover ──
+       Base absolute como fallback; al portalearse recibe position:fixed y
+       coordenadas inline calculadas del disparador. El z-index lo aporta la
+       clase compartida .sol-floating-panel (directiva solFloatingPanel), que
+       supera al del modal para no quedar debajo del overlay. */
     .sol-date-picker__pop {
       position: absolute;
       top: calc(100% + 4px);
       left: 0;
-      z-index: var(--sol-z-dropdown, 1000);
       width: ${POPOVER_WIDTH}px;
       max-width: calc(100vw - 24px);
       padding: 0.625rem;
@@ -412,7 +429,6 @@ const POPOVER_WIDTH = 300;
       animation: sol-dp-fade var(--sol-dur-fast, 150ms) var(--sol-ease, ease-out);
     }
     .sol-date-picker__pop--up { top: auto; bottom: calc(100% + 4px); }
-    .sol-date-picker__pop--end { left: auto; right: 0; }
 
     /* ── Encabezado ── */
     .sol-date-picker__header {
@@ -591,6 +607,12 @@ export class SolDatePickerComponent implements ControlValueAccessor {
   // ── Estado interno ──
 
   private readonly triggerRef = viewChild<ElementRef<HTMLInputElement>>('trigger');
+
+  /** Popover mientras vive portaleado en document.body (fuera del host). */
+  private readonly popRef = viewChild<ElementRef<HTMLElement>>('pop');
+
+  /** Alto estimado del popover; umbral de volteo que consume la directiva. */
+  readonly popoverHeight = POPOVER_HEIGHT;
 
   /** Fecha seleccionada canónica (fuente de verdad del display). */
   private readonly selected = signal<Date | null>(null);
@@ -812,16 +834,24 @@ export class SolDatePickerComponent implements ControlValueAccessor {
   /** Cierra al hacer clic fuera del componente. */
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (this.isOpen() && !this.hostEl.nativeElement.contains(event.target as Node)) {
+    if (!this.isOpen()) return;
+    const target = event.target as Node;
+    const insideHost = this.hostEl.nativeElement.contains(target);
+    // El popover vive portaleado en document.body: también cuenta como "dentro".
+    const insidePop = this.popRef()?.nativeElement.contains(target) ?? false;
+    if (!insideHost && !insidePop) {
       this.close();
     }
   }
 
-  /** Calcula manualmente si el popover abre hacia arriba/derecha (viewport). */
+  /**
+   * Decide la alineación horizontal antes de abrir: si el popover no cabe
+   * hacia la derecha del disparador, se ancla por su borde derecho. El eje
+   * vertical (volteo `dropUp`) lo resuelve la directiva `solFloatingPanel`,
+   * que además reposiciona en scroll y resize.
+   */
   private positionPopover(): void {
     const rect = this.hostEl.nativeElement.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    this.dropUp.set(spaceBelow < POPOVER_HEIGHT && rect.top > POPOVER_HEIGHT);
     this.alignEnd.set(rect.left + POPOVER_WIDTH > window.innerWidth);
   }
 
@@ -970,7 +1000,9 @@ export class SolDatePickerComponent implements ControlValueAccessor {
   /** Enfoca la celda con foco tras el próximo render (roving tabindex). */
   private focusActiveCellSoon(): void {
     setTimeout(() => {
-      const cell = this.hostEl.nativeElement.querySelector(
+      // Se busca dentro del popover, no del host: al portalearse deja de ser
+      // descendiente de `<sol-date-picker>`.
+      const cell = this.popRef()?.nativeElement.querySelector(
         '.sol-date-picker__day.is-focused',
       ) as HTMLButtonElement | null;
       cell?.focus();

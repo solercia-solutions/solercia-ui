@@ -36,6 +36,15 @@ describe('SolDatePickerComponent', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  /**
+   * Raíz de consulta del contenido del popover: desde la migración a la
+   * directiva `solFloatingPanel` el panel se portalea a `document.body`, así
+   * que deja de ser descendiente del host del componente.
+   */
+  function pop(): HTMLElement {
+    return document.body;
+  }
+
   /** Aplana las 6 semanas en una sola lista de celdas de día. */
   function flatDays() {
     return component.weeks().flat();
@@ -49,7 +58,7 @@ describe('SolDatePickerComponent', () => {
     expect(component.headerLabel()).toContain('2026');
     // Semana lunes→domingo: 7 etiquetas de día.
     fixture.detectChanges();
-    expect(root().querySelectorAll('.sol-date-picker__weekday').length).toBe(7);
+    expect(pop().querySelectorAll('.sol-date-picker__weekday').length).toBe(7);
   });
 
   it('cambia de vista días → meses → años y vuelve al elegir', () => {
@@ -111,11 +120,11 @@ describe('SolDatePickerComponent', () => {
 
     component.promoteView(); // meses
     fixture.detectChanges();
-    expect(root().querySelectorAll('.sol-date-picker__cell').length).toBe(12);
+    expect(pop().querySelectorAll('.sol-date-picker__cell').length).toBe(12);
 
     component.promoteView(); // años
     fixture.detectChanges();
-    expect(root().querySelectorAll('.sol-date-picker__cell').length).toBe(12);
+    expect(pop().querySelectorAll('.sol-date-picker__cell').length).toBe(12);
   });
 
   it('seleccionar un día emite yyyy-MM-dd, cierra y actualiza el display', () => {
@@ -270,5 +279,148 @@ describe('SolDatePickerComponent — fix de zoom móvil (11-f PR1)', () => {
     // Angular con ViewEncapsulation.Emulated inserta [_ngcontent-xxx] tras cada
     // parte del selector compuesto, así que se tolera ese atributo y espacios extra.
     expect(block).toMatch(/\.sol-date-picker--sm(\[[^\]]*\])?\s+\.sol-date-picker__input(\[[^\]]*\])?\s*\{[^}]*font-size:\s*16px/);
+  });
+});
+
+/**
+ * Specs del portal del popover a `document.body` vía la directiva compartida
+ * `solFloatingPanel`: el calendario debe flotar por encima de un `sol-modal`
+ * o un `sol-drawer` sin que sus contenedores con `overflow`/`backdrop-filter`
+ * lo recorten. Se verifica el contrato observable (padre, `position`, ausencia
+ * de nodo huérfano y capa por encima del modal), no el cálculo de layout, que
+ * jsdom no evalúa.
+ */
+describe('SolDatePickerComponent — portal del popover a document.body', () => {
+  let fixture: ComponentFixture<SolDatePickerComponent>;
+  let component: SolDatePickerComponent;
+
+  /** Rectángulo del campo con espacio de sobra hacia abajo y a la derecha. */
+  const FIELD_RECT: DOMRect = {
+    x: 24, y: 120, left: 24, top: 120, right: 264, bottom: 160,
+    width: 240, height: 40,
+    toJSON: () => ({}),
+  } as DOMRect;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [SolDatePickerComponent],
+      providers: [
+        {
+          provide: SOL_I18N,
+          useValue: {
+            activeLang: signal('es-CO'),
+            translate: (key: string) => key,
+            t: (key: string) => signal(key),
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(SolDatePickerComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  function field(): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector('.sol-date-picker__field')!;
+  }
+
+  function popover(): HTMLElement | null {
+    return document.querySelector('.sol-date-picker__pop');
+  }
+
+  function mockFieldRect(rect: DOMRect = FIELD_RECT): void {
+    field().getBoundingClientRect = () => rect;
+  }
+
+  function openPopover(rect: DOMRect = FIELD_RECT): void {
+    mockFieldRect(rect);
+    component.open();
+    fixture.detectChanges();
+  }
+
+  it('al abrir, el popover queda como hijo directo de document.body con position fixed', () => {
+    openPopover();
+
+    const el = popover();
+    expect(el).not.toBeNull();
+    expect(el!.parentElement).toBe(document.body);
+    expect(el!.style.position).toBe('fixed');
+    // Anclado bajo el campo: top = bottom del campo + 4px de separación.
+    expect(el!.style.top).toBe('164px');
+  });
+
+  it('conserva su ancho propio: la directiva no le impone el del disparador', () => {
+    openPopover();
+
+    // matchTriggerWidth:false ⇒ no se escribe width inline (el calendario mide 300px por CSS).
+    expect(popover()!.style.width).toBe('');
+  });
+
+  it('queda por encima del modal: aplica la clase compartida .sol-floating-panel', () => {
+    openPopover();
+
+    expect(popover()!.classList.contains('sol-floating-panel')).toBe(true);
+    const shared = Array.from(document.head.querySelectorAll('style'))
+      .map(s => s.textContent ?? '')
+      .join('\n');
+    expect(shared).toContain('.sol-floating-panel');
+    expect(shared).toContain('calc(var(--sol-z-modal, 1050) + 10)');
+  });
+
+  it('al cerrar no queda nodo huérfano en document.body', () => {
+    openPopover();
+    expect(popover()).not.toBeNull();
+
+    component.close();
+    fixture.detectChanges();
+
+    expect(popover()).toBeNull();
+    expect(document.body.querySelectorAll('.sol-date-picker__pop').length).toBe(0);
+  });
+
+  it('al destruir el componente con el popover abierto no queda nodo huérfano', () => {
+    openPopover();
+    expect(popover()).not.toBeNull();
+
+    fixture.destroy();
+
+    expect(document.body.querySelectorAll('.sol-date-picker__pop').length).toBe(0);
+  });
+
+  it('conserva el flip: sin espacio abajo abre hacia arriba anclado por bottom', () => {
+    const nearBottom = {
+      ...FIELD_RECT,
+      top: window.innerHeight - 60,
+      bottom: window.innerHeight - 20,
+      toJSON: () => ({}),
+    } as DOMRect;
+    openPopover(nearBottom);
+
+    const el = popover()!;
+    expect(component.dropUp()).toBe(true);
+    expect(el.style.top).toBe('auto');
+    expect(el.style.bottom).toBe(`${window.innerHeight - nearBottom.top + 4}px`);
+    expect(el.className).toContain('sol-date-picker__pop--up');
+  });
+
+  it('reposiciona en scroll (captura) mientras está abierto', () => {
+    openPopover();
+    expect(popover()!.style.top).toBe('164px');
+
+    // El campo "se movió" por el scroll de un ancestro (ej. .sol-modal-body).
+    mockFieldRect({ ...FIELD_RECT, top: 40, bottom: 80, toJSON: () => ({}) } as DOMRect);
+    window.dispatchEvent(new Event('scroll'));
+
+    expect(popover()!.style.top).toBe('84px');
+  });
+
+  it('clic dentro del popover portaleado no cierra el calendario', () => {
+    openPopover();
+
+    const nav = popover()!.querySelector('.sol-date-picker__nav') as HTMLElement;
+    nav.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(component.isOpen()).toBe(true);
   });
 });

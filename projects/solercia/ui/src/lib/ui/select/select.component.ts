@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   ElementRef,
   forwardRef,
   HostListener,
@@ -12,6 +11,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { SolIconComponent } from '../icon/icon.component';
+import { SolFloatingPanelDirective } from '../overlay/floating-panel.directive';
 
 export interface SolSelectOption {
   value: string;
@@ -22,7 +22,7 @@ export interface SolSelectOption {
   selector: 'sol-select',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SolIconComponent],
+  imports: [SolIconComponent, SolFloatingPanelDirective],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -54,15 +54,18 @@ export interface SolSelectOption {
       </button>
 
       <!-- Panel del dropdown: al abrirse se portalea a document.body con
-           position:fixed (CP-2) para que ningún ancestro con overflow lo
-           recorte (ej. .sol-modal-body). El trigger queda enlazado por
-           aria-controls porque input y listbox viven en árboles distintos. -->
+           position:fixed (CP-2, directiva compartida solFloatingPanel) para
+           que ningún ancestro con overflow lo recorte (ej. .sol-modal-body).
+           El trigger queda enlazado por aria-controls porque input y listbox
+           viven en árboles distintos. -->
       @if (isOpen()) {
         <div
           #dropdownPanel
           class="sol-select__dropdown"
           role="listbox"
           [id]="panelId"
+          [solFloatingPanel]="triggerBtn"
+          (dropUpChange)="dropUp.set($event)"
           [class.sol-select__dropdown--up]="dropUp()"
         >
           <!-- Search -->
@@ -209,13 +212,12 @@ export interface SolSelectOption {
 
     .sol-select__dropdown {
       /* Base absolute como fallback; al portalearse recibe position:fixed y
-         coordenadas inline calculadas del trigger. El z-index supera al del
-         modal para que el panel no quede debajo del overlay al usarse dentro
-         de un sol-modal. */
+         coordenadas inline calculadas del trigger. El z-index lo aporta la
+         clase compartida .sol-floating-panel (directiva solFloatingPanel),
+         que supera al del modal para no quedar debajo del overlay. */
       position: absolute;
       top: calc(100% + 4px);
       left: 0; right: 0;
-      z-index: calc(var(--sol-z-modal, 1050) + 10);
       background: var(--sol-select-dropdown-bg);
       border: var(--sol-select-border-width) solid var(--sol-select-border);
       border-radius: var(--sol-select-radius);
@@ -365,18 +367,11 @@ export class SolSelectComponent implements ControlValueAccessor {
   readonly multiValues = signal<Set<string>>(new Set());
 
   readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
-  readonly triggerBtn = viewChild<ElementRef<HTMLButtonElement>>('triggerBtn');
   readonly dropdownPanel = viewChild<ElementRef<HTMLElement>>('dropdownPanel');
 
   /** Id único que enlaza el trigger (aria-controls) con el listbox portaleado. */
   private static nextId = 0;
   readonly panelId = `sol-select-panel-${SolSelectComponent.nextId++}`;
-
-  /** Nodo del panel mientras vive portaleado en document.body. */
-  private portalPanel: HTMLElement | null = null;
-
-  /** Reposiciona el panel; misma referencia para add/removeEventListener. */
-  private readonly reposition = (): void => this.positionPanel();
 
   readonly filteredOptions = computed(() => {
     const term = this.searchTerm().toLowerCase();
@@ -415,23 +410,13 @@ export class SolSelectComponent implements ControlValueAccessor {
     const target = event.target as Node;
     const insideHost = this.hostEl.nativeElement.contains(target);
     // El panel vive portaleado en document.body: también cuenta como "dentro".
-    const insidePanel = this.portalPanel?.contains(target) ?? false;
+    const insidePanel = this.dropdownPanel()?.nativeElement.contains(target) ?? false;
     if (!insideHost && !insidePanel) {
       this.closeDropdown();
     }
   }
 
-  constructor(private hostEl: ElementRef) {
-    // Portal manual (CP-2): cuando @if crea el panel, se mueve a document.body
-    // con position:fixed y coordenadas del trigger; el cleanup del effect
-    // retira listeners y el nodo al cerrar o destruir, sin fugas.
-    effect(onCleanup => {
-      const panel = this.dropdownPanel()?.nativeElement ?? null;
-      if (!panel) return;
-      this.attachPanel(panel);
-      onCleanup(() => this.detachPanel());
-    });
-  }
+  constructor(private hostEl: ElementRef) {}
 
   toggleDropdown(): void {
     if (this.disabled()) return;
@@ -439,52 +424,6 @@ export class SolSelectComponent implements ControlValueAccessor {
     if (this.isOpen()) {
       this.searchTerm.set('');
       setTimeout(() => this.searchInput()?.nativeElement?.focus(), 50);
-    }
-  }
-
-  /** Adhiere el panel a document.body y lo posiciona siguiendo al trigger. */
-  private attachPanel(panel: HTMLElement): void {
-    this.portalPanel = panel;
-    document.body.appendChild(panel);
-    this.positionPanel();
-    window.addEventListener('scroll', this.reposition, { capture: true, passive: true });
-    window.addEventListener('resize', this.reposition, { passive: true });
-  }
-
-  /** Retira listeners y el nodo portaleado (si Angular no lo removió ya). */
-  private detachPanel(): void {
-    window.removeEventListener('scroll', this.reposition, { capture: true });
-    window.removeEventListener('resize', this.reposition);
-    if (this.portalPanel && this.portalPanel.parentNode === document.body) {
-      document.body.removeChild(this.portalPanel);
-    }
-    this.portalPanel = null;
-  }
-
-  /**
-   * Posiciona el panel con coordenadas fixed del viewport: ancho y eje X del
-   * trigger; hacia abajo por defecto o anclado por bottom (dropUp) cuando el
-   * espacio real bajo el trigger es menor a 300px.
-   */
-  private positionPanel(): void {
-    const panel = this.portalPanel;
-    const trigger = this.triggerBtn()?.nativeElement;
-    if (!panel || !trigger) return;
-
-    const rect = trigger.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    this.dropUp.set(spaceBelow < 300);
-
-    panel.style.position = 'fixed';
-    panel.style.left = `${rect.left}px`;
-    panel.style.width = `${rect.width}px`;
-    panel.style.right = 'auto';
-    if (this.dropUp()) {
-      panel.style.top = 'auto';
-      panel.style.bottom = `${window.innerHeight - rect.top + 4}px`;
-    } else {
-      panel.style.top = `${rect.bottom + 4}px`;
-      panel.style.bottom = 'auto';
     }
   }
 

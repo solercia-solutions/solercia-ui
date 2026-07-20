@@ -6,6 +6,58 @@ Todos los cambios notables de este paquete se documentan en este archivo. El for
 paquete tiene solo dos consumidores potenciales — `boki-front` y, próximamente, `gestion_proyectos`
 — y puede admitir cambios incompatibles en versiones `minor`).
 
+## [0.3.1] - 2026-07-20
+
+### Agregado
+
+- `solFloatingPanel` (`ui/overlay/floating-panel.directive.ts`): primitiva compartida que
+  portalea un panel flotante a `document.body` con `position: fixed` y coordenadas del
+  viewport calculadas manualmente (sin `@floating-ui/dom` ni `popper.js`, prohibidas por
+  la filosofía del proyecto). Nace de extraer el arreglo CP-2 que vivía inline en
+  `sol-select`, para que cualquier componente cuyo panel deba flotar POR ENCIMA de un
+  `sol-modal` o un `sol-drawer` no quede recortado por ancestros con `overflow` o
+  `backdrop-filter` (típicamente `.sol-modal-body`). API: input requerido `trigger`
+  (alias del propio selector), `gap` (4), `flipThreshold` (300), `matchTriggerWidth`
+  (`true`), `align` (`'start'`/`'end'`), señal de solo lectura `dropUp` + salida
+  `dropUpChange` para que el host aplique su clase modificadora, y método público
+  `reposition()`. Aporta la clase compartida `.sol-floating-panel` con
+  `z-index: calc(var(--sol-z-modal, 1050) + 10)`, inyectada una sola vez en
+  `document.head` (el panel portaleado deja de heredar del host, así que el `z-index` no
+  puede vivir en estilos encapsulados por componente).
+
+### Cambiado
+
+- `sol-select` consume la directiva en vez de su portal inline: se eliminan
+  `attachPanel`/`detachPanel`/`positionPanel`, el `effect` del constructor y el estado
+  `portalPanel`. Comportamiento observable idéntico — las 7 specs del portal (CP-2)
+  pasan sin tocarse. El `z-index` sale de `.sol-select__dropdown` y lo aporta la clase
+  compartida.
+- `sol-date-picker` migra su popover de calendario al portal compartido
+  (`matchTriggerWidth: false` porque el calendario tiene ancho propio de 300px, `align`
+  por el borde derecho cuando no cabe hacia la derecha, `flipThreshold` igual a su alto
+  estimado de 340px). Conserva el volteo `dropUp` y gana reposicionamiento en scroll y
+  resize, que antes no tenía. El popover deja de ser descendiente del host, así que el
+  cierre por clic-fuera y el foco de la celda activa (roving tabindex) ahora consultan el
+  nodo portaleado.
+
+### Notas
+
+- Alcance deliberadamente acotado (decisión del fundador): la directiva aplica SOLO a
+  componentes con un elemento que flota por encima del modal o del `sol-drawer`.
+  `sol-rich-editor` NO se toca — sus popovers están clampados dentro del host a
+  propósito y no desbordan; `sol-tooltip` tampoco (sin usos en la aplicación).
+- Superficie pública sin cambios: la directiva es interna a la librería (vive en
+  `ui/overlay/`, junto a `body-scroll-lock`, `focus-trap` y `overlay-interactions`, que
+  tampoco se exportan desde `lib/ui/index.ts`) — todavía no hay consumidor externo que
+  la necesite.
+- Dos detalles del portal que se preservaron literalmente al extraerlo, porque sin ellos
+  el arreglo deja de funcionar: el listener de `scroll` va con `{ capture: true }` (los
+  eventos de scroll no burbujean, y sin captura el panel no se entera del scroll de
+  `.sol-modal-body`), y el `removeChild` va guardado por
+  `parentNode === document.body` (Angular puede haber destruido el nodo por su cuenta).
+- 1280/1280 tests de la librería en verde (20 nuevos: 12 de `solFloatingPanel` y 8 del
+  portal del popover de `sol-date-picker`).
+
 ## [0.3.0] - 2026-07-16
 
 ### Agregado

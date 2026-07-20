@@ -1,6 +1,6 @@
 {
     "name": "@solercia/ui",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Design system Solercia (componentes sol-*, theming agnóstico por puertos, contrato i18n y schematics ng add/ng generate) para proyectos Angular del ecosistema Solercia.",
     "license": "Apache-2.0",
     "author": "Solercia Solutions SAS",
