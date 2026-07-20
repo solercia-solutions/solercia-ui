@@ -324,4 +324,29 @@ describe('SolRichEditorComponent', () => {
       expect(chip.getAttribute('contenteditable')).toBe('false');
     });
   });
+
+  describe('menús de toolbar — sin recorte por overflow (follow-up 4R 2026-07-20)', () => {
+    it('ningún ancestro del menú dentro del componente recorta contenido — el menú (top: calc(100% + …)) puede sobresalir del borde del editor', () => {
+      component.toggleMenu('heading');
+      fixture.detectChanges();
+
+      const menu = root().querySelector('.sol-rich-editor__menu') as HTMLElement;
+      expect(menu).not.toBeNull();
+
+      // El menú es position:absolute colgando bajo su trigger: CUALQUIER
+      // ancestro con overflow distinto de visible dentro del componente lo
+      // recorta contra el borde del editor cuando el contenido es bajo (el
+      // bug reportado era overflow:hidden en .sol-rich-editor). Se recorre la
+      // cadena real de ancestros del menú hasta el host.
+      const clippers: string[] = [];
+      for (let el = menu.parentElement; el && el !== root(); el = el.parentElement) {
+        const style = getComputedStyle(el);
+        const values = [style.overflow, style.overflowX, style.overflowY].filter(Boolean);
+        if (values.some(v => v !== 'visible')) {
+          clippers.push(`${el.className || el.tagName} → overflow: ${values.join('/')}`);
+        }
+      }
+      expect(clippers).toEqual([]);
+    });
+  });
 });

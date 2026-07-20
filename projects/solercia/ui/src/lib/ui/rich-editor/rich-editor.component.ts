@@ -381,7 +381,13 @@ const POPOVER_WIDTH = 208;
       border-radius: var(--sre-radius);
       background: var(--sre-bg);
       box-shadow: var(--sol-input-shadow, none);
-      overflow: hidden;
+      /* SIN overflow:hidden (follow-up 4R 2026-07-20): recortaba los menús de
+         la toolbar (position:absolute; top:calc(100% + …)) contra el borde
+         inferior del editor cuando el contenido era bajo. Lo único que ese
+         overflow protegía eran las esquinas redondeadas: el fondo propio del
+         wrapper ya se recorta solo por su border-radius, y los DOS hijos que
+         pintan/scrollean por su cuenta (toolbar y área de contenido) llevan
+         ahora su propio redondeo anidado — ver sus reglas. */
       transition: border-color var(--sre-transition), box-shadow var(--sre-transition);
     }
 
@@ -401,6 +407,10 @@ const POPOVER_WIDTH = 208;
       padding: 0.375rem 0.5rem;
       background: var(--sre-toolbar-bg);
       border-bottom: 1px solid var(--sre-border);
+      /* Redondeo anidado (radio del wrapper menos su borde de 1px): sustituye
+         el recorte que hacía el overflow:hidden del wrapper — su fondo sunken
+         ya no invade las esquinas superiores. */
+      border-radius: calc(var(--sre-radius) - 1px) calc(var(--sre-radius) - 1px) 0 0;
     }
 
     .sol-rich-editor__group { display: flex; align-items: center; gap: 0.125rem; }
@@ -536,6 +546,10 @@ const POPOVER_WIDTH = 208;
       flex: 1;
       padding: 0.75rem 0.875rem;
       overflow-y: auto;
+      /* Redondeo anidado inferior: el scroll propio de esta área (overflow-y)
+         recorta su contenido AQUÍ (imágenes/tablas contra las esquinas bajas),
+         no en el wrapper — los menús de la toolbar quedan libres. */
+      border-radius: 0 0 calc(var(--sre-radius) - 1px) calc(var(--sre-radius) - 1px);
       font-family: var(--sre-font);
       font-size: var(--sre-font-size);
       line-height: var(--sol-line-height, 1.6);
