@@ -331,7 +331,11 @@ const POPOVER_WIDTH = 300;
     </div>
   `,
   styles: `
-    :host {
+    /* Los tokens se declaran también sobre el popover: al portalearse fuera
+       del host, las custom properties de :host dejan de heredarse y el panel
+       quedaba con fondo transparente. */
+    :host,
+    .sol-date-picker__pop {
       display: block;
       /* El campo comparte los tokens de input del tema (filled/outline/underline). */
       --sol-dp-bg: var(--sol-input-bg, var(--sol-bg-surface, #ffffff));
