@@ -27,7 +27,14 @@ export type SolIconName = keyof typeof ICON_REGISTRY;
       flex-shrink: 0;
     }
 
-    .sol-icon :deep(svg) { width: 100%; height: 100%; }
+    /*
+     * '::ng-deep' y no ':deep(...)': esta última es sintaxis de Vue/Sass y
+     * Angular no la reconoce, así que la regla salía al bundle como selector
+     * inválido y el navegador la descartaba entera. Además el SVG se inyecta
+     * por [innerHTML], por lo que nunca lleva el atributo de encapsulación
+     * '_ngcontent-*' y '::ng-deep' es obligatorio para alcanzarlo.
+     */
+    .sol-icon ::ng-deep svg { width: 100%; height: 100%; display: block; }
 
     .sol-icon-sm { width: 16px; height: 16px; }
     .sol-icon-md { width: 20px; height: 20px; }
@@ -74,11 +81,18 @@ export class SolIconComponent {
       ? (renderAsFill ? def.fill : def.outline)
       : '<circle cx="12" cy="12" r="4" />';  // fallback dot for unknown icons
 
+    // `width`/`height` van como atributos y no solo por CSS: un <svg> sin
+    // dimensiones intrínsecas, usado como flex item, colapsa a alto 0 en WebKit
+    // (Safari iOS) y el ícono desaparece dejando visible únicamente el texto.
+    // Con los atributos presentes el tamaño no depende de que la hoja de
+    // estilos del componente alcance al nodo inyectado.
     const markup = renderAsFill
       ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+             width="100%" height="100%"
              fill="currentColor" stroke="none"
              aria-hidden="true">${paths}</svg>`
       : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+             width="100%" height="100%"
              fill="none" stroke="currentColor"
              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
              aria-hidden="true">${paths}</svg>`;

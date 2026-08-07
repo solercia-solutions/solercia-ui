@@ -35,15 +35,37 @@ export interface SolTabItem {
     </div>
   `,
   styles: `
+    /* Con muchas pestañas (una por profesional, por ejemplo) la fila se desborda
+       en móvil: se desplaza en horizontal con una barra delgada en vez de partirse. */
     .sol-tabs {
       display: flex;
       position: relative;
       border-bottom: 1px solid var(--sol-border-color-default, #E2E8F0);
       gap: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--sol-color-text-secondary, #64748B) 35%, transparent) transparent;
+    }
+
+    .sol-tabs::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .sol-tabs::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .sol-tabs::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--sol-color-text-secondary, #64748B) 35%, transparent);
+      border-radius: var(--sol-border-radius-full, 9999px);
     }
 
     .sol-tabs__tab {
       position: relative;
+      flex-shrink: 0;
       padding: 10px 16px;
       border: none;
       background: transparent;
@@ -68,10 +90,12 @@ export interface SolTabItem {
       background: color-mix(in srgb, var(--sol-color-primary, #2563EB) 5%, transparent);
     }
 
+    /* Pegado al borde inferior del contenedor (y no 1px por fuera): con el
+       desplazamiento horizontal el desbordamiento vertical queda recortado. */
     .sol-tabs__tab--active::after {
       content: '';
       position: absolute;
-      bottom: -1px;
+      bottom: 0;
       left: 0;
       right: 0;
       height: 2px;
