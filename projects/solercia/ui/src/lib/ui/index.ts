@@ -68,6 +68,8 @@ export {
 // Átomos de vocero (11-a-solercia-ui, PR3)
 export { SolAvatarComponent, hashToPaletteIndex, computeInitials } from './avatar/avatar.component';
 export type { SolAvatarSize } from './avatar/avatar.component';
+export { SolStarRatingComponent } from './star-rating/star-rating.component';
+export type { SolStarRatingSize } from './star-rating/star-rating.component';
 export {
   SolScoreBadgeComponent,
   resolveScoreTone,
