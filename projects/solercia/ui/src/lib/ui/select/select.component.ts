@@ -1,11 +1,16 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   ElementRef,
   forwardRef,
   HostListener,
+  inject,
+  Injector,
   input,
+  linkedSignal,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
@@ -18,6 +23,27 @@ export interface SolSelectOption {
   label: string;
 }
 
+/** Minúsculas y sin tildes: «bogota» encuentra «Bogotá». */
+function foldText(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+/**
+ * Se usa de dos formas:
+ * - **Formulario:** `ngModel` o `formControl` (ControlValueAccessor).
+ * - **Controlado:** `[value]` y `(valueChange)`. El valor llega en la primera
+ *   pintada, sin esperar la escritura asíncrona de `ngModel`, así que también
+ *   queda bien en el HTML prerenderizado. Lo que se muestra sigue siempre a
+ *   `[value]`: si el dueño no lo cambia, el select conserva el valor anterior.
+ *
+ * Teclado (patrón de botón + listbox): flechas, Inicio y Fin mueven la opción
+ * activa; Enter la elige; Esc cierra y devuelve el foco al botón. Con buscador
+ * el foco queda en su campo; sin él, en la lista. Con texto escrito en el
+ * buscador, Inicio y Fin vuelven a mover el cursor dentro del texto.
+ *
+ * El botón toma su nombre de `label`, de `ariaLabel` o de un `<label>` que lo
+ * envuelva.
+ */
 @Component({
   selector: 'sol-select',
   standalone: true,
@@ -32,7 +58,7 @@ export interface SolSelectOption {
   ],
   template: `
     @if (label()) {
-      <label class="sol-select__label">{{ label() }}</label>
+      <label class="sol-select__label" [attr.for]="triggerId">{{ label() }}</label>
     }
 
     <div class="sol-select__wrapper" #wrapper>
@@ -40,11 +66,15 @@ export interface SolSelectOption {
       <button
         #triggerBtn
         type="button"
+        [id]="triggerId"
         [class]="triggerClass()"
         [disabled]="disabled()"
+        aria-haspopup="listbox"
+        [attr.aria-label]="triggerAriaLabel()"
         [attr.aria-expanded]="isOpen()"
         [attr.aria-controls]="isOpen() ? panelId : null"
         (click)="toggleDropdown()"
+        (keydown)="onKeydown($event)"
         (blur)="onBlur()"
       >
         <span class="sol-select__display" [class.sol-select__display--placeholder]="!displayText()">
@@ -62,10 +92,9 @@ export interface SolSelectOption {
         <div
           #dropdownPanel
           class="sol-select__dropdown"
-          role="listbox"
-          [id]="panelId"
           [solFloatingPanel]="triggerBtn"
           (dropUpChange)="dropUp.set($event)"
+          (keydown)="onKeydown($event)"
           [class.sol-select__dropdown--up]="dropUp()"
         >
           <!-- Search -->
@@ -75,10 +104,15 @@ export interface SolSelectOption {
                 #searchInput
                 type="text"
                 class="sol-select__search"
-                placeholder="Buscar..."
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="true"
+                [attr.aria-controls]="panelId"
+                [attr.aria-activedescendant]="activeOptionId()"
+                [attr.aria-label]="searchPlaceholder()"
+                [placeholder]="searchPlaceholder()"
                 [value]="searchTerm()"
                 (input)="onSearchInput($event)"
-                (keydown.escape)="closeDropdown()"
               />
             </div>
           }
@@ -91,23 +125,26 @@ export interface SolSelectOption {
             </div>
           }
 
-          <!-- "Todos" option for single mode (acts as empty/clear) -->
-          @if (!multiple() && showAllOption()) {
-            <div
-              class="sol-select__option"
-              [class.sol-select__option--active]="!singleValue()"
-              (click)="onSelectSingle('')"
-            >
-              {{ allOptionLabel() }}
-            </div>
-          }
-
-          <!-- Options -->
-          <div class="sol-select__options">
-            @for (opt of filteredOptions(); track opt.value) {
+          <!-- Options (en modo single, "Todos" va primero: actúa como limpiar) -->
+          <div
+            #listbox
+            class="sol-select__options"
+            role="listbox"
+            tabindex="-1"
+            [id]="panelId"
+            [attr.aria-labelledby]="triggerId"
+            [attr.aria-multiselectable]="multiple() || null"
+            [attr.aria-activedescendant]="searchable() ? null : activeOptionId()"
+          >
+            @for (opt of navItems(); track opt.value; let index = $index) {
               <div
                 class="sol-select__option"
+                role="option"
+                [id]="optionId(index)"
                 [class.sol-select__option--active]="isSelected(opt.value)"
+                [class.sol-select__option--focused]="index === activeIndex()"
+                [attr.aria-selected]="isSelected(opt.value)"
+                (mousemove)="activeIndex.set(index)"
                 (click)="onOptionClick(opt.value)"
               >
                 @if (multiple()) {
@@ -117,10 +154,11 @@ export interface SolSelectOption {
                 }
                 {{ opt.label }}
               </div>
-            } @empty {
-              <div class="sol-select__empty">Sin resultados</div>
             }
           </div>
+          @if (filteredOptions().length === 0) {
+            <div class="sol-select__empty" role="status">{{ emptyLabel() }}</div>
+          }
         </div>
       }
     </div>
@@ -161,7 +199,7 @@ export interface SolSelectOption {
       --sol-select-focus-ring: var(--sol-input-focus-ring, 0 0 0 3px color-mix(in srgb, var(--sol-color-primary, #6366f1) 40%, transparent));
       --sol-select-transition: var(--sol-dur-fast, 150ms) var(--sol-ease, ease);
       --sol-select-dropdown-bg: var(--sol-bg-surface, #ffffff);
-      --sol-select-option-hover: var(--sol-color-bg-hover, rgba(0,0,0,0.04));
+      --sol-select-option-hover: var(--sol-color-bg-hover, color-mix(in srgb, var(--sol-color-text-primary, #1e293b) 7%, transparent));
       --sol-select-option-active-bg: color-mix(in srgb, var(--sol-color-primary, #6366f1) 12%, transparent);
       --sol-select-option-active-text: var(--sol-color-primary, #6366f1);
     }
@@ -266,6 +304,7 @@ export interface SolSelectOption {
     .sol-select__bulk-btn:hover { background: var(--sol-select-option-hover); }
 
     .sol-select__options { overflow-y: auto; flex: 1; padding: 0.25rem 0; }
+    .sol-select__options:focus { outline: none; }
 
     .sol-select__option {
       display: flex;
@@ -279,6 +318,8 @@ export interface SolSelectOption {
     }
     .sol-select__option:hover { background: var(--sol-select-option-hover); }
     .sol-select__option--active { background: var(--sol-select-option-active-bg); color: var(--sol-select-option-active-text); font-weight: 500; }
+    /* La opción activa (teclado o puntero), aparte de la elegida. */
+    .sol-select__option--focused { box-shadow: inset 0 0 0 2px var(--sol-select-border-focus); }
 
     .sol-select__check {
       display: inline-flex;
@@ -336,6 +377,22 @@ export interface SolSelectOption {
       .sol-select__trigger {
         font-size: 16px;
       }
+
+      /* Objetivo táctil de al menos 44 px en el celular. */
+      .sol-select__option {
+        min-height: 44px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sol-select__dropdown,
+      .sol-select__dropdown--up {
+        animation: none;
+      }
+
+      .sol-select__arrow {
+        transition: none;
+      }
     }
   `,
 })
@@ -358,26 +415,66 @@ export class SolSelectComponent implements ControlValueAccessor {
   readonly showAllOption = input<boolean>(false);
   /** Label for the "all" option in single mode. */
   readonly allOptionLabel = input<string>('Todos');
+  /** Accessible name of the trigger when no `label` or wrapping `<label>` gives one. */
+  readonly ariaLabel = input<string>('');
+  /** Placeholder (and accessible name) of the search input. */
+  readonly searchPlaceholder = input<string>('Buscar...');
+  /** Message when the search matches nothing. */
+  readonly emptyLabel = input<string>('Sin resultados');
+  /** Controlled value in single mode: use it with `(valueChange)` instead of a form binding. */
+  readonly value = input<string | null | undefined>(undefined);
+
+  /** The person picked a value (single mode). */
+  readonly valueChange = output<string>();
 
   // ── Internal state ──
   readonly isOpen = signal(false);
   readonly dropUp = signal(false);
   readonly searchTerm = signal('');
-  readonly singleValue = signal<string>('');
+  readonly singleValue = linkedSignal<string>(() => this.value() ?? '');
   readonly multiValues = signal<Set<string>>(new Set());
+  /** Opción activa dentro de `navItems`; -1 si no hay ninguna. */
+  readonly activeIndex = signal(-1);
 
+  readonly triggerBtn = viewChild<ElementRef<HTMLButtonElement>>('triggerBtn');
   readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   readonly dropdownPanel = viewChild<ElementRef<HTMLElement>>('dropdownPanel');
+  readonly listbox = viewChild<ElementRef<HTMLElement>>('listbox');
 
-  /** Id único que enlaza el trigger (aria-controls) con el listbox portaleado. */
+  /** Ids únicos: enlazan el trigger (aria-controls) con el listbox portaleado. */
   private static nextId = 0;
-  readonly panelId = `sol-select-panel-${SolSelectComponent.nextId++}`;
+  private readonly uid = SolSelectComponent.nextId++;
+  readonly panelId = `sol-select-panel-${this.uid}`;
+  readonly triggerId = `sol-select-trigger-${this.uid}`;
+
+  private readonly injector = inject(Injector);
 
   readonly filteredOptions = computed(() => {
-    const term = this.searchTerm().toLowerCase();
+    const term = foldText(this.searchTerm());
     const opts = this.options();
     if (!term) return opts;
-    return opts.filter(o => o.label.toLowerCase().includes(term));
+    return opts.filter(o => foldText(o.label).includes(term));
+  });
+
+  /** Lo que se recorre con el teclado: la opción "Todos" (si hay) y las filtradas. */
+  readonly navItems = computed<SolSelectOption[]>(() => {
+    const filtered = this.filteredOptions();
+    return !this.multiple() && this.showAllOption()
+      ? [{ value: '', label: this.allOptionLabel() }, ...filtered]
+      : filtered;
+  });
+
+  readonly activeOptionId = computed(() => {
+    const index = this.activeIndex();
+    return this.isOpen() && index >= 0 && index < this.navItems().length ? this.optionId(index) : null;
+  });
+
+  /** `ariaLabel` tapa el contenido del botón: el valor vigente se repite en el nombre. */
+  readonly triggerAriaLabel = computed(() => {
+    const name = this.ariaLabel();
+    if (!name) return null;
+    const text = this.displayText();
+    return text ? `${name}: ${text}` : name;
   });
 
   readonly displayText = computed(() => {
@@ -391,7 +488,7 @@ export class SolSelectComponent implements ControlValueAccessor {
       return labels.join(', ');
     }
     const val = this.singleValue();
-    if (!val) return '';
+    // Una opción con valor '' («Cualquier lugar») también se muestra por su nombre.
     return this.options().find(o => o.value === val)?.label ?? val;
   });
 
@@ -407,32 +504,120 @@ export class SolSelectComponent implements ControlValueAccessor {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    const target = event.target as Node;
+    const target = event.target as Element;
     const insideHost = this.hostEl.nativeElement.contains(target);
     // El panel vive portaleado en document.body: también cuenta como "dentro".
     const insidePanel = this.dropdownPanel()?.nativeElement.contains(target) ?? false;
-    if (!insideHost && !insidePanel) {
+    // Un <label> que envuelve al select reenvía el clic al botón, que ya alterna:
+    // cerrar aquí haría que el panel abierto se volviera a abrir.
+    const insideLabel = target.closest?.('label')?.contains(this.hostEl.nativeElement) ?? false;
+    if (!insideHost && !insidePanel && !insideLabel) {
       this.closeDropdown();
     }
   }
 
   constructor(private hostEl: ElementRef) {}
 
-  toggleDropdown(): void {
-    if (this.disabled()) return;
-    this.isOpen.update(v => !v);
-    if (this.isOpen()) {
-      this.searchTerm.set('');
-      setTimeout(() => this.searchInput()?.nativeElement?.focus(), 50);
-    }
+  optionId(index: number): string {
+    return `${this.panelId}-option-${index}`;
   }
 
-  closeDropdown(): void {
+  toggleDropdown(): void {
+    if (this.isOpen()) this.closeDropdown();
+    else this.openDropdown();
+  }
+
+  private openDropdown(): void {
+    if (this.disabled()) return;
+    this.searchTerm.set('');
+    this.isOpen.set(true);
+    const selected = this.navItems().findIndex(item => this.isSelected(item.value));
+    this.activeIndex.set(selected >= 0 ? selected : this.navItems().length > 0 ? 0 : -1);
+    afterNextRender(
+      () => {
+        const target = this.searchInput() ?? this.listbox();
+        target?.nativeElement.focus({ preventScroll: true });
+        this.scrollActiveIntoView();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /** `returnFocus`: al elegir o con Esc el foco vuelve al botón; con un clic fuera, se queda donde cayó. */
+  closeDropdown(returnFocus = false): void {
     this.isOpen.set(false);
+    if (returnFocus) this.triggerBtn()?.nativeElement.focus({ preventScroll: true });
   }
 
   onSearchInput(event: Event): void {
     this.searchTerm.set((event.target as HTMLInputElement).value);
+    // La primera coincidencia, sin contar "Todos".
+    const firstMatch = !this.multiple() && this.showAllOption() ? 1 : 0;
+    this.activeIndex.set(Math.min(firstMatch, this.navItems().length - 1));
+  }
+
+  /** Teclado del botón y del panel (el panel vive fuera del host, portaleado). */
+  onKeydown(event: KeyboardEvent): void {
+    if (!this.isOpen()) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.openDropdown();
+      }
+      return;
+    }
+
+    const target = event.target as HTMLElement;
+    const inSearch = target === this.searchInput()?.nativeElement;
+    // "Todos" y "Ninguno" son botones de verdad: Enter y Espacio siguen siendo suyos.
+    if ((event.key === 'Enter' || event.key === ' ') && target.classList.contains('sol-select__bulk-btn')) return;
+
+    switch (event.key) {
+      case 'ArrowDown':
+        this.moveActive(Math.min(this.activeIndex() + 1, this.navItems().length - 1), event);
+        break;
+      case 'ArrowUp':
+        this.moveActive(Math.max(this.activeIndex() - 1, 0), event);
+        break;
+      case 'Home':
+        if (!(inSearch && this.searchTerm())) this.moveActive(0, event);
+        break;
+      case 'End':
+        if (!(inSearch && this.searchTerm())) this.moveActive(this.navItems().length - 1, event);
+        break;
+      case ' ':
+        if (!inSearch) this.chooseActive(event);
+        break;
+      case 'Enter':
+        this.chooseActive(event);
+        break;
+      case 'Escape':
+        // Sin propagar: un drawer o un modal que lo contenga no se cierra con el mismo Esc.
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeDropdown(true);
+        break;
+      case 'Tab':
+        // El panel está al final del body: Tab sigue desde el botón, como en un select nativo.
+        if (!this.multiple()) this.closeDropdown(true);
+        break;
+    }
+  }
+
+  private moveActive(index: number, event: KeyboardEvent): void {
+    event.preventDefault();
+    if (this.navItems().length === 0) return;
+    this.activeIndex.set(index);
+    this.scrollActiveIntoView();
+  }
+
+  private chooseActive(event: KeyboardEvent): void {
+    event.preventDefault();
+    const item = this.navItems()[this.activeIndex()];
+    if (item) this.onOptionClick(item.value);
+  }
+
+  private scrollActiveIntoView(): void {
+    document.getElementById(this.optionId(this.activeIndex()))?.scrollIntoView?.({ block: 'nearest' });
   }
 
   isSelected(value: string): boolean {
@@ -454,9 +639,11 @@ export class SolSelectComponent implements ControlValueAccessor {
   }
 
   onSelectSingle(value: string): void {
-    this.singleValue.set(value);
+    // Controlado: lo que se muestra lo decide el dueño a través de `[value]`.
+    if (this.value() === undefined) this.singleValue.set(value);
     this.onChange(value);
-    this.closeDropdown();
+    this.valueChange.emit(value);
+    this.closeDropdown(true);
   }
 
   selectAll(): void {

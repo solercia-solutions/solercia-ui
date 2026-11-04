@@ -164,6 +164,266 @@ describe('SolSelectComponent — dropdown propio con CVA', () => {
   });
 });
 
+describe('SolSelectComponent — teclado y accesibilidad', () => {
+  let fixture: ComponentFixture<SolSelectComponent>;
+  let component: SolSelectComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [SolSelectComponent] });
+    fixture = TestBed.createComponent(SolSelectComponent);
+    component = fixture.componentInstance;
+    fixture.componentRef.setInput('options', OPTIONS);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => (fixture.nativeElement as HTMLElement).remove());
+
+  function trigger(): HTMLButtonElement {
+    return (fixture.nativeElement as HTMLElement).querySelector('.sol-select__trigger')!;
+  }
+
+  function listbox(): HTMLElement | null {
+    return document.querySelector('[role="listbox"]');
+  }
+
+  function options(): HTMLElement[] {
+    return Array.from(document.querySelectorAll('[role="option"]'));
+  }
+
+  function press(target: Element, key: string): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    fixture.detectChanges();
+    return event;
+  }
+
+  async function open(): Promise<void> {
+    trigger().click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  function activeText(owner: Element): string | undefined {
+    const id = owner.getAttribute('aria-activedescendant');
+    return id ? document.getElementById(id)?.textContent?.trim() : undefined;
+  }
+
+  it('el trigger anuncia el listbox; las opciones llevan role y aria-selected', async () => {
+    component.writeValue('2');
+    fixture.detectChanges();
+    expect(trigger().getAttribute('aria-haspopup')).toBe('listbox');
+
+    await open();
+    expect(trigger().getAttribute('aria-controls')).toBe(listbox()?.id);
+    expect(options().map(o => o.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
+  });
+
+  it('sin buscador: el foco va a la lista y las teclas mueven la opción activa, sin salirse', async () => {
+    fixture.componentRef.setInput('searchable', false);
+    component.writeValue('2');
+    await open();
+
+    const list = listbox()!;
+    expect(document.activeElement).toBe(list);
+    expect(activeText(list)).toBe('Personería Demo');
+
+    press(list, 'ArrowDown');
+    expect(activeText(list)).toBe('Estética Ana');
+    press(list, 'ArrowDown');
+    expect(activeText(list)).toBe('Estética Ana');
+    press(list, 'Home');
+    expect(activeText(list)).toBe('Golden Nails');
+    press(list, 'ArrowUp');
+    expect(activeText(list)).toBe('Golden Nails');
+    press(list, 'End');
+    expect(activeText(list)).toBe('Estética Ana');
+  });
+
+  it('Enter elige la activa, emite y devuelve el foco al trigger', async () => {
+    fixture.componentRef.setInput('searchable', false);
+    const emitted: string[] = [];
+    component.valueChange.subscribe(value => emitted.push(value));
+    await open();
+
+    press(listbox()!, 'ArrowDown');
+    press(listbox()!, 'Enter');
+
+    expect(emitted).toEqual(['2']);
+    expect(listbox()).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+  });
+
+  it('con buscador: el foco queda en el campo, filtra sin tildes y Enter elige la primera coincidencia', async () => {
+    const emitted: unknown[] = [];
+    component.registerOnChange(value => emitted.push(value));
+    await open();
+
+    const search = document.querySelector('.sol-select__search') as HTMLInputElement;
+    expect(document.activeElement).toBe(search);
+    expect(search.getAttribute('role')).toBe('combobox');
+
+    search.value = 'estetica';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(activeText(search)).toBe('Estética Ana');
+
+    press(search, 'Enter');
+    expect(emitted).toEqual(['3']);
+    expect(document.activeElement).toBe(trigger());
+  });
+
+  it('con texto en el buscador, Inicio y Fin mueven el cursor y no la opción; sin texto, la opción', async () => {
+    await open();
+    const search = document.querySelector('.sol-select__search') as HTMLInputElement;
+
+    press(search, 'End');
+    expect(activeText(search)).toBe('Estética Ana');
+
+    search.value = 'e';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const before = activeText(search);
+    expect(press(search, 'End').defaultPrevented).toBe(false);
+    expect(activeText(search)).toBe(before);
+  });
+
+  it('Esc cierra, devuelve el foco y no llega a un drawer o modal que lo contenga', async () => {
+    const outer = vi.fn();
+    document.addEventListener('keydown', outer);
+    await open();
+
+    press(document.querySelector('.sol-select__search')!, 'Escape');
+
+    document.removeEventListener('keydown', outer);
+    expect(listbox()).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it('las flechas abren desde el trigger cerrado', () => {
+    press(trigger(), 'ArrowDown');
+    expect(listbox()).not.toBeNull();
+  });
+
+  it('Tab cierra y sigue desde el trigger', async () => {
+    fixture.componentRef.setInput('searchable', false);
+    await open();
+    const event = press(listbox()!, 'Tab');
+    expect(listbox()).toBeNull();
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(trigger());
+  });
+
+  it('sin opciones, las teclas no fallan', async () => {
+    fixture.componentRef.setInput('options', []);
+    fixture.componentRef.setInput('searchable', false);
+    const emitted: string[] = [];
+    component.valueChange.subscribe(value => emitted.push(value));
+    await open();
+    press(listbox()!, 'ArrowDown');
+    press(listbox()!, 'Enter');
+    expect(emitted).toEqual([]);
+  });
+
+  it('los textos del buscador y el nombre del trigger se pueden cambiar; por defecto siguen igual', async () => {
+    expect(trigger().getAttribute('aria-label')).toBeNull();
+    await open();
+    expect((document.querySelector('.sol-select__search') as HTMLInputElement).placeholder).toBe('Buscar...');
+    component.closeDropdown();
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('ariaLabel', 'Ciudad');
+    fixture.componentRef.setInput('searchPlaceholder', 'Busca una ciudad');
+    fixture.componentRef.setInput('emptyLabel', 'No encontramos esa ciudad');
+    fixture.componentRef.setInput('options', []);
+    component.writeValue('');
+    fixture.detectChanges();
+    expect(trigger().getAttribute('aria-label')).toBe('Ciudad');
+
+    await open();
+    expect((document.querySelector('.sol-select__search') as HTMLInputElement).placeholder).toBe('Busca una ciudad');
+    expect(document.querySelector('.sol-select__empty')?.textContent).toContain('No encontramos esa ciudad');
+  });
+
+  it('`label` nombra al trigger', () => {
+    fixture.componentRef.setInput('label', 'Empresa');
+    fixture.detectChanges();
+    const label = (fixture.nativeElement as HTMLElement).querySelector('label');
+    expect(label?.getAttribute('for')).toBe(trigger().id);
+  });
+
+  describe('dentro de un <label>', () => {
+    it('el clic en el texto, reenviado al trigger, no vuelve a abrir el panel abierto', async () => {
+      const label = document.createElement('label');
+      const text = document.createElement('span');
+      label.append(text, fixture.nativeElement);
+      document.body.appendChild(label);
+
+      text.click();
+      fixture.detectChanges();
+      expect(component.isOpen()).toBe(true);
+      text.click();
+      fixture.detectChanges();
+      expect(component.isOpen()).toBe(false);
+      label.remove();
+    });
+  });
+});
+
+describe('SolSelectComponent — controlado con [value]', () => {
+  let fixture: ComponentFixture<SolSelectComponent>;
+  let component: SolSelectComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [SolSelectComponent] });
+    fixture = TestBed.createComponent(SolSelectComponent);
+    component = fixture.componentInstance;
+    fixture.componentRef.setInput('options', [{ value: '', label: 'Cualquier lugar' }, ...OPTIONS]);
+  });
+
+  function display(): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector('.sol-select__display')!;
+  }
+
+  it('pinta el valor en la primera detección, sin esperar a un formulario', () => {
+    fixture.componentRef.setInput('value', '2');
+    fixture.detectChanges();
+    expect(display().textContent).toContain('Personería Demo');
+  });
+
+  it('una opción con valor vacío se muestra por su nombre y no como marcador', () => {
+    fixture.componentRef.setInput('value', '');
+    fixture.detectChanges();
+    expect(display().textContent).toContain('Cualquier lugar');
+    expect(display().classList).not.toContain('sol-select__display--placeholder');
+  });
+
+  it('sin opción vacía, el valor vacío sigue mostrando el marcador', () => {
+    fixture.componentRef.setInput('options', OPTIONS);
+    fixture.componentRef.setInput('value', '');
+    fixture.componentRef.setInput('placeholder', 'Elige');
+    fixture.detectChanges();
+    expect(display().textContent).toContain('Elige');
+  });
+
+  it('elegir solo emite: lo que se muestra lo decide el dueño', () => {
+    fixture.componentRef.setInput('value', '1');
+    fixture.detectChanges();
+    const emitted: string[] = [];
+    component.valueChange.subscribe(value => emitted.push(value));
+
+    component.onSelectSingle('2');
+    fixture.detectChanges();
+    expect(emitted).toEqual(['2']);
+    expect(display().textContent).toContain('Golden Nails');
+
+    fixture.componentRef.setInput('value', '2');
+    fixture.detectChanges();
+    expect(display().textContent).toContain('Personería Demo');
+  });
+});
+
 /**
  * Specs del fix de zoom móvil (11-f PR1). El fix vive dentro del `styles`
  * inline del componente; Angular lo inserta como `<style>` real en

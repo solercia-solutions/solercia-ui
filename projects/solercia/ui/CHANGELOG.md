@@ -6,6 +6,25 @@ Todos los cambios notables de este paquete se documentan en este archivo. El for
 paquete tiene solo dos consumidores potenciales — `boki-front` y, próximamente, `gestion_proyectos`
 — y puede admitir cambios incompatibles en versiones `minor`).
 
+## [Sin publicar]
+
+### Agregado
+
+- `sol-select`: teclado completo (flechas, Inicio, Fin, Enter, Esc, Tab) con opción activa y
+  `aria-activedescendant`, con y sin buscador; `role="option"` y `aria-selected` en las opciones,
+  `aria-haspopup="listbox"` en el botón; el foco vuelve al botón al cerrar con teclado o al elegir.
+- `sol-select`: entradas opcionales `ariaLabel`, `searchPlaceholder` y `emptyLabel` (con los textos de
+  siempre por defecto), y modo controlado `[value]` + `(valueChange)`, que pinta el valor desde el
+  primer render, también en el HTML prerenderizado.
+
+### Cambiado
+
+- `sol-select`: una opción con valor `''` se muestra por su nombre en vez de por el marcador; `label`
+  queda asociado al botón (`for`); el buscador ignora las tildes; las opciones suben a 44 px de alto
+  en el celular; el `hover` de las opciones también se ve en modo oscuro.
+- `solFloatingPanel`: el panel hereda el `--sol-z-modal` de su disparador, para quedar por encima de
+  una hoja que lo haya subido.
+
 ## [0.3.1] - 2026-07-20
 
 ### Agregado

@@ -11,23 +11,32 @@ export interface BodyScrollLock {
   unlock(): void;
 }
 
-export function createBodyScrollLock(target: HTMLElement = document.body): BodyScrollLock {
+/**
+ * El objetivo (por defecto `document.body`) se resuelve al bloquear, no al
+ * importar el módulo: así la librería se puede importar en un prerender
+ * (Node, sin `document`) y el candado no hace nada fuera del navegador.
+ */
+export function createBodyScrollLock(target?: HTMLElement): BodyScrollLock {
   let count = 0;
   let previousOverflow = '';
+  const element = (): HTMLElement | null => target ?? (typeof document === 'undefined' ? null : document.body);
 
   return {
     lock(): void {
+      const el = element();
+      if (!el) return;
       if (count === 0) {
-        previousOverflow = target.style.overflow;
-        target.style.overflow = 'hidden';
+        previousOverflow = el.style.overflow;
+        el.style.overflow = 'hidden';
       }
       count++;
     },
     unlock(): void {
-      if (count === 0) return;
+      const el = element();
+      if (!el || count === 0) return;
       count--;
       if (count === 0) {
-        target.style.overflow = previousOverflow;
+        el.style.overflow = previousOverflow;
       }
     },
   };

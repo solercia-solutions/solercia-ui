@@ -106,6 +106,10 @@ export class SolFloatingPanelDirective {
   /** Adhiere el panel a `document.body` y lo posiciona siguiendo al disparador. */
   private attach(trigger: HTMLElement): void {
     this.activeTrigger = trigger;
+    // Fuera del host el panel ya no hereda: si un ancestro del disparador sube
+    // `--sol-z-modal` (una hoja por encima del encabezado), el panel debe seguirlo.
+    const zModal = getComputedStyle(trigger).getPropertyValue('--sol-z-modal').trim();
+    if (zModal) this.panel.style.setProperty('--sol-z-modal', zModal);
     document.body.appendChild(this.panel);
     this.reposition();
 
