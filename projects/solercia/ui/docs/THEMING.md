@@ -194,6 +194,8 @@ preference — but a theme **must** define both `modes.light` and `modes.dark`.
 | `logo.urlDark` | `string?` | v2 | Dark-mode logo variant; falls back to `url`. |
 | `logo.altText` | `string` | v1 | Also used as `brandName`. |
 | `logo.width` | `number` | v1 | |
+| `name` | `string?` | v2 (0.6.0) | Human-readable theme/template name. Metadata only. |
+| `favicon` | `string?` | v2 (0.6.0) | Tenant favicon URL, sanitized like the logo. Missing or unsafe → the favicon follows the effective logo (previous behavior). |
 | `tagline` | `string?` | v2 | Brand phrase (login/onboarding). |
 | `fonts` | `ThemeFont[]?` | v2 | Google Fonts only; the `<link>` URL is built from `family` + `weights`, never from a raw tenant URL. |
 
@@ -220,6 +222,8 @@ preference — but a theme **must** define both `modes.light` and `modes.dark`.
 | Field | Type | v | Notes |
 |---|---|---|---|
 | `color` | `{ primary; secondary; accent; success; warning; danger; info }` | v1 | `TokenRef` each. |
+| `color.primaryContrast` | `TokenRef?` | v2 (0.6.0) | Text/icon over the primary → `--sol-color-primary-contrast` (default `#FFFFFF`). Light primaries need a dark value. |
+| `color.secondaryContrast` | `TokenRef?` | v2 | Text over `secondary` (Cancel-style buttons) → `--sol-color-secondary-contrast` (default `#1E293B`). |
 | `text` | `{ primary; secondary; muted }` | v1 | |
 | `surface.page` / `surface.surface` / `surface.overlay` | `TokenRef` | v1 | |
 | `surface.sunken` | `TokenRef?` | v2 | Recessed backgrounds (filled inputs, striped rows). |
@@ -246,7 +250,7 @@ preference — but a theme **must** define both `modes.light` and `modes.dark`.
 | `chart` | `{ palette: string[] }?` | v2 | 3–6 series colors; cyclically expanded/trimmed to 6. |
 | `motion` | `{ intensity; revealStyle; revealDistance; pressScale }?` | v2 | `intensity` scales durations/distances before emit; `prefers-reduced-motion` forces `none`. |
 | `overlay` | `{ blur }?` | v2 | Dialog backdrop blur → `--sol-overlay-blur` (default `blur(3px)`). |
-| `table` | `{ mobile: 'collapse'\|'scroll' }?` | v2 | Responsive preference (not a CSS var). |
+| `table` | `{ mobile?: 'collapse'\|'scroll'; variant?: SolTableVariant }?` | v2 (+ `variant` 0.6.0) | `mobile`: responsive preference. `variant`: `clean`\|`zebra`\|`bordered`\|`emphasis-header`\|`banded`; `sol-data-table`'s `[variant]` input overrides it. Neither is a CSS var. |
 | `calendar` | `{ mobileDays: 5\|7 }?` | v2 | Responsive preference (not a CSS var). |
 
 > The complete emitted-variable table (which `--sol-*` maps to which contract

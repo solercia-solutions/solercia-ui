@@ -10,14 +10,19 @@ import {
   ThemeFont,
   ThemeComponent,
   ThemeLogo,
+  ThemeMode,
   ThemePrimitives,
   ThemeSemantic,
 } from './theme.model';
 
 const THEME_PREF_KEY = 'sol-dark-mode';
 
-/** Modo visual soportado por todo tema (el toggle es preferencia local del usuario). */
-export type ThemeMode = 'light' | 'dark';
+/**
+ * `ThemeMode` es canónico en `theme.model.ts` (junto a `ThemeMeta.defaultMode`);
+ * se re-exporta aquí para no romper a los consumidores existentes que lo
+ * importan desde este archivo o desde `tokens/index.ts`.
+ */
+export type { ThemeMode } from './theme.model';
 
 /** Contexto que recibe un default v2 calculado: modo activo + resolutor de rutas del contrato. */
 export interface EmitDefaultContext {
@@ -43,7 +48,7 @@ export type EmitRow = readonly [name: string, path: string, defaultV1?: EmitDefa
 const sameAs = (path: string): EmitDefaultV1 => (ctx: EmitDefaultContext) => ctx.resolve(path);
 
 /**
- * Tabla única de "qué variables existen": 95 filas (47 v1 obligatorias + 48 v2
+ * Tabla única de "qué variables existen": 96 filas (47 v1 obligatorias + 49 v2
  * con default). Cada fila es [nombreCssVar, rutaDelToken, defaultV1?]; la ruta
  * apunta dentro de `{ primitives, semantic, component }` (ver `resolveCssVars`).
  * Agregar/quitar una fila cambia el conjunto emitido — por eso el test de tokens
@@ -53,6 +58,8 @@ export const EMIT_TABLE: ReadonlyArray<EmitRow> = [
   // Colors
   ['--sol-color-primary', 'semantic.color.primary'],
   ['--sol-color-secondary', 'semantic.color.secondary'],
+  // Text color for secondary actions (Cancel-style buttons); consumed by sol-button.
+  ['--sol-color-secondary-contrast', 'semantic.color.secondaryContrast', '#1E293B'],
   ['--sol-color-accent', 'semantic.color.accent'],
   ['--sol-color-success', 'semantic.color.success'],
   ['--sol-color-warning', 'semantic.color.warning'],
@@ -84,6 +91,10 @@ export const EMIT_TABLE: ReadonlyArray<EmitRow> = [
   ['--sol-size-component-sm', 'primitives.size.control.sm'],
   ['--sol-size-component-md', 'primitives.size.control.md'],
   ['--sol-size-component-lg', 'primitives.size.control.lg'],
+  // Additive mobile minimums (Fitts / iOS auto-zoom): consumed inside media
+  // queries only, so desktop density is untouched.
+  ['--sol-size-control-touch', 'primitives.size.control.touch', '44px'],
+  ['--sol-font-size-touch-input', 'primitives.font.size.touchInput', '16px'],
   ['--sol-size-sidebar-width', 'component.layout.sidebarWidth'],
   ['--sol-size-header-height', 'component.layout.headerHeight'],
   // Spacing
@@ -178,6 +189,10 @@ export const EMIT_TABLE: ReadonlyArray<EmitRow> = [
   // cuadro de diálogo lo lleve por defecto; un tema puede subirlo (glass) o
   // anularlo ("none", p. ej. skins planos/brutalistas).
   ['--sol-overlay-blur', 'component.overlay.blur', 'blur(3px)'],
+  // Contraste del primario (por modo): texto/ícono sobre el primario. Los componentes ya lo
+  // consumían con fallback blanco; ahora el tema lo fija para primarios claros
+  // (menta, amarillo), que necesitan texto oscuro encima.
+  ['--sol-color-primary-contrast', 'semantic.color.primaryContrast', '#FFFFFF'],
 ];
 
 interface ResolverContext {
@@ -409,7 +424,7 @@ export function isRenderableTheme(file: ThemeFile | null | undefined): file is T
 /**
  * ThemeService — runtime de theming white-label, AGNÓSTICO del host.
  *
- * Emite los 95 tokens `--sol-*` sobre `:root` a partir de un `ThemeFile` y
+ * Emite los 96 tokens `--sol-*` sobre `:root` a partir de un `ThemeFile` y
  * reacciona a tres entradas: el tema del tenant (cargado por el puerto
  * `THEME_SOURCE` que provee el host), el default empaquetado
  * (`SOL_DEFAULT_THEME`) y el toggle light/dark. NO conoce el ORIGEN del tema
@@ -484,6 +499,17 @@ export class ThemeService {
     return meta.logo?.altText?.trim() || meta.tenant || null;
   });
 
+  /**
+   * URL del favicon del TENANT: `meta.favicon` sanitizado si existe y es seguro;
+   * si no, la URL del logo efectivo. `null` sin tema de tenant (se restaura el
+   * favicon empaquetado del host).
+   */
+  readonly tenantFavicon = computed<string | null>(() => {
+    const tenant = this.tenantTheme();
+    if (!tenant) return null;
+    return sanitizeAssetUrl(tenant.meta?.favicon) ?? this.logo()?.url ?? null;
+  });
+
   /** href original del favicon empaquetado (index.html); se captura una sola vez. */
   private faviconOriginalHref: string | null = null;
   private faviconCaptured = false;
@@ -509,11 +535,11 @@ export class ThemeService {
     });
 
     // Favicon: SOLO el tema del tenant rebrandea; el default restaura el de
-    // index.html. `logo()` ya es la variante efectiva del modo actual (logo
-    // dual), así que el favicon reacciona también al toggle light/dark.
+    // index.html. `meta.favicon` (0.6.0, sanitizado) manda cuando existe; sin
+    // él, el favicon sigue al logo efectivo del modo actual (logo dual), así
+    // que reacciona también al toggle light/dark.
     effect(() => {
-      const tenantLogo = this.tenantTheme() ? this.logo() : null;
-      this.applyFavicon(tenantLogo?.url ?? null);
+      this.applyFavicon(this.tenantFavicon());
     });
 
     // Fuentes web por tenant (v2): un ÚNICO <link> a Google Fonts construido
@@ -537,16 +563,74 @@ export class ThemeService {
    * en vez de que la librería tire vía THEME_SOURCE). Validado como cualquier
    * tema: uno inválido cae al default. Útil para hosts que ya tienen el tema en
    * memoria (SSR, caché) o que no quieren implementar un ThemeSource.
+   *
+   * MODO POR DEFECTO (BD): si el tema traído trae `meta.defaultMode`, ese modo
+   * se aplica AHORA y se sincroniza en `localStorage`, aunque el navegador ya
+   * tenga una elección guardada (ver `applyEntityDefaultMode`).
    */
   setTenantTheme(theme: ThemeFile | null): void {
-    this.tenantTheme.set(isRenderableTheme(theme) ? theme : null);
+    const validated = isRenderableTheme(theme) ? theme : null;
+    this.tenantTheme.set(validated);
+    this.applyEntityDefaultMode(validated);
+  }
+
+  /**
+   * Aplica `meta.defaultMode` del tema de la entidad (BD) como AUTORIDAD en
+   * cada carga: cuando el tema declara un modo por defecto, ese modo gana
+   * SIEMPRE, sobrescribiendo cualquier valor viejo en `localStorage`. Asi
+   * ningun navegador se queda "pegado" en un modo antiguo — al recargar, el
+   * modo vuelve a salir de BD. El toggle sol/luna sigue funcionando como
+   * override en vivo dentro de la sesion; el siguiente arranque vuelve a
+   * imponer el valor de BD. Si el tema NO declara `defaultMode` (v1), no se
+   * toca nada y rige la preferencia local / del sistema de siempre.
+   *
+   * Se llama desde los DOS caminos que fijan el tema del tenant: el PUSH
+   * (`setTenantTheme`) y el PULL via THEME_SOURCE (`loadTenantTheme`), para
+   * que el shell real de PANDORA (que tira el tema) tambien lo honre.
+   */
+  private applyEntityDefaultMode(theme: ThemeFile | null): void {
+    const defaultMode = theme?.meta?.defaultMode;
+    if (defaultMode === undefined) return;
+    const dark = defaultMode === 'dark';
+    this._isDark.set(dark);
+    this.applyDarkClass(dark);
+    // Sincroniza localStorage con el valor de BD para que el estado quede
+    // consistente y el navegador nunca conserve un modo obsoleto.
+    try {
+      localStorage.setItem(THEME_PREF_KEY, String(dark));
+    } catch {
+      // Storage inaccesible: el modo queda aplicado en memoria de todos modos.
+    }
+  }
+
+  /**
+   * Fija el modo oscuro/claro y lo PERSISTE como elección EXPLÍCITA del
+   * usuario (toggle sol/luna, o "Aplicar tema" del Theme Studio). A partir de
+   * este punto `hasExplicitModePreference()` es `true`; la siguiente carga del
+   * tema vuelve a imponer `meta.defaultMode` de BD.
+   */
+  setDarkMode(dark: boolean): void {
+    this._isDark.set(dark);
+    try {
+      localStorage.setItem(THEME_PREF_KEY, String(dark));
+    } catch {
+      // Storage inaccesible (incógnito/navegador restringido): el modo queda
+      // aplicado en memoria, solo no persiste entre sesiones.
+    }
+    this.applyDarkClass(dark);
   }
 
   toggleMode(): void {
-    const newValue = !this._isDark();
-    this._isDark.set(newValue);
-    localStorage.setItem(THEME_PREF_KEY, String(newValue));
-    this.applyDarkClass(newValue);
+    this.setDarkMode(!this._isDark());
+  }
+
+  /** `true` si este navegador ya tiene una elección EXPLÍCITA de modo (toggle) en `localStorage`. */
+  hasExplicitModePreference(): boolean {
+    try {
+      return localStorage.getItem(THEME_PREF_KEY) !== null;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -580,6 +664,7 @@ export class ThemeService {
       if (this.isStaleResponse(companyId)) return;
       if (isRenderableTheme(file)) {
         this.tenantTheme.set(file);
+        this.applyEntityDefaultMode(file);
       } else {
         console.warn(
           `ThemeService: el tema de la empresa ${companyId} llegó inválido o vacío; se aplica el tema por defecto.`,
@@ -603,7 +688,12 @@ export class ThemeService {
   }
 
   private loadDarkPreference(): boolean {
-    const stored = localStorage.getItem(THEME_PREF_KEY);
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(THEME_PREF_KEY);
+    } catch {
+      stored = null;
+    }
     if (stored !== null) return stored === 'true';
     // matchMedia no existe en jsdom — sin señal del sistema, modo claro.
     return typeof window.matchMedia === 'function'

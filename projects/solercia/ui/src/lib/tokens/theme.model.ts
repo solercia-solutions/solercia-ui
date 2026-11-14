@@ -12,6 +12,12 @@
 /** Referencia a un token, p. ej. `"{color.blue.600}"` (se resuelve contra `primitives`), o un literal. */
 export type TokenRef = string;
 
+/**
+ * Modo visual soportado por todo tema. Tipo canónico (junto a `ThemeMeta.defaultMode`);
+ * `theme.service.ts` lo re-exporta para no romper a quien ya lo importa desde allí.
+ */
+export type ThemeMode = 'light' | 'dark';
+
 /** Archivo completo de theming: metadatos + primitivos compartidos + configuración por modo. */
 export interface ThemeFile {
   meta: ThemeMeta;
@@ -26,8 +32,27 @@ export interface ThemeFile {
 export interface ThemeMeta {
   tenant: string;
   logo: ThemeLogo;
+  /**
+   * Nombre legible del tema o plantilla (p. ej. "Institucional 2026"). Solo
+   * metadato: no se emite como variable ni cambia el render. v2, opcional.
+   */
+  name?: string;
+  /**
+   * URL del favicon propio del tenant. Se SANITIZA igual que el logo (solo
+   * http/https/relativas); sin valor —o con una URL insegura— el favicon sigue
+   * al logo efectivo, como hasta ahora. v2, opcional.
+   */
+  favicon?: string;
   /** Frase de marca del tenant (login/onboarding). v2, opcional. */
   tagline?: string;
+  /**
+   * Modo por defecto de la entidad (gobernado desde BD, vía Theme Studio). Se
+   * aplica SOLO cuando el navegador no tiene todavía una elección explícita
+   * del toggle claro/oscuro (`ThemeService.hasExplicitModePreference()` en
+   * `false`) — una elección explícita del usuario siempre tiene precedencia
+   * sobre este valor. v2, opcional.
+   */
+  defaultMode?: ThemeMode;
   /**
    * Fuentes web por tenant. v2, opcional. La URL de carga se construye SIEMPRE
    * por código a partir de `family` + `weights` (jamás una URL cruda del tenant).
@@ -86,7 +111,20 @@ export interface ThemeSemantic {
   color: Record<
     'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'danger' | 'info',
     TokenRef
-  >;
+  > & {
+    /**
+     * Color del texto y los íconos que se pintan SOBRE el primario (botón primario, chip
+     * seleccionado, badges). v2, opcional: sin valor se emite `#FFFFFF`, el mismo fallback que
+     * los componentes ya usaban. Un primario claro (menta, amarillo) necesita un contraste oscuro.
+     */
+    primaryContrast?: TokenRef;
+    /**
+     * Color del texto de las acciones secundarias (botón "Cancelar") sobre `secondary`.
+     * La `EMIT_TABLE` ya lo emitía (`--sol-color-secondary-contrast`, default `#1E293B`);
+     * aquí solo se declara en el tipo. v2, opcional.
+     */
+    secondaryContrast?: TokenRef;
+  };
   text: Record<'primary' | 'secondary' | 'muted', TokenRef>;
   surface: {
     page: TokenRef;
@@ -245,9 +283,35 @@ export interface ThemeMotionComponent {
   pressScale: number;
 }
 
-/** Preferencia responsive de data-tables. Default "collapse" (filas colapsables, sin scroll horizontal). */
+/**
+ * Variante visual de las tablas (`sol-data-table`): solo elige QUÉ receta aplica; los colores
+ * derivan siempre de los tokens `--sol-*` del modo activo.
+ * - `clean`: sin filas alternas.
+ * - `zebra`: filas alternas.
+ * - `bordered`: rejilla completa.
+ * - `emphasis-header`: encabezado con tinte marcado y texto en el primario.
+ * - `banded`: filas alternas + banda cada tercera fila.
+ */
+export type SolTableVariant = 'clean' | 'zebra' | 'bordered' | 'emphasis-header' | 'banded';
+
+/** Catálogo ordenado de variantes de tabla (para selectores y validación). */
+export const SOL_TABLE_VARIANTS: ReadonlyArray<SolTableVariant> = [
+  'clean',
+  'zebra',
+  'bordered',
+  'emphasis-header',
+  'banded',
+];
+
+/**
+ * Preferencias de data-tables (aditivas, no emiten CSS vars).
+ * `mobile`: default "collapse" (filas colapsables, sin scroll horizontal).
+ * `variant` (0.6.0): receta visual; sin valor, la tabla conserva su look de siempre.
+ * Un `@Input() variant` en `sol-data-table` sobrescribe el del tema.
+ */
 export interface ThemeTableComponent {
-  mobile: 'collapse' | 'scroll';
+  mobile?: 'collapse' | 'scroll';
+  variant?: SolTableVariant;
 }
 
 /** Preferencia responsive del calendario. Default 5 (lunes–viernes). */

@@ -31,6 +31,13 @@ describe('SolIconButtonComponent — botón de solo ícono', () => {
     expect(button().className).toContain('sol-icon-btn--lg');
   });
 
+  it('0.6.0 — variant="outline" aplica sol-icon-btn--outline (fondo transparente + reborde homogéneo)', () => {
+    fixture.componentRef.setInput('variant', 'outline');
+    fixture.detectChanges();
+
+    expect(button().className).toContain('sol-icon-btn--outline');
+  });
+
   it('PR-C4 (≥44px hit-area, GOAL §4) — size="touch" aplica sol-icon-btn--touch, preset ADITIVO', () => {
     fixture.componentRef.setInput('size', 'touch');
     fixture.detectChanges();

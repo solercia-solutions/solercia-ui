@@ -13,7 +13,7 @@ a specific i18n engine.
 
 - **Theming** — the host implements two ports: `SOL_TENANT_RESOLVER` (who the
   active tenant is) and `THEME_SOURCE` (how to load its `ThemeFile`). The library
-  resolves that JSON into 95 `--sol-*` custom properties on `:root`. Three
+  resolves that JSON into 96 `--sol-*` custom properties on `:root`. Three
   degradation levels, best to worst: **(1)** tenant theme via the host's
   `THEME_SOURCE` → **(2)** `SOL_DEFAULT_THEME` (the bundled "Vértice" theme, works
   with **no host wiring**) → **(3)** inline `:root` CSS in the host's `styles.css`
@@ -30,8 +30,40 @@ Docs:
   degradation levels, and how to implement a `ThemeSource`.
 - [`docs/I18N.md`](./docs/I18N.md) — the `SOL_I18N` contract and how to provide an
   engine (Transloco, ngx-translate, or the identity default).
+- [`docs/THEME-STUDIO.md`](./docs/THEME-STUDIO.md) — the `@solercia/ui/theme-studio` entry point:
+  `<sol-theme-studio>`, the `ThemeStudioStore` contract and an adapter example.
 - [`docs/MULTITENANT_SETUP.md`](./docs/MULTITENANT_SETUP.md) — step-by-step wiring
   for a new starter project and for an existing project adopting `@solercia/ui`.
+
+### Themed sign-in (`@solercia/ui/login-appearance`)
+
+The theme can carry a `meta.login` block (photos, motion, per-mode composition and caption).
+The entry point ships the pieces to paint it and no auth logic: the host projects its own form.
+
+```ts
+import { SolLoginFrameComponent, resolveLoginView } from '@solercia/ui/login-appearance';
+
+// In the login page: `null` (no photos anywhere) keeps the classic centered card.
+readonly view = computed(() => {
+  const meta = this.themeService.activeTheme()?.meta as { login?: unknown } | undefined;
+  return resolveLoginView({ published: null, theme: meta?.login }, this.themeService.isDark());
+});
+```
+
+```html
+<sol-login-frame [view]="view()" [tagline]="tagline()" [logo]="logo()" [dark]="isDark()">
+  <h1>…</h1>
+  <app-login-form />
+</sol-login-frame>
+```
+
+- `normalizeLogin` bounds every value; photos are only `https://`, root-relative or `assets/` URLs
+  of PNG, JPEG, WebP or AVIF images. The library never fetches anything: a host that serves the
+  appearance before sign-in passes its body through `normalizeLoginAppearance`.
+- `<sol-theme-studio [features]="{ loginAppearance: true }">` adds the «Inicio de sesión» tab with
+  `<sol-login-appearance-editor>`; photos upload through `ThemeStudioStore.uploadLogo` and the block
+  is saved with «Aplicar tema».
+- Texts live under `sol.loginAppearance.*` (defaults in Colombian Spanish and English).
 
 ## Code scaffolding
 

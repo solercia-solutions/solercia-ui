@@ -22,6 +22,7 @@ import { SolButtonComponent } from '../button/button.component';
 import { SolIconComponent } from '../icon/icon.component';
 import { SolSkeletonComponent } from '../skeleton/skeleton.component';
 import { ThemeService } from '../../tokens';
+import type { SolTableVariant } from '../../tokens/theme.model';
 
 /** Fila genérica de la tabla: un objeto plano indexable por clave. */
 export type SolDataTableRow = Record<string, unknown>;
@@ -147,6 +148,14 @@ export class RowRevealDirective implements OnInit {
  * - `width`: ancho CSS opcional del th (`'120px'`, `'20%'`…).
  * - `badge`: marca la columna de estado (chip): en el modo móvil colapsado su
  *   valor se muestra como chip junto al título en la cabecera de la fila.
+ * - `filter` (0.6.0, opt-in): agrega un control de filtro para esta columna
+ *   en una fila propia bajo el header (ver `sol-data-table__filters-row`) —
+ *   la fila solo aparece si AL MENOS una columna declara `filter`. `'text'`
+ *   filtra por contención (contains, case-insensitive); `'select'` filtra
+ *   por igualdad exacta contra las opciones únicas del `data` actual de esa
+ *   columna. Ambos se combinan (AND) entre sí y con la búsqueda global de
+ *   `filteredData`, client-side. No aplica en el modo colapsado móvil (la
+ *   fila de filtros vive solo dentro de `<table>`).
  * - `cellTemplate`: plantilla opcional para renderizar la celda (recibe el
  *   valor resuelto como `$implicit` y la fila completa como `row`).
  */
@@ -156,14 +165,20 @@ export interface DataTableColumn {
   sortable?: boolean;
   width?: string;
   badge?: boolean;
+  filter?: 'text' | 'select';
   cellTemplate?: TemplateRef<{ $implicit: unknown; row: SolDataTableRow }>;
 }
 
 /**
  * Tabla de datos genérica dirigida por columnas: búsqueda, orden, paginación,
- * estado de carga (skeleton), estado vacío y acciones por fila. En viewport
- * móvil colapsa cada fila a un resumen expandible (sin scroll horizontal)
- * cuando el tema activo lo prefiere (`component.table.mobile: "collapse"`).
+ * estado de carga (skeleton), estado vacío, filtros por columna (opt-in, ver
+ * `DataTableColumn.filter`) y acciones por fila (posición configurable, ver
+ * `actionsPosition`). Colapsa cada fila a un resumen expandible (sin scroll
+ * horizontal) cuando el tema activo lo prefiere
+ * (`component.table.mobile: "collapse"`) y el ancho de su propio HOST — no
+ * del viewport del navegador, ver `collapseWidth` — cae por debajo del
+ * umbral: una tabla dentro de un layout angosto (sidebar, grid a dos
+ * columnas) colapsa aunque la ventana siga en ancho desktop.
  *
  * Componente presentacional: no conoce dominio. Las acciones no genéricas se
  * proyectan por el slot `#rowActions` (TemplateRef que recibe la fila).
@@ -191,7 +206,11 @@ export interface DataTableColumn {
       <ng-content select="[tableFilters]" />
     </div>
 
-    <div class="sol-data-table" [attr.aria-busy]="loadingVisible() || null">
+    <div
+      class="sol-data-table"
+      [attr.aria-busy]="loadingVisible() || null"
+      [attr.data-variant]="effectiveVariant()"
+    >
       @if (showToolbar()) {
         <div class="sol-data-table__toolbar">
           <div class="sol-data-table__toolbar-left">
@@ -208,10 +227,10 @@ export interface DataTableColumn {
 
       <!-- Acciones por fila compartidas entre el modo tabla y el modo móvil. -->
       <ng-template #rowActionButtons let-row>
-        @if (rowActionsTemplate(); as tpl) {
-          <ng-container *ngTemplateOutlet="tpl; context: { $implicit: row }" />
-        } @else {
-          <div class="sol-data-table__action-group">
+        <div class="sol-data-table__action-group">
+          @if (rowActionsTemplate(); as tpl) {
+            <ng-container *ngTemplateOutlet="tpl; context: { $implicit: row }" />
+          } @else {
             @if (showEditAction()) {
               <sol-button variant="ghost" size="sm" (clicked)="editClicked.emit(row)">
                 <sol-icon name="edit" size="sm" />
@@ -222,8 +241,25 @@ export interface DataTableColumn {
                 <sol-icon name="trash" size="sm" class="text-red-500" />
               </sol-button>
             }
-          </div>
-        }
+          }
+        </div>
+      </ng-template>
+
+      <!-- Celda(s) de acciones del modo tabla, reutilizadas en ambas
+           posiciones ('start'/'end', ver input actionsPosition) para no
+           duplicar el mismo th/td dos veces en el template. -->
+      <ng-template #actionsHeaderCell>
+        <th class="sol-data-table__th sol-data-table__th--actions">{{ actionsLabel() }}</th>
+      </ng-template>
+
+      <ng-template #actionsFilterCell>
+        <th class="sol-data-table__filter-cell"></th>
+      </ng-template>
+
+      <ng-template #actionsBodyCell let-row>
+        <td class="sol-data-table__td sol-data-table__td--actions">
+          <ng-container *ngTemplateOutlet="rowActionButtons; context: { $implicit: row }" />
+        </td>
       </ng-template>
 
       @if (mobileCollapse()) {
@@ -326,6 +362,9 @@ export interface DataTableColumn {
           <table class="sol-data-table__table">
             <thead>
               <tr>
+                @if (showActions() && actionsPosition() === 'start') {
+                  <ng-container *ngTemplateOutlet="actionsHeaderCell" />
+                }
                 @for (col of columns(); track col.key) {
                   <th
                     class="sol-data-table__th"
@@ -341,10 +380,51 @@ export interface DataTableColumn {
                     }
                   </th>
                 }
-                @if (showActions()) {
-                  <th class="sol-data-table__th sol-data-table__th--actions">{{ actionsLabel() }}</th>
+                @if (showActions() && actionsPosition() === 'end') {
+                  <ng-container *ngTemplateOutlet="actionsHeaderCell" />
                 }
               </tr>
+              @if (hasColumnFilters()) {
+                <!-- Fila de filtros opt-in (ver DataTableColumn.filter): solo
+                     dentro de <table>, nunca en el modo colapsado móvil (que
+                     ni siquiera renderiza este bloque). Las celdas siguen el
+                     mismo actionsPosition que el header para no desalinear
+                     columnas. -->
+                <tr class="sol-data-table__filters-row">
+                  @if (showActions() && actionsPosition() === 'start') {
+                    <ng-container *ngTemplateOutlet="actionsFilterCell" />
+                  }
+                  @for (col of columns(); track col.key) {
+                    <th class="sol-data-table__filter-cell">
+                      @if (col.filter === 'text') {
+                        <input
+                          type="text"
+                          class="sol-data-table__filter-input"
+                          placeholder="…"
+                          [attr.aria-label]="col.label"
+                          [value]="columnFilters()[col.key] ?? ''"
+                          (input)="onColumnFilterChange(col.key, $event)"
+                        />
+                      } @else if (col.filter === 'select') {
+                        <select
+                          class="sol-data-table__filter-select"
+                          [attr.aria-label]="col.label"
+                          [value]="columnFilters()[col.key] ?? ''"
+                          (change)="onColumnFilterChange(col.key, $event)"
+                        >
+                          <option value="">Todas</option>
+                          @for (opt of columnFilterOptions(col); track opt) {
+                            <option [value]="opt">{{ opt }}</option>
+                          }
+                        </select>
+                      }
+                    </th>
+                  }
+                  @if (showActions() && actionsPosition() === 'end') {
+                    <ng-container *ngTemplateOutlet="actionsFilterCell" />
+                  }
+                </tr>
+              }
             </thead>
             <tbody>
               @if (loadingVisible()) {
@@ -363,6 +443,9 @@ export interface DataTableColumn {
                     [solRowRevealIndex]="$index"
                     [solRowRevealReplay]="revealReplayKey()"
                   >
+                    @if (showActions() && actionsPosition() === 'start') {
+                      <ng-container *ngTemplateOutlet="actionsBodyCell; context: { $implicit: row }" />
+                    }
                     @for (col of columns(); track col.key) {
                       <td class="sol-data-table__td">
                         @if (col.cellTemplate) {
@@ -372,10 +455,8 @@ export interface DataTableColumn {
                         }
                       </td>
                     }
-                    @if (showActions()) {
-                      <td class="sol-data-table__td sol-data-table__td--actions">
-                        <ng-container *ngTemplateOutlet="rowActionButtons; context: { $implicit: row }" />
-                      </td>
+                    @if (showActions() && actionsPosition() === 'end') {
+                      <ng-container *ngTemplateOutlet="actionsBodyCell; context: { $implicit: row }" />
                     }
                   </tr>
                 } @empty {
@@ -405,6 +486,13 @@ export interface DataTableColumn {
     }
   `,
   styles: `
+    /* El colapso a cards mide el ancho del host con ResizeObserver, que
+       reporta 0 en un elemento inline: sin display de bloque la tabla
+       colapsaba siempre, también en escritorio. */
+    :host {
+      display: block;
+    }
+
     .sol-data-table__filters {
       display: flex;
       align-items: center;
@@ -482,9 +570,50 @@ export interface DataTableColumn {
       color: var(--sol-color-text-primary, #0F172A);
     }
 
+    /* width 1% + nowrap: the column shrinks to fit however many action
+       buttons the row template projects, instead of a fixed 100px that
+       wraps three or more buttons. */
     .sol-data-table__th--actions {
-      width: 100px;
+      width: 1%;
+      white-space: nowrap;
       text-align: center;
+    }
+
+    /* Fila de filtros opt-in (ver DataTableColumn.filter): mismo fondo
+       tenue que el header, pero sin su tipografía en mayúsculas — es un
+       control, no una etiqueta. */
+    .sol-data-table__filter-cell {
+      padding: 6px 16px;
+      background: color-mix(in srgb, var(--sol-border-color-default, #E2E8F0) 15%, transparent);
+      border-bottom: 1px solid var(--sol-border-color-default, #E2E8F0);
+    }
+
+    .sol-data-table__filter-input,
+    .sol-data-table__filter-select {
+      width: 100%;
+      box-sizing: border-box;
+      height: var(--sol-size-component-sm, 30px);
+      padding: 0 8px;
+      font-family: inherit;
+      font-size: var(--sol-font-size-sm, 12px);
+      color: var(--sol-color-text-primary, #0F172A);
+      background: var(--sol-bg-surface, #fff);
+      border: 1px solid var(--sol-border-color-default, #E2E8F0);
+      border-radius: var(--sol-border-radius-sm, 6px);
+      outline: none;
+      transition:
+        border-color var(--sol-dur-fast, 150ms) var(--sol-ease, ease),
+        box-shadow var(--sol-dur-fast, 150ms) var(--sol-ease, ease);
+    }
+
+    .sol-data-table__filter-input::placeholder {
+      color: var(--sol-color-text-muted, #94A3B8);
+    }
+
+    .sol-data-table__filter-input:focus,
+    .sol-data-table__filter-select:focus {
+      border-color: var(--sol-color-primary, #2563EB);
+      box-shadow: var(--sol-focus-ring, 0 0 0 2px color-mix(in srgb, var(--sol-color-primary, #2563EB) 20%, transparent));
     }
 
     .sol-data-table__sort-icon {
@@ -515,6 +644,7 @@ export interface DataTableColumn {
 
     .sol-data-table__td--actions {
       text-align: center;
+      white-space: nowrap;
     }
 
     .sol-data-table__action-group {
@@ -533,6 +663,57 @@ export interface DataTableColumn {
 
     .sol-data-table__footer {
       padding: 8px 4px 0;
+    }
+
+    /* ── Variantes visuales (0.6.0, input variant / component.table.variant) ──
+       Solo pintan con tokens del modo activo; sin data-variant la tabla
+       conserva su look de siempre. La regla de hover repite el atributo para
+       igualar la especificidad de las filas con tinte y ganar por orden. */
+    .sol-data-table[data-variant] {
+      --sol-table-header-bg: color-mix(in srgb, var(--sol-color-primary, #2563EB) 8%, var(--sol-bg-surface, #FFFFFF));
+      --sol-table-header-strong-bg: color-mix(in srgb, var(--sol-color-primary, #2563EB) 16%, var(--sol-bg-surface, #FFFFFF));
+      --sol-table-zebra: color-mix(in srgb, var(--sol-color-text-primary, #0F172A) 4%, transparent);
+      --sol-table-band: color-mix(in srgb, var(--sol-color-primary, #2563EB) 7%, transparent);
+      --sol-table-cell-border: var(--sol-border-color-default, #E2E8F0);
+      --sol-table-hover: color-mix(in srgb, var(--sol-color-text-primary, #0F172A) 6%, transparent);
+    }
+
+    .sol-data-table[data-variant] .sol-data-table__th {
+      background: var(--sol-table-header-bg);
+      color: var(--sol-color-text-secondary, #475569);
+      font-size: var(--sol-font-size-sm, 12px);
+      border-bottom: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+    }
+
+    .sol-data-table[data-variant] .sol-data-table__tr {
+      border-bottom: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+    }
+
+    .sol-data-table[data-variant]:not([data-variant='clean']) .sol-data-table__table > tbody > .sol-data-table__tr:nth-of-type(odd) {
+      background: var(--sol-table-zebra);
+    }
+
+    .sol-data-table[data-variant='banded'] .sol-data-table__table > tbody > .sol-data-table__tr:nth-of-type(3n) {
+      background: var(--sol-table-band);
+    }
+
+    .sol-data-table[data-variant][data-variant] .sol-data-table__table > tbody > .sol-data-table__tr:hover {
+      background: var(--sol-table-hover);
+    }
+
+    .sol-data-table[data-variant='bordered'] .sol-data-table__table {
+      border: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+    }
+
+    .sol-data-table[data-variant='bordered'] .sol-data-table__th,
+    .sol-data-table[data-variant='bordered'] .sol-data-table__td,
+    .sol-data-table[data-variant='bordered'] .sol-data-table__table .sol-data-table__tr:last-child > .sol-data-table__td {
+      border: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+    }
+
+    .sol-data-table[data-variant='emphasis-header'] .sol-data-table__th {
+      background: var(--sol-table-header-strong-bg);
+      color: var(--sol-color-primary, #2563EB);
     }
 
     /* ── Modo móvil colapsado ──────────────────────────────────────────
@@ -689,6 +870,7 @@ export interface DataTableColumn {
 })
 export class SolDataTableComponent {
   private readonly themeService = inject(ThemeService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly data = input<SolDataTableRow[]>([]);
   readonly columns = input<DataTableColumn[]>([]);
@@ -709,6 +891,15 @@ export class SolDataTableComponent {
   /** Encabezado de la columna de acciones. */
   readonly actionsLabel = input<string>('Acciones');
   /**
+   * Posición de la columna de acciones (0.6.0). `'end'` (default) preserva
+   * el comportamiento previo — th/td de acciones después de las columnas de
+   * datos. `'start'` los renderiza ANTES, como primera columna (aplica al
+   * `#rowActions` proyectado y a los botones editar/eliminar por defecto
+   * por igual). Sin efecto en el modo colapsado móvil: ahí las acciones
+   * siguen viviendo solo en el detalle expandido de la card.
+   */
+  readonly actionsPosition = input<'start' | 'end'>('end');
+  /**
    * aria-label del botón ▶ de expansión de fila en el modo móvil. El default
    * se alinea con el texto de la clave i18n `shared.table.toggleDetails`
    * para que cualquier consumidor que no lo sobreescriba (vía
@@ -726,6 +917,26 @@ export class SolDataTableComponent {
    * necesidad de apagar este input.
    */
   readonly rowReveal = input<boolean>(true);
+
+  /**
+   * Ancho (px) del HOST bajo el cual la tabla colapsa a cards (0.6.0).
+   * Reemplaza el criterio anterior, que solo miraba el viewport del
+   * navegador (`matchMedia`) — la fuente de verdad ahora es un
+   * `ResizeObserver` sobre el propio elemento raíz del componente, así que
+   * una tabla dentro de un contenedor angosto (sidebar, grid a dos
+   * columnas) colapsa aunque la ventana siga en ancho desktop. El default
+   * (767) conserva el breakpoint canónico previo.
+   */
+  readonly collapseWidth = input<number>(767);
+
+  /**
+   * Variante visual (0.6.0): `clean` | `zebra` | `bordered` | `emphasis-header`
+   * | `banded`. Sobrescribe `component.table.variant` del tema activo; `null`
+   * (default) deja decidir al tema y, si el tema tampoco la declara, la tabla
+   * conserva su look de siempre. Los colores salen de `var(--sol-*)`, así que
+   * la variante reacciona sola a claro/oscuro.
+   */
+  readonly variant = input<SolTableVariant | null>(null);
 
   readonly editClicked = output<SolDataTableRow>();
   readonly deleteClicked = output<SolDataTableRow>();
@@ -749,6 +960,8 @@ export class SolDataTableComponent {
   readonly pageSize = signal(10);
   readonly sortKey = signal('');
   readonly sortDirection = signal<'asc' | 'desc'>('asc');
+  /** Valor de filtro por columna (0.6.0), indexado por `DataTableColumn.key`. */
+  readonly columnFilters = signal<Record<string, string>>({});
 
   /**
    * Clave de replay de `solRowReveal`: cambia con cualquier búsqueda, orden
@@ -759,8 +972,12 @@ export class SolDataTableComponent {
     () => `${this.searchTerm()}:${this.sortKey()}:${this.sortDirection()}:${this.currentPage()}`,
   );
 
-  /** Señal reactiva de viewport móvil (breakpoint canónico 767px). */
-  readonly isMobileViewport = observeMobileViewport();
+  /**
+   * Señal reactiva al ancho del HOST (0.6.0, ver `collapseWidth`): true
+   * cuando el ResizeObserver mide un ancho <= `collapseWidth()`. Fuente de
+   * verdad del colapso — ya NO es el viewport del navegador.
+   */
+  readonly isContainerNarrow = observeContainerWidth(this.host, this.collapseWidth);
 
   /** Índices de las filas fantasma del estado de carga (7 filas fijas). */
   protected readonly skeletonRows = [0, 1, 2, 3, 4, 5, 6];
@@ -777,9 +994,18 @@ export class SolDataTableComponent {
     return file?.modes?.[mode]?.component?.table?.mobile ?? 'collapse';
   });
 
-  /** El modo colapsado aplica solo en viewport móvil con preferencia "collapse". */
+  /** Variante efectiva: el input manda; si no, `component.table.variant` del tema activo. */
+  readonly effectiveVariant = computed<SolTableVariant | null>(() => {
+    const own = this.variant();
+    if (own) return own;
+    const file = this.themeService.activeTheme();
+    const mode = this.themeService.isDark() ? 'dark' : 'light';
+    return file?.modes?.[mode]?.component?.table?.variant ?? null;
+  });
+
+  /** El modo colapsado aplica solo con host angosto (`collapseWidth`) y preferencia "collapse". */
   readonly mobileCollapse = computed(
-    () => this.isMobileViewport() && this.tableMobileMode() === 'collapse',
+    () => this.isContainerNarrow() && this.tableMobileMode() === 'collapse',
   );
 
   /** Filas expandidas del modo colapsado (por id de trackBy). */
@@ -806,6 +1032,9 @@ export class SolDataTableComponent {
     return this.columns().filter((col) => col !== title && col !== subtitle && col !== badge);
   });
 
+  /** true si AL MENOS una columna declara `filter` — dispara la fila de filtros. */
+  readonly hasColumnFilters = computed(() => this.columns().some((col) => !!col.filter));
+
   readonly filteredData = computed(() => {
     let result = [...this.data()];
     const term = this.searchTerm().toLowerCase();
@@ -815,6 +1044,24 @@ export class SolDataTableComponent {
         this.columns().some((col) =>
           String(this.resolveValue(row, col.key) ?? '').toLowerCase().includes(term),
         ),
+      );
+    }
+
+    // Filtros por columna (0.6.0): se COMBINAN (AND) entre sí y con la
+    // búsqueda global de arriba. 'select' es igualdad exacta (viene de un
+    // desplegable con las opciones reales de la columna); 'text' es
+    // contención — el mismo criterio que la búsqueda global.
+    const activeFilters = Object.entries(this.columnFilters()).filter(([, value]) => value !== '');
+    if (activeFilters.length > 0) {
+      const columnByKey = new Map(this.columns().map((col) => [col.key, col]));
+      result = result.filter((row) =>
+        activeFilters.every(([key, value]) => {
+          const cellValue = String(this.resolveValue(row, key) ?? '').toLowerCase();
+          const needle = value.toLowerCase();
+          return columnByKey.get(key)?.filter === 'select'
+            ? cellValue === needle
+            : cellValue.includes(needle);
+        }),
       );
     }
 
@@ -853,6 +1100,23 @@ export class SolDataTableComponent {
     return index;
   }
 
+  /**
+   * Valores únicos (ordenados) de `column` dentro de `data()` — puebla el
+   * `<select>` de su filtro (0.6.0). Deriva del dataset completo, no del ya
+   * filtrado: así las opciones no desaparecen a medida que el propio
+   * usuario filtra.
+   */
+  columnFilterOptions(column: DataTableColumn): string[] {
+    const values = new Set<string>();
+    for (const row of this.data()) {
+      const value = this.resolveValue(row, column.key);
+      if (value !== undefined && value !== null && value !== '') {
+        values.add(String(value));
+      }
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }
+
   /** Estado de expansión de una fila en el modo móvil colapsado. */
   isRowExpanded(id: string | number): boolean {
     return this.expandedRows().has(id);
@@ -875,6 +1139,16 @@ export class SolDataTableComponent {
     this.searchTerm.set(term);
     this.currentPage.set(1);
     // Al filtrar, el detalle expandido pierde contexto — se colapsa todo.
+    this.expandedRows.set(new Set());
+  }
+
+  /** Cambia el filtro de una columna (0.6.0) desde su input/select nativo. */
+  onColumnFilterChange(key: string, event: Event): void {
+    const value = (event.target as HTMLInputElement | HTMLSelectElement).value;
+    this.columnFilters.update((current) => ({ ...current, [key]: value }));
+    this.currentPage.set(1);
+    // Mismo criterio que onSearch: al filtrar, el detalle expandido pierde
+    // contexto — se colapsa todo.
     this.expandedRows.set(new Set());
   }
 
@@ -937,31 +1211,55 @@ function stretchLoading(source: Signal<boolean>, minMs = 450): Signal<boolean> {
   return computed(() => visible());
 }
 
-/** Ancho canónico bajo el cual la tabla adopta su comportamiento móvil. */
+/** Breakpoint canónico usado SOLO como valor inicial anti-flicker (ver abajo). */
 const MOBILE_MEDIA_QUERY = '(max-width: 767px)';
 
 /**
- * Señal booleana reactiva al viewport móvil. Debe invocarse en contexto de
- * inyección (inicializador de campo): usa `DestroyRef` para retirar el
- * listener. Guarda para jsdom/SSR: sin `matchMedia` queda en `false`
- * (comportamiento desktop).
+ * Señal booleana reactiva al ancho del elemento HOST (0.6.0) — fuente de
+ * verdad del colapso a cards vía `ResizeObserver`. Reemplaza el criterio
+ * anterior (`matchMedia` sobre el VIEWPORT del navegador): true cuando el
+ * ancho medido del host es <= `collapseWidth()`. Así una tabla dentro de un
+ * contenedor angosto (sidebar, grid a dos columnas) colapsa aunque la
+ * ventana siga en ancho desktop.
+ *
+ * `matchMedia` contra el breakpoint canónico 767px se conserva SOLO como
+ * valor inicial (anti-flicker) hasta que llega la primera medición real del
+ * observer — nunca se vuelve a consultar después de eso.
+ *
+ * Debe invocarse en contexto de inyección (inicializador de campo): usa
+ * `DestroyRef` para desconectar el observer al destruir el componente.
+ * Guarda para jsdom/SSR: sin `ResizeObserver` queda fija en el valor
+ * inicial (mismo criterio que el resto de la lib usa para ese entorno).
  */
-function observeMobileViewport(): Signal<boolean> {
+function observeContainerWidth(
+  host: ElementRef<HTMLElement>,
+  collapseWidth: Signal<number>,
+): Signal<boolean> {
   const destroyRef = inject(DestroyRef);
-  const matches = signal(false);
 
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return matches.asReadonly();
+  const initial =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(MOBILE_MEDIA_QUERY).matches
+      : false;
+
+  const hostWidth = signal<number | null>(null);
+  const narrow = computed(() => {
+    const width = hostWidth();
+    return width === null ? initial : width <= collapseWidth();
+  });
+
+  if (typeof ResizeObserver === 'undefined') {
+    return narrow;
   }
 
-  const mediaQueryList = window.matchMedia(MOBILE_MEDIA_QUERY);
-  matches.set(mediaQueryList.matches);
+  const observer = new ResizeObserver((entries) => {
+    const entry = entries[0];
+    if (entry) {
+      hostWidth.set(entry.contentRect.width);
+    }
+  });
+  observer.observe(host.nativeElement);
+  destroyRef.onDestroy(() => observer.disconnect());
 
-  if (typeof mediaQueryList.addEventListener === 'function') {
-    const onChange = (event: MediaQueryListEvent): void => matches.set(event.matches);
-    mediaQueryList.addEventListener('change', onChange);
-    destroyRef.onDestroy(() => mediaQueryList.removeEventListener('change', onChange));
-  }
-
-  return matches.asReadonly();
+  return narrow;
 }

@@ -32,6 +32,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
         [disabled]="disabled() || isDisabled()"
         [value]="value()"
         [attr.autocomplete]="autocomplete()"
+        [attr.min]="min()"
         (input)="onInputChange($event)"
         (blur)="onTouched()"
       />
@@ -138,6 +139,15 @@ export class SolInputComponent implements ControlValueAccessor {
    * gestor de contraseñas del navegador/SO no ofrezca guardarlos.
    */
   readonly autocomplete = input<string | undefined>(undefined);
+  /**
+   * Passthrough opcional al atributo `min` del `<input>` nativo (ola-09,
+   * P3b): fecha mínima seleccionable en `type="date"` — evita agendar al
+   * pasado desde el propio selector nativo. `undefined` por defecto — con
+   * `[attr.min]` Angular OMITE el atributo por completo, así que ningún
+   * consumidor existente cambia de comportamiento (mismo patrón aditivo de
+   * `autocomplete`, arriba).
+   */
+  readonly min = input<string | undefined>(undefined);
 
   /* --- Internal state --- */
   readonly value = signal<string>('');

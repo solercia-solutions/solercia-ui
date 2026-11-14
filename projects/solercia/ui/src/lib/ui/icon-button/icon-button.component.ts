@@ -8,8 +8,15 @@ import {
 import { SolIconComponent } from '../icon/icon.component';
 import type { SolIconName, SolIconSize } from '../icon/icon.component';
 
-/** Estilo visual del botón de ícono, alineado con las variantes de `sol-button`. */
-export type SolIconButtonVariant = 'default' | 'danger' | 'ghost';
+/**
+ * Estilo visual del botón de ícono, alineado con las variantes de `sol-button`.
+ * `outline` (0.6.0): mismo borde y color de texto que `default`, pero con
+ * fondo transparente — pensado para un GRUPO de icon-buttons de acciones que
+ * deba verse homogéneo (todos con reborde) sin la superficie sólida de
+ * `default`. `sol-button` no tiene un equivalente todavía: es específica de
+ * `sol-icon-button`.
+ */
+export type SolIconButtonVariant = 'default' | 'danger' | 'ghost' | 'outline';
 
 /**
  * Tamaño (cuadrado) del botón de ícono. `touch` (44px, PR-C4, Ola 5 GOAL §4):
@@ -104,6 +111,19 @@ export type SolIconButtonSize = 'sm' | 'md' | 'lg' | 'touch';
     }
     .sol-icon-btn--ghost:hover:not(:disabled) {
       background: color-mix(in srgb, var(--sol-color-primary, #2563eb) 10%, transparent);
+      color: var(--sol-color-text-primary, #0f172a);
+    }
+
+    /* Igual que --default (mismo borde, mismo color de texto) pero sin la
+       superficie sólida: fondo transparente para que un grupo de botones se
+       vea homogéneo con reborde, sin bloques de fondo compitiendo entre sí. */
+    .sol-icon-btn--outline {
+      border-color: var(--sol-border-color-default, #e2e8f0);
+      background: transparent;
+      color: var(--sol-color-text-muted, #64748b);
+    }
+    .sol-icon-btn--outline:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--sol-color-primary, #2563eb) 8%, transparent);
       color: var(--sol-color-text-primary, #0f172a);
     }
 

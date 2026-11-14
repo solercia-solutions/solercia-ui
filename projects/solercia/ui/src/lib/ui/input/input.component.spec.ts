@@ -103,3 +103,38 @@ describe('SolInputComponent — autocomplete passthrough (gate 4R A3)', () => {
     expect(input.getAttribute('autocomplete')).toBe('email');
   });
 });
+
+/**
+ * `min` passthrough (ola-09, P3b): sin él, un `sol-input type="date"` no
+ * tenía forma de impedir elegir una fecha pasada desde el propio selector
+ * nativo — el defecto que reportó el fundador ("permite poner cualquier
+ * fecha"). Aditivo (default `undefined`), mismo patrón que `autocomplete`.
+ */
+describe('SolInputComponent — min passthrough (ola-09, P3b)', () => {
+  let fixture: ComponentFixture<SolInputComponent>;
+
+  const createComponent = (): ComponentFixture<SolInputComponent> => {
+    const created = TestBed.createComponent(SolInputComponent);
+    created.detectChanges();
+    return created;
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    fixture = createComponent();
+  });
+
+  it('sin min especificado, el <input> nativo NO tiene el atributo (comportamiento previo intacto)', () => {
+    const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
+    expect(input.getAttribute('min')).toBeNull();
+  });
+
+  it('con min="2026-08-23", el <input type="date"> nativo lo recibe', () => {
+    fixture.componentRef.setInput('type', 'date');
+    fixture.componentRef.setInput('min', '2026-08-23');
+    fixture.detectChanges();
+
+    const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
+    expect(input.getAttribute('min')).toBe('2026-08-23');
+  });
+});

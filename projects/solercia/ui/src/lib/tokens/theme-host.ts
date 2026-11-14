@@ -38,6 +38,14 @@ export const THEME_SOURCE = new InjectionToken<ThemeSource>('THEME_SOURCE', {
 });
 
 /**
+ * The bundled "Vértice" ThemeFile as a plain constant (0.6.0). It is the
+ * factory value of `SOL_DEFAULT_THEME` and the default base theme of the
+ * headless Theme Studio builder (`@solercia/ui/theme-studio`). Treat it as
+ * read-only: clone it before mutating.
+ */
+export const SOL_BUNDLED_DEFAULT_THEME: ThemeFile = defaultTheme as unknown as ThemeFile;
+
+/**
  * The theme the library ships with and applies when there is no tenant theme.
  * Defaults to the bundled "Vértice" theme (a full ThemeFile that mirrors the
  * `jsonb` stored per company in the database). The host may override it with
@@ -47,5 +55,5 @@ export const THEME_SOURCE = new InjectionToken<ThemeSource>('THEME_SOURCE', {
  */
 export const SOL_DEFAULT_THEME = new InjectionToken<ThemeFile>('SOL_DEFAULT_THEME', {
   providedIn: 'root',
-  factory: (): ThemeFile => defaultTheme as unknown as ThemeFile,
+  factory: (): ThemeFile => SOL_BUNDLED_DEFAULT_THEME,
 });

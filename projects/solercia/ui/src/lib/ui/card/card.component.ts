@@ -15,6 +15,15 @@ import {
     </div>
   `,
   styles: `
+    /* Sin esta regla el host (un elemento custom sin display propio) colapsa
+       a max-content cuando el padre lo vuelve flex/grid item — el borde y el
+       fondo de .sol-card seguían pintándose a tamaño completo, pero la caja
+       real del host no reservaba espacio, así que layouts flex con varias
+       sol-card como hijas quedaban rotos (bug real, PANDORA). */
+    :host {
+      display: block;
+    }
+
     /* Tokens v2 de card (theming): forma, sombra y blur salen del tema activo.
        Los fallbacks encadenan a los tokens v1 (red final de styles.css). */
     .sol-card {

@@ -493,6 +493,93 @@ describe('SolSelectComponent — fix de zoom móvil (11-f PR1)', () => {
 });
 
 /**
+ * `mobileBreakpoint` (0.6.0): el host cuyo layout móvil corta por encima de
+ * 640px (PANDORA, 768px) extiende la protección anti-zoom sin ::ng-deep.
+ */
+describe('SolSelectComponent — mobileBreakpoint configurable', () => {
+  const originalWidth = window.innerWidth;
+
+  function setViewport(width: number): void {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: width });
+    window.dispatchEvent(new Event('resize'));
+  }
+
+  afterEach(() => {
+    setViewport(originalWidth);
+    document.querySelectorAll('.sol-select__dropdown').forEach(el => el.remove());
+  });
+
+  function create(breakpoint?: number): ComponentFixture<SolSelectComponent> {
+    TestBed.configureTestingModule({ imports: [SolSelectComponent] });
+    const fixture = TestBed.createComponent(SolSelectComponent);
+    fixture.componentRef.setInput('options', [{ value: '1', label: 'Uno' }]);
+    if (breakpoint !== undefined) fixture.componentRef.setInput('mobileBreakpoint', breakpoint);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('por defecto (640) un viewport de 700px no activa la clase táctil', () => {
+    setViewport(700);
+    const fixture = create();
+    expect((fixture.nativeElement as HTMLElement).classList.contains('sol-select--touch')).toBe(false);
+  });
+
+  it('con mobileBreakpoint=768 un viewport de 700px activa la clase en el host y en el panel', () => {
+    setViewport(700);
+    const fixture = create(768);
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('sol-select--touch')).toBe(true);
+
+    host.querySelector<HTMLButtonElement>('.sol-select__trigger')!.click();
+    fixture.detectChanges();
+    expect(document.querySelector('.sol-select__dropdown')?.classList.contains('sol-select__dropdown--touch')).toBe(true);
+  });
+
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  it('en celular la lista abre como hoja inferior sin enfocar el buscador (el teclado no la tapa)', async () => {
+    setViewport(390);
+    const fixture = create();
+    const host = fixture.nativeElement as HTMLElement;
+    host.querySelector<HTMLButtonElement>('.sol-select__trigger')!.click();
+    fixture.detectChanges();
+    await wait(80);
+
+    const panel = document.querySelector<HTMLElement>('.sol-select__dropdown')!;
+    expect(panel.classList.contains('sol-select__dropdown--touch')).toBe(true);
+    expect(document.activeElement).not.toBe(panel.querySelector('.sol-select__search'));
+    // El foco queda en la lista, con la opción activa anunciada: las flechas siguen funcionando.
+    const listbox = panel.querySelector<HTMLElement>('.sol-select__options')!;
+    expect(document.activeElement).toBe(listbox);
+    expect(listbox.getAttribute('aria-activedescendant')).toBeTruthy();
+  });
+
+  it('en escritorio el buscador sigue tomando el foco al abrir', async () => {
+    setViewport(1280);
+    const fixture = create();
+    const host = fixture.nativeElement as HTMLElement;
+    host.querySelector<HTMLButtonElement>('.sol-select__trigger')!.click();
+    fixture.detectChanges();
+    await wait(80);
+
+    const panel = document.querySelector<HTMLElement>('.sol-select__dropdown')!;
+    expect(panel.classList.contains('sol-select__dropdown--touch')).toBe(false);
+    expect(document.activeElement).toBe(panel.querySelector('.sol-select__search'));
+  });
+
+  it('reacciona al resize: al ensanchar por encima del corte se retira la clase', () => {
+    setViewport(700);
+    const fixture = create(768);
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('sol-select--touch')).toBe(true);
+
+    setViewport(1200);
+    fixture.detectChanges();
+    expect(host.classList.contains('sol-select--touch')).toBe(false);
+  });
+});
+
+/**
  * Portal manual del dropdown (CP-2): el panel se adhiere a document.body con
  * position:fixed y coordenadas del trigger, para que ningún ancestro con
  * overflow (ej. .sol-modal-body) lo recorte. Al cerrar o destruir, el nodo y

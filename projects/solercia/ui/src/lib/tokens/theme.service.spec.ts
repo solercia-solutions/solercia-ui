@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal, type WritableSignal } from '@angular/core';
 import { SOL_TENANT_RESOLVER, THEME_SOURCE, SOL_DEFAULT_THEME } from './theme-host';
 import type { ThemeSource } from './theme-host';
-import { EMIT_TABLE, ThemeService } from './theme.service';
+import { EMIT_TABLE, ThemeService, resolveCssVars } from './theme.service';
 import type { ThemeFile } from './theme.model';
 import defaultThemeJson from './theme.host-default.fixture.json';
 import verticeThemeJson from './theme.vertice.fixture.json';
@@ -181,6 +181,58 @@ describe('ThemeService — theming por tenant (THEME_SOURCE + default en la lib)
     expect(rootVar('--sol-color-primary')).toBe('#2563EB'); // inválido → default
   });
 
+  it('setDarkMode fija el modo y lo PERSISTE como preferencia EXPLÍCITA', () => {
+    // El beforeEach ya deja 'sol-dark-mode' = 'false' (explícita) en localStorage.
+    expect(service.hasExplicitModePreference()).toBe(true);
+
+    service.setDarkMode(true);
+    TestBed.tick();
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(localStorage.getItem('sol-dark-mode')).toBe('true');
+    expect(service.hasExplicitModePreference()).toBe(true);
+  });
+
+  it('setTenantTheme aplica meta.defaultMode sin preferencia explícita y lo sincroniza en localStorage', () => {
+    localStorage.removeItem('sol-dark-mode');
+    // Reinstancia el servicio para que `loadDarkPreference()` lea el storage ya limpio
+    // (mismo patrón que el spec de prefers-reduced-motion, más abajo).
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: THEME_SOURCE, useValue: source },
+        { provide: SOL_TENANT_RESOLVER, useValue: { activeTenantId: tenantId.asReadonly() } },
+        { provide: SOL_DEFAULT_THEME, useValue: defaultTheme },
+      ],
+    });
+    const svc = TestBed.inject(ThemeService);
+    TestBed.tick();
+    expect(svc.hasExplicitModePreference()).toBe(false);
+
+    const theme = buildTenantTheme();
+    theme.meta.defaultMode = 'dark';
+    svc.setTenantTheme(theme);
+    TestBed.tick();
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(rootVar('--sol-color-primary')).toBe('#00FF00'); // primary DARK del tema
+    // BD gobierna y el storage queda sincronizado con su valor (nunca un modo obsoleto).
+    expect(localStorage.getItem('sol-dark-mode')).toBe('true');
+  });
+
+  it('setTenantTheme impone meta.defaultMode aunque el navegador tenga una preferencia guardada', () => {
+    // El beforeEach deja 'sol-dark-mode' = 'false': el modo de BD gana igual en cada carga, para
+    // que ningún navegador quede pegado en un modo viejo (el toggle sigue siendo override en vivo).
+    const theme = buildTenantTheme();
+    theme.meta.defaultMode = 'dark';
+    service.setTenantTheme(theme);
+    TestBed.tick();
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(rootVar('--sol-color-primary')).toBe('#00FF00'); // primary DARK del tema
+    expect(localStorage.getItem('sol-dark-mode')).toBe('true');
+  });
+
   it('refresh() vuelve a pedir el tema del tenant activo por el puerto', async () => {
     activateTenant(7);
     source.respond(0, buildTenantTheme());
@@ -278,6 +330,31 @@ describe('ThemeService — theming por tenant (THEME_SOURCE + default en la lib)
     expect(faviconHref()).toBe('assets/logos/bokibot_logo.png');
   });
 
+  it('meta.favicon (0.6.0) manda sobre el logo y no cambia con el modo', async () => {
+    activateTenant(7);
+    const theme = buildTenantTheme({ urlDark: 'https://cdn.acme.co/logo-dark.svg' });
+    theme.meta.favicon = '/assets/acme/favicon.ico';
+    source.respond(0, theme);
+    await flush();
+
+    expect(service.tenantFavicon()).toBe('/assets/acme/favicon.ico');
+    expect(faviconHref()).toBe('/assets/acme/favicon.ico');
+
+    service.toggleMode();
+    TestBed.tick();
+    expect(faviconHref()).toBe('/assets/acme/favicon.ico');
+  });
+
+  it('meta.favicon inseguro se descarta y el favicon vuelve a seguir al logo', async () => {
+    activateTenant(7);
+    const theme = buildTenantTheme();
+    theme.meta.favicon = 'javascript:alert(1)';
+    source.respond(0, theme);
+    await flush();
+
+    expect(faviconHref()).toBe('https://cdn.acme.co/logo.svg');
+  });
+
   it('logo dual: en modo dark usa urlDark del tenant y el favicon sigue la variante efectiva', async () => {
     activateTenant(7);
     source.respond(0, buildTenantTheme({ urlDark: 'https://cdn.acme.co/logo-dark.svg' }));
@@ -345,7 +422,7 @@ describe('ThemeService — theming por tenant (THEME_SOURCE + default en la lib)
     return document.head.querySelector<HTMLLinkElement>('link[data-sol-tenant-fonts]');
   }
 
-  it('tema v1 puro emite las 95 variables completas con los defaults v2', () => {
+  it('tema v1 puro emite las 96 variables completas con los defaults v2', () => {
     // Muestra representativa de defaults v2 (el golden congela el resto).
     expect(rootVar('--sol-card-bg')).toBe('#FFFFFF');
     expect(rootVar('--sol-card-border')).toBe('1px solid #E2E8F0');
@@ -584,5 +661,23 @@ describe('ThemeService — agnóstico: default de la lib y degradación sin host
     expect(service.activeTheme()).toBeNull();
     expect(rootVar('--sol-color-primary')).toBe('');
     expect(warn).toHaveBeenCalled();
+  });
+});
+
+describe('resolveCssVars — contraste del primario (v2)', () => {
+  it('sin primaryContrast emite el blanco que los componentes ya usaban como fallback', () => {
+    expect(resolveCssVars(defaultTheme, 'light').get('--sol-color-primary-contrast')).toBe('#FFFFFF');
+    expect(resolveCssVars(defaultTheme, 'dark').get('--sol-color-primary-contrast')).toBe('#FFFFFF');
+  });
+
+  it('respeta el contraste por modo, incluidas las referencias a primitivos', () => {
+    const theme = structuredClone(defaultTheme);
+    theme.modes.light.semantic.color.primaryContrast = '#0F172A';
+    theme.modes.dark.semantic.color.primaryContrast = '{color.blue.600}';
+
+    expect(resolveCssVars(theme, 'light').get('--sol-color-primary-contrast')).toBe('#0F172A');
+    expect(resolveCssVars(theme, 'dark').get('--sol-color-primary-contrast')).toBe(
+      resolveCssVars(theme, 'light').get('--sol-color-primary'),
+    );
   });
 });

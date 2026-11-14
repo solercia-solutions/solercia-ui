@@ -70,6 +70,12 @@ export { SolAvatarComponent, hashToPaletteIndex, computeInitials } from './avata
 export type { SolAvatarSize } from './avatar/avatar.component';
 export { SolStarRatingComponent } from './star-rating/star-rating.component';
 export type { SolStarRatingSize } from './star-rating/star-rating.component';
+// sol-rating-input: la CONTRAPARTE INTERACTIVA de sol-star-rating (que sigue
+// siendo de solo lectura). Son dos contratos de accesibilidad distintos —
+// `role="img"` con el valor en el aria-label vs. `role="radiogroup"` con radios
+// navegables — por eso son dos componentes y no una bandera.
+export { SolRatingInputComponent, normalizeRating } from './rating-input/rating-input.component';
+export type { SolRatingInputSize } from './rating-input/rating-input.component';
 export {
   SolScoreBadgeComponent,
   resolveScoreTone,
@@ -176,3 +182,26 @@ export type {
   SolFlowCanvasNodeTemplateContext,
 } from './flow-canvas/flow-canvas.model';
 export { computeAutoLayoutPositions } from './flow-canvas/flow-canvas-layout';
+
+// Aportes extraídos de Solercia Command (0.5.0). Los tres nacieron como
+// componentes locales de ese producto y suben aquí sin su dominio: el
+// mecanismo es de la librería, la orquestación se queda en la aplicación.
+export { SolTreeComponent, SolTreeNodeDefDirective, SOL_TREE_MAX_DEPTH } from './tree/tree.component';
+export type {
+  SolTreeNode,
+  SolTreeNodeTemplateContext,
+  SolTreeToggleEvent,
+} from './tree/tree.component';
+export { SolNotificationPanelComponent } from './notification-panel/notification-panel.component';
+export type {
+  SolNotificationItem,
+  SolNotificationTone,
+  SolNotificationPanelState,
+} from './notification-panel/notification-panel.component';
+export { SolScopeSwitcherComponent } from './scope-switcher/scope-switcher.component';
+export type { SolScope, SolScopeSwitcherStatus } from './scope-switcher/scope-switcher.component';
+
+// Confirmación y animación de entrada (paridad con el Theme Studio de PANDORA, 0.6.1)
+export { SolConfirmDialogComponent } from './confirm-dialog/confirm-dialog.component';
+export type { SolConfirmDialogVariant } from './confirm-dialog/confirm-dialog.component';
+export { SolRevealDirective } from './reveal/reveal.directive';

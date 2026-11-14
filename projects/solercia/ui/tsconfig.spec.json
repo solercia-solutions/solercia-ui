@@ -7,11 +7,21 @@
     "types": [
       "vitest/globals",
       "node"
-    ]
+    ],
+    /* The secondary entry point (theme-studio/) imports "@solercia/ui". In specs it must resolve
+       to the library SOURCE (same module instances as the relative imports under src/), never to
+       the built dist/ that the root tsconfig points to. */
+    "paths": {
+      "@solercia/ui": ["./projects/solercia/ui/src/public-api.ts"],
+      "@solercia/ui/theme-studio": ["./projects/solercia/ui/theme-studio/public-api.ts"],
+      "@solercia/ui/login-appearance": ["./projects/solercia/ui/login-appearance/public-api.ts"]
+    }
   },
   "include": [
     "src/**/*.d.ts",
     "src/**/*.spec.ts",
-    "schematics/**/*.spec.ts"
+    "schematics/**/*.spec.ts",
+    "theme-studio/**/*.spec.ts",
+    "login-appearance/**/*.spec.ts"
   ]
 }

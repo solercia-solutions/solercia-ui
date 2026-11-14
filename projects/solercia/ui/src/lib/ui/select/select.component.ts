@@ -38,7 +38,8 @@ function foldText(text: string): string {
  *
  * Teclado (patrón de botón + listbox): flechas, Inicio y Fin mueven la opción
  * activa; Enter la elige; Esc cierra y devuelve el foco al botón. Con buscador
- * el foco queda en su campo; sin él, en la lista. Con texto escrito en el
+ * el foco queda en su campo; sin él, en la lista. En pantalla táctil el foco va
+ * siempre a la lista, para que el teclado no la tape. Con texto escrito en el
  * buscador, Inicio y Fin vuelven a mover el cursor dentro del texto.
  *
  * El botón toma su nombre de `label`, de `ariaLabel` o de un `<label>` que lo
@@ -49,6 +50,9 @@ function foldText(text: string): string {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SolIconComponent, SolFloatingPanelDirective],
+  host: {
+    '[class.sol-select--touch]': 'touchViewport()',
+  },
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -96,6 +100,7 @@ function foldText(text: string): string {
           (dropUpChange)="dropUp.set($event)"
           (keydown)="onKeydown($event)"
           [class.sol-select__dropdown--up]="dropUp()"
+          [class.sol-select__dropdown--touch]="touchViewport()"
         >
           <!-- Search -->
           @if (searchable()) {
@@ -134,7 +139,7 @@ function foldText(text: string): string {
             [id]="panelId"
             [attr.aria-labelledby]="triggerId"
             [attr.aria-multiselectable]="multiple() || null"
-            [attr.aria-activedescendant]="searchable() ? null : activeOptionId()"
+            [attr.aria-activedescendant]="searchable() && !touchViewport() ? null : activeOptionId()"
           >
             @for (opt of navItems(); track opt.value; let index = $index) {
               <div
@@ -238,7 +243,9 @@ function foldText(text: string): string {
     .sol-select__trigger--error { border-color: var(--sol-select-error-color); }
     .sol-select__trigger--open { border: var(--sol-input-focus-border, var(--sol-select-border-width) solid var(--sol-select-border-focus)); box-shadow: var(--sol-select-focus-ring); }
 
-    .sol-select__display { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* min-width: 0 overrides the flex min-width:auto floor so the trigger can
+       shrink inside narrow containers instead of overflowing them. */
+    .sol-select__display { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sol-select__display--placeholder { color: var(--sol-select-placeholder); }
 
     .sol-select__arrow {
@@ -394,6 +401,44 @@ function foldText(text: string): string {
         transition: none;
       }
     }
+
+    /* Corte configurable (0.6.0, input mobileBreakpoint): el host que corta su
+       layout móvil por encima de 640px (p. ej. 768px) extiende la misma
+       protección anti-zoom hasta su propio breakpoint, sin ::ng-deep. La
+       clase la pone el componente según el ancho del viewport. */
+    :host(.sol-select--touch) .sol-select__trigger,
+    .sol-select__dropdown--touch .sol-select__search {
+      font-size: var(--sol-font-size-touch-input, 16px);
+    }
+
+    /* Touch viewport: bottom sheet instead of a panel under the trigger, so the keyboard
+       and the screen edge never cut the list. !important overrides the inline coordinates
+       that solFloatingPanel writes for the desktop panel. */
+    .sol-select__dropdown--touch {
+      position: fixed !important;
+      top: auto !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      max-height: 70dvh;
+      border-radius: var(--sol-border-radius-lg, 1rem) var(--sol-border-radius-lg, 1rem) 0 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      animation: sol-select-sheet-up 0.18s ease-out;
+    }
+    .sol-select__dropdown--touch .sol-select__option {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      font-size: 16px;
+    }
+    @keyframes sol-select-sheet-up {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sol-select__dropdown--touch { animation: none; }
+    }
   `,
 })
 export class SolSelectComponent implements ControlValueAccessor {
@@ -426,6 +471,23 @@ export class SolSelectComponent implements ControlValueAccessor {
 
   /** The person picked a value (single mode). */
   readonly valueChange = output<string>();
+
+  /**
+   * Viewport width (px) at or below which the trigger and the inner search
+   * rise to 16px to avoid iOS Safari auto-zoom. The CSS baseline keeps
+   * protecting viewports up to 640px without JavaScript; a larger value
+   * (e.g. 768 for hosts whose mobile layout starts there) extends it.
+   */
+  readonly mobileBreakpoint = input<number>(640);
+
+  /** Current viewport width, refreshed on `window:resize`. */
+  private readonly viewportWidth = signal(SolSelectComponent.readViewportWidth());
+
+  /** True when the viewport is within `mobileBreakpoint` (drives the touch classes). */
+  readonly touchViewport = computed(() => {
+    const width = this.viewportWidth();
+    return width > 0 && width <= this.mobileBreakpoint();
+  });
 
   // ── Internal state ──
   readonly isOpen = signal(false);
@@ -518,6 +580,15 @@ export class SolSelectComponent implements ControlValueAccessor {
 
   constructor(private hostEl: ElementRef) {}
 
+  @HostListener('window:resize')
+  onViewportResize(): void {
+    this.viewportWidth.set(SolSelectComponent.readViewportWidth());
+  }
+
+  private static readViewportWidth(): number {
+    return typeof window !== 'undefined' && Number.isFinite(window.innerWidth) ? window.innerWidth : 0;
+  }
+
   optionId(index: number): string {
     return `${this.panelId}-option-${index}`;
   }
@@ -535,7 +606,11 @@ export class SolSelectComponent implements ControlValueAccessor {
     this.activeIndex.set(selected >= 0 ? selected : this.navItems().length > 0 ? 0 : -1);
     afterNextRender(
       () => {
-        const target = this.searchInput() ?? this.listbox();
+        // On a touch viewport the list opens as a bottom sheet: focusing the search box would
+        // raise the keyboard over it, so the focus goes to the list and the person taps the
+        // search box only if they need it.
+        const search = this.touchViewport() ? undefined : this.searchInput();
+        const target = search ?? this.listbox();
         target?.nativeElement.focus({ preventScroll: true });
         this.scrollActiveIntoView();
       },

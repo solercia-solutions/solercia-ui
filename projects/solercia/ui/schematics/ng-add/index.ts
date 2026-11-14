@@ -264,7 +264,7 @@ function wireTsconfigPaths(sourceRoot: string): Rule {
 }
 
 /** Snippet de estilos globales que demuestra el consumo de los tokens `--sol-*`
- * (el resto de las 95 variables las emite ThemeService en runtime — ver
+ * (el resto de las 96 variables las emite ThemeService en runtime — ver
  * projects/solercia/ui/docs/THEMING.md). Detecta tanto `styles.css` como
  * `styles.scss` (fix: `ng new --style=scss` dejaba los tokens sin inyectar
  * porque solo se comprobaba `styles.css`); el snippet usa comentarios estilo
