@@ -123,22 +123,11 @@ usuario `camilocalderont`), no por el workflow de CI. El PROYECTO Angular se con
    git push origin v0.2.0   # dispara .github/workflows/publish-packages.yml (tag v*)
    ```
 
-   La publicación por CI requiere que el secret `NPM_TOKEN` del repositorio esté configurado
-   (Automation token de npmjs.com, exento de 2FA) — **hoy está vacío/ausente**, así que el
-   workflow fallará tal como está (deuda heredada de `07-e9-extraccion-solercia-ui`, ver
-   `openspec/07-e9-extraccion-solercia-ui/state.yaml`). Antes de empujar el tag, el fundador
-   debe:
-
-   - **(a)** Generar y configurar el secret `NPM_TOKEN` (Settings → Secrets → Actions) con un
-     Automation token de un usuario con permiso de publicación en la organización npm
-     `solercia`.
-   - **(b)** **ROTAR** el token de npm usado para publicar `0.1.1` manualmente — quedó
-     expuesto en el log de una sesión anterior y sigue vigente hasta que se revoque.
-   - **(c)** Si por cualquier razón el CI no queda listo a tiempo, la alternativa es repetir el
-     mismo publish MANUAL que se usó para `0.1.1`/`0.1.0` (`cd dist/solercia/ui && npm publish
-     --access public`, autenticado como usuario con permiso en la organización `solercia`) —
-     documentarlo así en el commit de publicación si se toma esta vía, para no perder el
-     rastro de qué versiones pasaron por CI y cuáles no.
+   La publicación por CI usa Trusted Publishing de npm (OIDC): no hay token ni secret.
+   Cada paquete (`@solercia/ui`, `@solercia/eslint-config`) tiene en npmjs.com, en
+   Settings → Trusted Publisher, la organización `solercia-solutions`, el repo `boki-front`
+   y el workflow `publish-packages.yml`. Empujar el tag `v*` publica sola, con provenance.
+   Si el job falla con `ENEEDAUTH`, revisa que esos tres datos coincidan exactamente.
 
    Una vez publicada `0.2.0`, los consumidores que hoy usan el tarball local (`gestion_proyectos`,
    ver `openspec/11-a-solercia-ui/`) pueden volver a un rango semver normal
