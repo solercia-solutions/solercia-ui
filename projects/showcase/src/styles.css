@@ -1,0 +1,23 @@
+/* @solercia/ui — tokens base (same snippet `ng add @solercia/ui` appends) */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--sol-bg-page);
+  color: var(--sol-color-text-primary);
+  font-family: var(--sol-font-family);
+  font-size: var(--sol-font-size-base);
+  line-height: var(--sol-line-height);
+}
+
+code {
+  font-family: var(--sol-font-family-mono);
+}

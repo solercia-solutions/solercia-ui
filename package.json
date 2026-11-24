@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "ng build @solercia/ui && ng serve showcase",
+    "build:showcase": "npm run build && ng build showcase",
     "build": "ng build @solercia/ui && npm run build:schematics",
     "build:schematics": "tsc -p projects/solercia/ui/tsconfig.schematics.json && node projects/solercia/ui/schematics/build-assets.mjs",
     "test": "npm run build && ng test @solercia/ui --watch=false"

@@ -28,5 +28,9 @@ jobs:
       - name: Build + test
         run: npm test
 
+      # Builds the library again and the component showcase against dist/solercia/ui.
+      - name: Build showcase
+        run: npm run build:showcase
+
       - name: Test the publish script (fake npm, no network)
         run: bash .github/scripts/publish-if-unpublished.test.sh

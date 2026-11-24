@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="412 122 322 614" width="21" height="40" role="img" aria-label="Solercia">
+  <defs>
+    <linearGradient id="solercia-mark-gradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#45fdae"/>
+      <stop offset="1" stop-color="#10c1d6"/>
+    </linearGradient>
+  </defs>
+  <path transform="translate(45.96 10.97)" fill="none" stroke="url(#solercia-mark-gradient)" stroke-width="30.9" stroke-linejoin="miter"
+        d="m566.75 127.36-184 179.4v111.32l63.48 63.48 61.64-.92-56.12 131.56v95.68l218.96-218.04-.92-121.44-42.32-43.24-132.48-.92 71.76-79.12z"/>
+</svg>
