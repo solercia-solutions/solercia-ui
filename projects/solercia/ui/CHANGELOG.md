@@ -5,6 +5,13 @@ All notable changes to this package are documented in this file. The format foll
 [SemVer](https://semver.org/). The package started at `0.1.0`; while it is pre-1.0 and has only a
 few consumers, `minor` versions may include breaking changes.
 
+## [0.7.2] - 2026-11-24
+
+### Added
+
+- `AGENTS.md` (with `CLAUDE.md` symlink) for AI coding agents: commands, conventions and the rule that
+  every commit on `main` is a tagged release. No changes to the published code.
+
 ## [0.7.1] - 2026-11-24
 
 The repository moved to [solercia-solutions/solercia-ui](https://github.com/solercia-solutions/solercia-ui)
