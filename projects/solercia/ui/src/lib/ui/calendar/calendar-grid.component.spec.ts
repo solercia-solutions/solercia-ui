@@ -74,10 +74,12 @@ describe('SolCalendarGridComponent', () => {
   });
 
   it('[spec] tarjeta personalizada: con `eventTemplate`, el evento muestra el contenido proyectado del consumidor', () => {
-    fixture.componentRef.setInput('eventTemplate', createTemplate());
+    // `events` goes first: without zone.js, createTemplate() ticks ApplicationRef and would check
+    // this grid before its required input is set (NG0950).
     fixture.componentRef.setInput('events', [
       { id: '1', title: 'Reunión', clientName: 'Ana', start: new Date(2024, 0, 10, 9, 0), end: new Date(2024, 0, 10, 10, 0) },
     ]);
+    fixture.componentRef.setInput('eventTemplate', createTemplate());
     fixture.detectChanges();
 
     expect(host().querySelector('.demo-event-title')?.textContent).toBe('Reunión');

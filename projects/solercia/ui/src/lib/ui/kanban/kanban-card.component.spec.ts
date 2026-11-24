@@ -26,6 +26,11 @@ class TemplateHostComponent {
 describe('SolKanbanCardComponent', () => {
   let fixture: ComponentFixture<SolKanbanCardComponent<DemoItem>>;
 
+  /**
+   * Call it BEFORE creating the component under test: without zone.js every fixture is attached
+   * to ApplicationRef, so this detectChanges() would also check a card whose required inputs are
+   * not set yet (NG0950).
+   */
   function createTemplate(): TemplateRef<KanbanCardTemplateContext<DemoItem>> {
     const host = TestBed.createComponent(TemplateHostComponent);
     host.detectChanges();
@@ -37,9 +42,10 @@ describe('SolKanbanCardComponent', () => {
   });
 
   it('[spec] board de dominio arbitrario: renderiza el contenido del template proyectado del consumidor sin cambios en la librería', () => {
+    const cardTemplate = createTemplate();
     fixture = TestBed.createComponent<SolKanbanCardComponent<DemoItem>>(SolKanbanCardComponent);
     fixture.componentRef.setInput('item', { id: '1', title: 'Tarea de dominio arbitrario', status: 'active' });
-    fixture.componentRef.setInput('cardTemplate', createTemplate());
+    fixture.componentRef.setInput('cardTemplate', cardTemplate);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
@@ -49,9 +55,10 @@ describe('SolKanbanCardComponent', () => {
 
   describe('DnD (PR5b, T38/T39) — `cdkDrag` vía hostDirectives, sin que el consumidor lo escriba', () => {
     beforeEach(() => {
+      const cardTemplate = createTemplate();
       fixture = TestBed.createComponent<SolKanbanCardComponent<DemoItem>>(SolKanbanCardComponent);
       fixture.componentRef.setInput('item', { id: '2', title: 'Otra tarea', status: 'done' });
-      fixture.componentRef.setInput('cardTemplate', createTemplate());
+      fixture.componentRef.setInput('cardTemplate', cardTemplate);
     });
 
     it('[spec] `cdkDrag` está aplicado al host (vía hostDirectives) sin que ningún template de consumidor lo escriba', () => {

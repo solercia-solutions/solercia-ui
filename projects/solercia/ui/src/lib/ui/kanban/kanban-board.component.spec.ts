@@ -31,6 +31,7 @@ class TemplateHostComponent {
 
 describe('SolKanbanBoardComponent', () => {
   let cardTemplate: TemplateRef<unknown>;
+  let anchorTemplate: TemplateRef<unknown>;
   let fixture: ComponentFixture<SolKanbanBoardComponent<DemoItem>>;
 
   function host(): HTMLElement {
@@ -82,7 +83,11 @@ describe('SolKanbanBoardComponent', () => {
     const templateHost = TestBed.createComponent(TemplateHostComponent);
     templateHost.detectChanges();
     cardTemplate = templateHost.componentInstance.cardTemplate();
+    anchorTemplate = templateHost.componentInstance.anchorTemplate();
 
+    // Templates are resolved before the component under test exists: without zone.js every
+    // fixture is attached to ApplicationRef, so a later detectChanges() would check the board
+    // before its required inputs are set (NG0950).
     fixture = TestBed.createComponent<SolKanbanBoardComponent<DemoItem>>(SolKanbanBoardComponent);
     fixture.componentRef.setInput('cardTemplate', cardTemplate);
   });
@@ -143,10 +148,7 @@ describe('SolKanbanBoardComponent', () => {
   });
 
   it('[WARNING — O] el board expone y reenvía anchorTemplate a sol-kanban-column: el ancla se renderiza vía el board', () => {
-    const templateHost = TestBed.createComponent(TemplateHostComponent);
-    templateHost.detectChanges();
-
-    fixture.componentRef.setInput('anchorTemplate', templateHost.componentInstance.anchorTemplate());
+    fixture.componentRef.setInput('anchorTemplate', anchorTemplate);
     fixture.componentRef.setInput('columns', [
       { id: 'ganada', title: 'Ganada', items: [], terminalAnchor: true },
     ]);
