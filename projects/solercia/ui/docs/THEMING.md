@@ -328,8 +328,8 @@ The bundled reference theme with every v2 block populated is
 ## 5. Implementing a `ThemeSource`
 
 A `ThemeSource` is a plain injectable that satisfies the port. This is the only
-place that knows *how* a tenant theme is fetched. Real example from the
-`boki-front` host (`src/shared/tokens/boki-api-theme.source.ts`):
+place that knows *how* a tenant theme is fetched. Example from a production
+host (`src/shared/tokens/api-theme.source.ts`):
 
 ```ts
 import { Injectable, inject } from '@angular/core';
@@ -338,7 +338,7 @@ import { firstValueFrom } from 'rxjs';
 import type { ThemeSource, ThemeFile } from '@solercia/ui';
 
 @Injectable({ providedIn: 'root' })
-export class BokiApiThemeSource implements ThemeSource {
+export class ApiThemeSource implements ThemeSource {
   private readonly http = inject(HttpClient);
 
   async loadTheme(tenantId: number | string): Promise<ThemeFile | null> {
@@ -377,11 +377,11 @@ If you provide nothing, the bundled **Vértice** theme is used.
 
 ---
 
-## 7. Wiring it in `app.config.ts` (real `boki-front` example)
+## 7. Wiring it in `app.config.ts` (production host example)
 
 ```ts
 import { provideTheme, SOL_TENANT_RESOLVER, THEME_SOURCE } from '@solercia/ui';
-import { BokiApiThemeSource } from '@shared/tokens';
+import { ApiThemeSource } from '@shared/tokens';
 import { TENANT_RESOLVER, ActiveCompanyTenantResolver } from '@shared/tenant';
 
 export const appConfig: ApplicationConfig = {
@@ -394,7 +394,7 @@ export const appConfig: ApplicationConfig = {
     { provide: SOL_TENANT_RESOLVER, useExisting: ActiveCompanyTenantResolver },
 
     // 3. HOW to load a tenant theme — the host's adapter.
-    { provide: THEME_SOURCE, useExisting: BokiApiThemeSource },
+    { provide: THEME_SOURCE, useExisting: ApiThemeSource },
 
     // 4. (optional) Override the bundled default with your brand theme.
     // { provide: SOL_DEFAULT_THEME, useValue: myBrandTheme },

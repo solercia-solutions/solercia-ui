@@ -1,0 +1,37 @@
+# @solercia/ui
+
+> Themeable, host-agnostic Angular 22 design system (standalone, OnPush, signal inputs, zoneless-ready) with 57 public components and directives, multi-tenant theming through about 96 `--sol-*` CSS custom properties, a pluggable i18n contract and `ng add` scaffolding for Feature-Sliced Design projects. Full component reference with inputs, outputs and examples: README.md, section "Component reference".
+
+## Setup
+
+- `ng add @solercia/ui` (scaffolds FSD layers, path aliases @app/@pages/@widgets/@features/@entities/@shared, theme and i18n adapters, @solercia/eslint-config, Husky and commitlint) or `npm install @solercia/ui @angular/cdk chart.js @dagrejs/dagre`.
+- Providers: `provideTheme()`; optional `{ provide: THEME_SOURCE, useExisting: AppThemeSource }` (loadTheme(tenantId) -> ThemeFile | null), `{ provide: SOL_TENANT_RESOLVER, useExisting: ... }` (activeTenantId()), `{ provide: SOL_I18N, useExisting: I18nService }` (t, translate, activeLang, tMany; identity default).
+- Without providers the bundled "Vértice" theme applies. `ThemeService`: activeTheme(), isDark(), logo(), toggleMode(), setDarkMode(), setTenantTheme().
+- Import every symbol from '@solercia/ui' into the standalone component `imports`. Secondary entry points: '@solercia/ui/theme-studio', '@solercia/ui/login-appearance'.
+
+## Components by category
+
+- Actions: sol-button, sol-icon-button, sol-icon.
+- Forms (most are ControlValueAccessor): sol-input, sol-textarea, sol-form-field, sol-search-input, sol-number-input, sol-select, sol-checkbox, sol-toggle, sol-chip, sol-chip-group, sol-view-toggle, sol-date-picker, sol-day-picker, sol-rating-input, sol-file-upload, sol-rich-editor.
+- Feedback and status: sol-badge, sol-message-status, sol-score-badge, sol-trend, sol-avatar, sol-star-rating, sol-spinner, sol-skeleton, sol-progress-bar, sol-empty-state, sol-tooltip, sol-notification-panel.
+- Overlays: sol-modal, sol-drawer, sol-confirm-dialog.
+- Navigation: sol-tabs, sol-pagination, sol-page-header, sol-stepper, sol-wizard with [solWizardStep], sol-scope-switcher, sol-tree with [solTreeNodeDef].
+- Layout and motion: sol-card, [solReveal].
+- Data: sol-data-table, sol-virtual-scroll, sol-chart, sol-timeline.
+- Planning: sol-kanban-board, sol-kanban-column, sol-kanban-card, sol-kanban-drag-source, sol-calendar, sol-calendar-header, sol-calendar-grid, sol-flow-canvas.
+
+## Rules for agents
+
+- Reuse an existing sol-* component before writing a new one.
+- Style only with var(--sol-*); no hardcoded colors or fonts, no !important, no ::ng-deep (enforced by @solercia/eslint-config).
+- Set required inputs; icon-only controls need ariaLabel. Inputs ending in `Key` take i18n keys resolved by SOL_I18N.
+- Some defaults are Spanish (searchPlaceholder, actionsLabel, confirmLabel, file-upload label/hint): set them explicitly in other languages.
+- Use <sol-chart> instead of importing chart.js and sol-kanban-* instead of @angular/cdk drag and drop.
+- Cover loading (sol-skeleton, sol-spinner), empty (sol-empty-state), error and success states.
+- Working examples: projects/showcase/src/app/pages/.
+
+## Links
+
+- Repository: https://github.com/solercia-solutions/solercia-ui
+- Lint preset: https://github.com/solercia-solutions/eslint-config
+- Chat: https://github.com/solercia-solutions/solercia-chat
