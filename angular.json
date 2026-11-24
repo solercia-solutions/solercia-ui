@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "@solercia/ui": {
+      "projectType": "library",
+      "root": "projects/solercia/ui",
+      "sourceRoot": "projects/solercia/ui/src",
+      "prefix": "sol",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/solercia/ui/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/solercia/ui/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/solercia/ui/tsconfig.spec.json",
+            "runner": "vitest",
+            "setupFiles": [
+              "projects/solercia/ui/test-setup.ts"
+            ],
+            "include": [
+              "**/*.spec.ts",
+              "../schematics/**/*.spec.ts",
+              "../theme-studio/**/*.spec.ts",
+              "../login-appearance/**/*.spec.ts"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "cli": {
+    "analytics": false
+  }
+}

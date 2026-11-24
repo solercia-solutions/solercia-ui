@@ -1,0 +1,51 @@
+name: Publish
+
+# Publishes @solercia/ui to the public npm registry when a `v*` tag is pushed.
+#
+# Authentication: npm Trusted Publishing (OIDC), no token or secret. On npmjs.com the
+# package must list as Trusted Publisher: organization `solercia-solutions`, repository
+# `solercia-ui`, workflow `publish.yml`. Requires npm >= 11.5.1 and Node >= 22.14.
+# ENEEDAUTH means one of those three values does not match.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Build + publish @solercia/ui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.16.0
+          cache: npm
+
+      - name: Setup npm
+        run: npm install -g npm@11.21.2
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build + test
+        run: npm test
+
+      - name: Verify version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./projects/solercia/ui/package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match @solercia/ui version ($PKG_VERSION)" >&2
+            exit 1
+          fi
+
+      - name: Publish (only if the version is new)
+        run: bash .github/scripts/publish-if-unpublished.sh dist/solercia/ui

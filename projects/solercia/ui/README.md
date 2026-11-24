@@ -91,70 +91,31 @@ This command will compile your project, and the build artifacts will be placed i
 
 ### Publicación del paquete
 
-`@solercia/ui` se publica en el registro **público** de npm (`registry.npmjs.org`,
-organización `solercia` — `publishConfig.registry` en este `package.json`; la nota anterior
-sobre GitHub Packages quedó obsoleta desde `07-e9`). `0.1.0` y `0.1.1` YA están publicadas ahí
-(`npm view @solercia/ui versions`) — se publicaron **manualmente** (`npm publish` local,
-usuario `camilocalderont`), no por el workflow de CI. El PROYECTO Angular se construye con
-`ng build @solercia/ui` (NO `ng build ui`), que emite `dist/solercia/ui` (fesm2022 +
-`index.d.ts` + schematics + `LICENSE` + `NOTICE`).
+`@solercia/ui` se publica en el registro público de npm desde el repositorio
+[`solercia-solutions/solercia-ui`](https://github.com/solercia-solutions/solercia-ui).
+`npm run build` (en la raíz del repositorio) emite `dist/solercia/ui` con la librería, los entry
+points `login-appearance` y `theme-studio` y los schematics.
 
-1. Construir el paquete completo (lib + schematics) y empaquetarlo:
+1. Sube `version` en `projects/solercia/ui/package.json` y registra el cambio en `CHANGELOG.md`.
+2. Valida el empaquetado: `npm run build && cd dist/solercia/ui && npm publish --dry-run`.
+3. Empuja un tag `v<versión>` (`git tag v0.7.1 && git push origin v0.7.1`). El workflow
+   `.github/workflows/publish.yml` verifica que el tag coincida con la versión y publica con
+   Trusted Publishing de npm (OIDC, sin token), con provenance.
 
-   ```bash
-   npm run build
-   cd dist/solercia/ui && npm pack
-   ```
-
-2. Validar el empaquetado sin publicar de verdad (`--dry-run`, no requiere token ni red hacia
-   el registry):
-
-   ```bash
-   cd dist/solercia/ui
-   npm publish --dry-run
-   ```
-
-3. **Paso pendiente del fundador — publicar `0.2.0` (NO ejecutado por el agente, gate
-   explícito del fundador):**
-
-   ```bash
-   # Versión ya bumpeada a 0.2.0 en projects/solercia/ui/package.json (PR6, T48).
-   git tag v0.2.0
-   git push origin v0.2.0   # dispara .github/workflows/publish-packages.yml (tag v*)
-   ```
-
-   La publicación por CI usa Trusted Publishing de npm (OIDC): no hay token ni secret.
-   Cada paquete (`@solercia/ui`, `@solercia/eslint-config`) tiene en npmjs.com, en
-   Settings → Trusted Publisher, la organización `solercia-solutions`, el repo `boki-front`
-   y el workflow `publish-packages.yml`. Empujar el tag `v*` publica sola, con provenance.
-   Si el job falla con `ENEEDAUTH`, revisa que esos tres datos coincidan exactamente.
-
-   Una vez publicada `0.2.0`, los consumidores que hoy usan el tarball local (`gestion_proyectos`,
-   ver `openspec/11-a-solercia-ui/`) pueden volver a un rango semver normal
-   (`"@solercia/ui": "^0.2.0"`) contra el registro público, en vez de `file:./vendor/*.tgz`.
+En npmjs.com, el paquete debe tener como Trusted Publisher la organización `solercia-solutions`,
+el repositorio `solercia-ui` y el workflow `publish.yml`. Si el job falla con `ENEEDAUTH`,
+revisa que esos tres datos coincidan.
 
 ## Licencia
 
 `Apache-2.0` © 2026 Solercia Solutions SAS. Ver [`LICENSE`](./LICENSE) y [`NOTICE`](./NOTICE).
 
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Pruebas
 
 ```bash
-ng test
+npm test
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Compila la librería y los schematics y corre las pruebas con Vitest (builder
+`@angular/build:unit-test`). Las pruebas que validan textos usan el catálogo propio de la
+librería, `projects/solercia/ui/i18n/es-CO.json`.

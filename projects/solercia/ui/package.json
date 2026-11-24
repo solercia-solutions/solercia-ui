@@ -6,7 +6,7 @@
     "author": "Solercia Solutions SAS",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/solercia-solutions/boki-front.git",
+        "url": "git+https://github.com/solercia-solutions/solercia-ui.git",
         "directory": "projects/solercia/ui"
     },
     "publishConfig": {
@@ -33,5 +33,9 @@
         "@angular-devkit/schematics": "^22.0.6",
         "@schematics/angular": "^22.0.6"
     },
-    "sideEffects": false
+    "sideEffects": false,
+    "homepage": "https://github.com/solercia-solutions/solercia-ui#readme",
+    "bugs": {
+        "url": "https://github.com/solercia-solutions/solercia-ui/issues"
+    }
 }

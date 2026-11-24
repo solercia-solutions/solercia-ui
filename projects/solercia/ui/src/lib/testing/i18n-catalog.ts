@@ -5,7 +5,7 @@ import type { SolI18n } from '../i18n/sol-i18n';
 
 /**
  * Stub de `SOL_I18N` para specs que VERIFICA la clave pedida contra el
- * catálogo real `boki-front/src/assets/i18n/es-CO.json`, en vez de devolver
+ * catálogo de la librería `projects/solercia/ui/i18n/es-CO.json`, en vez de devolver
  * ciegamente `t(${key})` para cualquier clave.
  *
  * Motivación (hallazgo de review): un stub que siempre "traduce" con éxito
@@ -23,8 +23,8 @@ export function createCatalogCheckedI18nStub(): SolI18n {
     const value = resolveKeyInCatalog(key);
     if (value === undefined) {
       throw new Error(
-        `[test i18n] la clave "${key}" no existe en boki-front/src/assets/i18n/es-CO.json — ` +
-          'agrégala al catálogo real antes de usarla en el componente.',
+        `[test i18n] la clave "${key}" no existe en projects/solercia/ui/i18n/es-CO.json — ` +
+          'agrégala al catálogo de la librería antes de usarla en el componente.',
       );
     }
     return value;
@@ -46,9 +46,9 @@ function loadCatalog(): Record<string, unknown> {
   // archivos bajo `src/lib/**` a través de un módulo virtual cuya URL NO
   // refleja la ruta real en disco (a diferencia de `schematics/**/*.spec.ts`,
   // fuera de `src/`, que sí preserva la ruta real). `process.cwd()` SÍ es
-  // estable: `ng test @solercia/ui` siempre se invoca con cwd = raíz de
-  // `boki-front` (workspace de Angular CLI).
-  const path = join(process.cwd(), 'src', 'assets', 'i18n', 'es-CO.json');
+  // estable: `ng test @solercia/ui` siempre se invoca con cwd = raíz del repo
+  // `solercia-ui` (workspace de Angular CLI).
+  const path = join(process.cwd(), 'projects', 'solercia', 'ui', 'i18n', 'es-CO.json');
   const raw = readFileSync(path, 'utf-8');
   cachedCatalog = JSON.parse(raw) as Record<string, unknown>;
   return cachedCatalog;
