@@ -2,6 +2,25 @@
 
 > Themeable, host-agnostic Angular 22 design system (standalone, OnPush, signal inputs, zoneless-ready) with 57 public components and directives, multi-tenant theming through about 96 `--sol-*` CSS custom properties, a pluggable i18n contract and `ng add` scaffolding for Feature-Sliced Design projects. Full component reference with inputs, outputs and examples: README.md, section "Component reference".
 
+## Documentation
+
+- [llms-full.txt](https://raw.githubusercontent.com/solercia-solutions/solercia-ui/main/llms-full.txt): the complete design-system manual plus the component reference in one plain-text file (also shipped in the npm package). Read it before building a screen.
+- Manual chapters (Markdown source, docs/manual/):
+  - [00 Introduction](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/00-index.md): what the design system is and how the documentation is organized.
+  - [01 Principles](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/01-principles.md): host-agnostic, theme by data, tokens only, accessibility, English default, zoneless, FSD.
+  - [02 Architecture](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/02-architecture.md): the three packages, host ports, degradation levels, FSD layers.
+  - [03 Getting started](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/03-getting-started.md): new project with ng add, adopting it in an existing project, generators.
+  - [04 Theming](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/04-theming.md): ThemeSource, tenant resolver, ThemeFile, --sol-* tokens.
+  - [05 Internationalization](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/05-i18n.md): SOL_I18N contract, bundled catalogs, engine adapters.
+  - [06 Components](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/06-components.md): components by category and how to choose between similar ones.
+  - [07 Patterns](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/07-patterns.md): five screen states, forms, tables, dialogs on mobile, charts, kanban.
+  - [08 Linting and architecture rules](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/08-linting-and-architecture-rules.md): @solercia/eslint-config rules and declared exceptions.
+  - [09 Chat](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/09-chat.md): @solercia/chat configuration, components and API contract.
+  - [10 For AI agents](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/10-for-ai-agents.md): rules, prompt patterns, review checklist.
+  - [11 Releases and contributing](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/11-releases-and-contributing.md): tagged releases, Trusted Publishing, changelog.
+  - [12 FAQ](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/12-faq.md).
+- Website (live demos and the same guides): https://solercia-solutions.github.io/solercia-ui/
+
 ## Setup
 
 - `ng add @solercia/ui` (scaffolds FSD layers, path aliases @app/@pages/@widgets/@features/@entities/@shared, theme and i18n adapters, @solercia/eslint-config, Husky and commitlint) or `npm install @solercia/ui @angular/cdk chart.js @dagrejs/dagre`.

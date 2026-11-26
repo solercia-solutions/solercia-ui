@@ -30,8 +30,28 @@
   adapters, [`@solercia/eslint-config`](https://github.com/solercia-solutions/eslint-config), Husky and commitlint.
 - **Live showcase.** Every component is demoed in [`projects/showcase`](./projects/showcase) — run `npm start`.
 
+## Documentation
+
+The design-system manual explains the reasoning, the contracts and the patterns behind the three
+Solercia packages. It has one Markdown source, [`docs/manual/`](./docs/manual), and three outputs:
+
+| Output | Where | Built with |
+| --- | --- | --- |
+| Website | *Guides* section of the showcase, next to the live demos: [solercia-solutions.github.io/solercia-ui/docs](https://solercia-solutions.github.io/solercia-ui/docs) | `npm run docs:site` (run by `npm start` and `npm run build:showcase`) |
+| AI file | [`llms-full.txt`](./llms-full.txt): every chapter plus the component reference in one file ([`llms.txt`](./llms.txt) is the short index) | `npm run docs:llms` (CI fails when it is stale) |
+| PDF and Word | `dist/manual/solercia-design-system.pdf` and `.docx`, with cover, contents and page numbers | `npm run docs:manual` (local tool: needs Pandoc and a Chromium for `playwright-core`; see `scripts/build-manual.mjs`) |
+
+Chapters: [Introduction](./docs/manual/00-index.md) · [Principles](./docs/manual/01-principles.md) ·
+[Architecture](./docs/manual/02-architecture.md) · [Getting started](./docs/manual/03-getting-started.md) ·
+[Theming](./docs/manual/04-theming.md) · [Internationalization](./docs/manual/05-i18n.md) ·
+[Components](./docs/manual/06-components.md) · [Patterns](./docs/manual/07-patterns.md) ·
+[Linting and architecture rules](./docs/manual/08-linting-and-architecture-rules.md) · [Chat](./docs/manual/09-chat.md) ·
+[For AI agents](./docs/manual/10-for-ai-agents.md) · [Releases and contributing](./docs/manual/11-releases-and-contributing.md) ·
+[FAQ](./docs/manual/12-faq.md)
+
 ## Contents
 
+- [Documentation](#documentation)
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [Theming and i18n](#theming-and-i18n)
@@ -1229,7 +1249,8 @@ If you are an AI agent building UI with this library:
    success are part of each screen.
 6. Look at the matching page in `projects/showcase/src/app/pages/` for a working example.
 
-A machine-readable summary is available in [`llms.txt`](./llms.txt).
+A machine-readable summary is available in [`llms.txt`](./llms.txt); the complete manual for agents,
+including this component reference, is [`llms-full.txt`](./llms-full.txt).
 
 ## Development
 

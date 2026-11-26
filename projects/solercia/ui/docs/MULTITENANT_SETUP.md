@@ -27,7 +27,7 @@ override the default theme (`SOL_DEFAULT_THEME`).
 | `provideTheme()` | **Yes** | No theming runtime at all — `:root` never gets `--sol-*` vars. |
 | `SOL_TENANT_RESOLVER` | For multitenant | Single-theme mode: only the default is applied. |
 | `THEME_SOURCE` | For multitenant | No tenant theme ever loads; default is used. |
-| `SOL_I18N` | Optional | Identity default: keys render unchanged (components use built-in copy). |
+| `SOL_I18N` | Optional | Default is English from the bundled catalog; a host engine in `es*` falls back to the bundled `es-CO` catalog for `shared.*` keys it does not know. |
 | `SOL_DEFAULT_THEME` | Optional | Bundled **Vértice** theme is the default. |
 
 ---

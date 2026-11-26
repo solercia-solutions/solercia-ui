@@ -1,0 +1,2632 @@
+# Solercia Design System: complete manual
+
+> Every chapter of the Solercia design-system manual (packages @solercia/ui, @solercia/eslint-config and
+> @solercia/chat) followed by the complete @solercia/ui component reference. Generated from
+> docs/manual/*.md and README.md by `npm run docs:llms`; do not edit by hand. Short index: llms.txt.
+
+## Chapters
+
+- 00 Introduction: What the Solercia design system is, who it is for and how to read this manual.
+- 01 Principles: The seven decisions behind the Solercia design system and what each one means in code.
+- 02 Architecture: How @solercia/ui, @solercia/eslint-config and @solercia/chat fit together, the host ports and the FSD layers.
+- 03 Getting started: Create an Angular 22 project with @solercia/ui step by step, or adopt the library in an existing project.
+- 04 Theming: Brand an application with a ThemeFile, serve one theme per tenant and use the --sol-* tokens.
+- 05 Internationalization: The SOL_I18N contract, the bundled English and Colombian Spanish catalogs and engine adapters.
+- 06 Components: The 57 public components and directives of @solercia/ui by category, with links to the reference and the live demos.
+- 07 Patterns: How to build screens with @solercia/ui - the five screen states, forms, tables, dialogs on mobile, charts and kanban.
+- 08 Linting and architecture rules: What @solercia/eslint-config enforces - FSD boundaries, file placement, naming, wrapped engines and token-only styles - and how to declare exceptions.
+- 09 Chat: Embed the Solercia AI assistant with @solercia/chat - configuration, components, API contract and theming.
+- 10 For AI agents: Rules, prompts and review checklists for AI coding agents that build Angular screens with the Solercia design system.
+- 11 Releases and contributing: How the Solercia packages are versioned and published, and how to contribute a change.
+- 12 FAQ: Quick answers about adopting, theming, translating and extending the Solercia design system.
+- Appendix: component reference (inputs, outputs, slots and examples of every component)
+
+---
+
+<!-- chapter 00: docs/manual/00-index.md -->
+
+# Solercia Design System
+
+<p align="center"><img src="https://raw.githubusercontent.com/solercia-solutions/solercia-ui/main/.github/assets/solercia-mark.svg" alt="Solercia" width="48" height="92"></p>
+
+The Solercia design system is the set of packages, contracts and rules that Solercia Solutions uses to
+build Angular applications for several organizations from one code base. It answers three questions
+for every screen: which component to use, how it looks for the active organization, and where the
+code that uses it belongs.
+
+```bash
+ng add @solercia/ui
+```
+
+That single command installs the component library, applies the default theme, scaffolds a
+Feature-Sliced Design (FSD) project structure and turns the architecture rules into lint rules.
+
+## What it is made of
+
+| Package | Role | Source |
+| --- | --- | --- |
+| `@solercia/ui` | Angular 22 component library: 57 standalone components and directives, theme runtime, i18n contract, `ng add` and generators. | [solercia-ui](https://github.com/solercia-solutions/solercia-ui) |
+| `@solercia/eslint-config` | ESLint flat config that enforces FSD boundaries, file placement and token-only styling. | [eslint-config](https://github.com/solercia-solutions/eslint-config) |
+| `@solercia/chat` | Embeddable AI assistant chat (streamed answers, sources, history) that reads the same tokens. | [solercia-chat](https://github.com/solercia-solutions/solercia-chat) |
+
+## Who it is for
+
+- **Application developers** building screens: start with [Getting started](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/03-getting-started.md),
+  then [Patterns](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/07-patterns.md).
+- **Architects and reviewers** deciding how a project is organized: read [Principles](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/01-principles.md),
+  [Architecture](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/02-architecture.md) and [Linting and architecture rules](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/08-linting-and-architecture-rules.md).
+- **Designers and brand owners** defining how an organization looks: read [Theming](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/04-theming.md).
+- **AI coding agents** generating code with the library: read [For AI agents](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/10-for-ai-agents.md), or
+  load the whole manual at once from [`llms-full.txt`](https://github.com/solercia-solutions/solercia-ui/blob/main/llms-full.txt).
+
+## How to read this manual
+
+Each chapter stands on its own and opens with an example. Chapters explain the reasoning and the
+contracts; the exhaustive list of inputs and outputs of every component lives in one place, the
+[component reference](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#component-reference), and every component has a live demo in the
+showcase application.
+
+| Chapter | Read it when you need to |
+| --- | --- |
+| [01 Principles](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/01-principles.md) | Understand the decisions behind the system. |
+| [02 Architecture](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/02-architecture.md) | See how the packages, ports and layers fit together. |
+| [03 Getting started](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/03-getting-started.md) | Create a new project or adopt the library in an existing one. |
+| [04 Theming](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/04-theming.md) | Brand an application or support several organizations. |
+| [05 Internationalization](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/05-i18n.md) | Translate the components or plug in your i18n engine. |
+| [06 Components](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/06-components.md) | Find the right component for a job. |
+| [07 Patterns](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/07-patterns.md) | Build screens: states, forms, tables, dialogs, charts, kanban. |
+| [08 Linting and architecture rules](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/08-linting-and-architecture-rules.md) | Know what the linter enforces and how to declare an exception. |
+| [09 Chat](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/09-chat.md) | Embed the AI assistant chat. |
+| [10 For AI agents](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/10-for-ai-agents.md) | Prompt an agent or review its output. |
+| [11 Releases and contributing](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/11-releases-and-contributing.md) | Change the library and publish a version. |
+| [12 FAQ](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/12-faq.md) | Find quick answers. |
+
+## Where the documentation lives
+
+The Markdown files in `docs/manual/` are the single source. They are published three ways:
+
+- **Website**: the *Guides* section of the showcase, next to the live demos.
+- **AI file**: [`llms-full.txt`](https://github.com/solercia-solutions/solercia-ui/blob/main/llms-full.txt) at the repository root, with every chapter and the
+  component reference in one plain-text file; [`llms.txt`](https://github.com/solercia-solutions/solercia-ui/blob/main/llms.txt) is the short index.
+- **Manual**: a PDF and a Word document generated with `npm run docs:manual`.
+
+Change the Markdown and the three outputs follow.
+
+---
+
+<!-- chapter 01: docs/manual/01-principles.md -->
+
+# Principles
+
+```ts
+// The whole contract between an application and the design system fits in four providers.
+providers: [
+  provideTheme(),                                                   // tokens on :root
+  { provide: THEME_SOURCE, useExisting: AppThemeSource },           // how to load a theme
+  { provide: SOL_TENANT_RESOLVER, useExisting: AppTenantResolver }, // who the tenant is
+  { provide: SOL_I18N, useExisting: I18nService },                  // how to translate
+]
+```
+
+Every rule in this manual follows from seven principles. When a situation is not covered, decide by
+them.
+
+## 1. Host-agnostic
+
+The library never calls your API, never reads your session and never assumes an i18n engine. It
+declares small ports (injection tokens) and the host application implements them. The same build of
+`@solercia/ui` runs in a public-sector portal, a SaaS back office or a mobile web app.
+
+In code: no component imports `HttpClient`, a router service or a translation library. Data comes in
+through inputs; events go out through outputs.
+
+## 2. Theme by data, not by code
+
+An organization's look is a JSON document, a `ThemeFile`, not a stylesheet or a fork. The library
+resolves it into about 95 `--sol-*` CSS custom properties with light and dark modes, logo, favicon and
+fonts. Adding a tenant means storing one more document; no build, no deploy.
+
+## 3. Tokens only
+
+Components and application styles use `var(--sol-*)` for color, typography, spacing, radius, shadow
+and motion. No hexadecimal colors, no literal font families, no `!important`, no `::ng-deep`. The lint
+preset enforces it, so a hardcoded color fails CI instead of slipping through review.
+
+## 4. Accessible by default
+
+Every interactive component is reachable and operable with the keyboard and announced correctly by
+screen readers. Dialogs trap and restore focus and close on Escape; icon-only controls require an
+`ariaLabel`; touch targets reach 44 px on touch screens; animations respect `prefers-reduced-motion`.
+Accessibility is part of a component's contract, not an option.
+
+## 5. English by default, any language by contract
+
+Without configuration every visible text is English, from a bundled catalog. A host plugs its own
+engine (Transloco, ngx-translate or the bundled one) through the `SOL_I18N` contract, and a Colombian
+Spanish catalog ships with the package. An explicit input always wins over a default text.
+
+## 6. Modern Angular only
+
+Standalone components, `ChangeDetectionStrategy.OnPush`, signal inputs and outputs, and no zone.js:
+the library and its showcase run with `provideZonelessChangeDetection()`. There are no NgModules to
+import and no legacy compatibility layers.
+
+## 7. Architecture as code
+
+Applications are organized with Feature-Sliced Design: `app`, `pages`, `widgets`, `features`,
+`entities`, `shared`. A layer imports only from layers below it, and each slice exposes a public
+`index.ts`. These rules are not a wiki page: `ng add` scaffolds the structure and
+`@solercia/eslint-config` checks it on every commit.
+
+## What the principles rule out
+
+| Temptation | Why it is ruled out | Do this instead |
+| --- | --- | --- |
+| Copy a component and tweak its CSS | Breaks theming and duplicates fixes. | Use inputs, or ask for a new variant. |
+| Import Chart.js directly | Charts would ignore the theme and dark mode. | Use `<sol-chart>`. |
+| Write `color: #1e293b` | One tenant's color becomes everyone's. | Use `var(--sol-color-text-primary)`. |
+| Hardcode Spanish labels | Other organizations cannot translate them. | Use an i18n key or an input. |
+| Fetch data inside a shared component | Couples the design system to one API. | Fetch in a feature; pass data down. |
+
+---
+
+<!-- chapter 02: docs/manual/02-architecture.md -->
+
+# Architecture
+
+```mermaid
+flowchart LR
+  subgraph Host["Host Angular application"]
+    direction TB
+    Resolver["AppTenantResolver<br/>who is the tenant"]
+    Source["AppThemeSource<br/>how to load its theme"]
+    I18n["I18nService<br/>how to translate"]
+    Screens["pages / widgets / features"]
+  end
+  subgraph UI["@solercia/ui"]
+    direction TB
+    Theme["ThemeService<br/>--sol-* tokens on :root"]
+    Comp["sol-* components"]
+    Ports["THEME_SOURCE · SOL_TENANT_RESOLVER · SOL_I18N"]
+  end
+  Lint["@solercia/eslint-config<br/>checks layers and styles"]
+  Chat["@solercia/chat<br/>reads the same tokens"]
+  Resolver --> Ports
+  Source --> Ports
+  I18n --> Ports
+  Ports --> Theme
+  Theme --> Comp
+  Screens --> Comp
+  Screens --> Chat
+  Lint -. lints .-> Screens
+```
+
+The design system has three packages. The host application implements a few ports; the library does
+everything else.
+
+## The three packages
+
+| Package | Version line | Depends on | Ships |
+| --- | --- | --- | --- |
+| `@solercia/ui` | 0.8 | `@angular/core`, `@angular/common`, `@angular/forms` 22; optional `@angular/cdk`, `chart.js`, `@dagrejs/dagre` | Components, theme runtime, i18n contract and catalogs, `ng add`, generators, secondary entry points `@solercia/ui/theme-studio` and `@solercia/ui/login-appearance` |
+| `@solercia/eslint-config` | 0.2 | `eslint` 10, `typescript-eslint` 8, optional `@eslint/css` | FSD boundary, file placement, naming and token-styling rules |
+| `@solercia/chat` | 0.4 | `@angular/core`, `@angular/common` 22.1 | `<sol-chat>`, `<sol-chat-flotante>`, `provideSolerciaChat()` |
+
+`@solercia/ui` is the only required package. `ng add @solercia/ui` installs the lint preset for you;
+the chat is added only by applications that embed an assistant.
+
+## Ports: what the host provides
+
+The library owns the mechanism; the host owns the policy. Each port is an Angular `InjectionToken`
+exported from `@solercia/ui`.
+
+| Port | Question it answers | Contract | Without it |
+| --- | --- | --- | --- |
+| `THEME_SOURCE` | How do I load a tenant's theme? | `loadTheme(tenantId): Promise<ThemeFile \| null>` | No tenant theme loads; the default applies. |
+| `SOL_TENANT_RESOLVER` | Who is the active tenant? | `activeTenantId(): number \| null` | Single-theme mode. |
+| `SOL_DEFAULT_THEME` | What applies when there is no tenant theme? | `ThemeFile` | The bundled «Vértice» theme. |
+| `SOL_I18N` | How do I translate a key? | `activeLang`, `translate`, `t`, `tMany` | English from the bundled catalog. |
+| `SOL_CHART_ENGINE` | Which chart engine renders `sol-chart`? | `SolChartEngineFactory` | Chart.js, loaded on the first chart. |
+| `SOL_CALENDAR_COLOR` | How are calendar events colored? | `resolve(event, isDark)` | Derived from `event.color` and tokens. |
+
+Only `provideTheme()` is required. Everything else is optional and has a working default.
+
+## Degradation levels
+
+The theme runtime never leaves the application unstyled. It falls back one level at a time:
+
+```mermaid
+flowchart TD
+  A["Tenant active?"] -->|yes| B["THEME_SOURCE.loadTheme(id)"]
+  A -->|no| D
+  B -->|valid ThemeFile| C["Level 1: tenant theme"]
+  B -->|null, error or invalid| D["Level 2: SOL_DEFAULT_THEME (Vértice)"]
+  D -->|default set to null| E["Level 3: static :root block in styles.css"]
+```
+
+| Level | Source | Requires the host? |
+| --- | --- | --- |
+| 1. Tenant theme | `THEME_SOURCE.loadTheme(tenantId)` | Yes: resolver and source. |
+| 2. Default theme | `SOL_DEFAULT_THEME`, bundled «Vértice» | No. |
+| 3. Inline CSS | A `:root { --sol-*: … }` block in the host's `styles.css` | Host-owned safety net. |
+
+A failed request, a 404 or an invalid document degrades silently from level 1 to level 2 with a
+console warning. See [Theming](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/04-theming.md) for the details.
+
+## Application layers (Feature-Sliced Design)
+
+```mermaid
+flowchart TB
+  app["app<br/>bootstrap, routes, providers"] --> pages["pages<br/>one route each"]
+  pages --> widgets["widgets<br/>composite blocks"]
+  widgets --> features["features<br/>user actions"]
+  features --> entities["entities<br/>business models and APIs"]
+  entities --> shared["shared<br/>ui, api, i18n, tokens, lib"]
+```
+
+A layer imports only from the layers below it. Inside a layer, code is grouped in slices
+(`features/login`, `entities/project`) and segments (`ui`, `model`, `api`, `lib`, `config`). Other
+slices import a slice only through its `index.ts`.
+
+| Layer | Holds | Example |
+| --- | --- | --- |
+| `app` | Bootstrap, root routes, providers | `app.config.ts` with `provideTheme()` |
+| `pages` | One routed screen, composition only | `pages/projects/ui/projects-page.component.ts` |
+| `widgets` | Self-contained blocks reused across pages | A dashboard summary panel |
+| `features` | One user action with its state | `features/invite-member` |
+| `entities` | Business models and their API clients | `entities/project/model`, `entities/project/api` |
+| `shared` | Code with no business knowledge | Theme and i18n adapters in `shared/tokens`, `shared/i18n` |
+
+`@solercia/ui` components play the role of `shared/ui` for every application: presentational, driven by
+inputs, unaware of stores and APIs. Applications add their own `shared/ui` components only when the
+library has no equivalent, and those follow the same rules.
+
+## Inside `@solercia/ui`
+
+| Path | Content |
+| --- | --- |
+| `src/lib/ui/` | One folder per component family (`sol-*`) |
+| `src/lib/tokens/` | `ThemeService`, theme ports, the bundled default theme |
+| `src/lib/i18n/` | The `SolI18n` contract, `createSolI18n()`, bundled catalogs |
+| `src/public-api.ts` | Everything consumers can import |
+| `schematics/` | `ng add` and the `page`, `feature`, `entity` and `widget` generators |
+| `theme-studio/`, `login-appearance/` | Secondary entry points |
+
+Import every symbol from `@solercia/ui` (or a secondary entry point); deep imports into `lib/` are not
+part of the public API.
+
+---
+
+<!-- chapter 03: docs/manual/03-getting-started.md -->
+
+# Getting started
+
+```bash
+npx -y @angular/cli@22 new acme-portal --style=css --ssr=false
+cd acme-portal
+npx ng add @solercia/ui
+npx ng serve
+```
+
+Four commands give you a zoneless Angular 22 application with the default theme applied, an FSD
+project structure, path aliases, theme and i18n adapters, the lint preset and commit hooks.
+
+## Requirements
+
+| Tool | Version |
+| --- | --- |
+| Node.js | 22.14 or later (24 recommended) |
+| Angular | 22 |
+| npm | 11 recommended |
+
+## A. New project
+
+### Step 1. Create the application
+
+```bash
+npx -y @angular/cli@22 new acme-portal --style=css --ssr=false
+```
+
+Angular 22 creates a zoneless application (`provideZonelessChangeDetection()`); `@solercia/ui` needs no
+zone.js.
+
+### Step 2. Add the design system
+
+```bash
+cd acme-portal
+npx ng add @solercia/ui
+```
+
+`ng add` (options `--project`, `--skip-install`) does the following:
+
+1. Creates the FSD layer stubs `src/{pages,widgets,features,entities}/index.ts`.
+2. Scaffolds `src/shared/tokens/` with `AppThemeSource` and `AppTenantResolver` (both return `null`).
+3. Scaffolds `src/shared/i18n/i18n.service.ts`, an `I18nService` that implements `SolI18n`.
+4. Adds the path aliases `@app/*`, `@pages/*`, `@widgets/*`, `@features/*`, `@entities/*`, `@shared/*`.
+5. Appends the tokens base snippet to `src/styles.css` (page background, text color, font).
+6. Adds `provideTheme()` to `app.config.ts`.
+7. Creates `eslint.config.js` extending `@solercia/eslint-config`, unless one exists.
+8. Sets up Husky, lint-staged and commitlint.
+9. Installs the dev dependencies (unless `--skip-install`).
+
+It does not register `THEME_SOURCE` or `SOL_I18N`; the scaffolded adapters explain how when you need
+them.
+
+### Step 3. Build a first screen
+
+Generate a page with the library's generator and use components in its `imports`:
+
+```bash
+npx ng generate @solercia/ui:page projects
+```
+
+```ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  SolButtonComponent,
+  SolCardComponent,
+  SolEmptyStateComponent,
+  SolPageHeaderComponent,
+} from '@solercia/ui';
+
+@Component({
+  selector: 'app-projects-page',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolPageHeaderComponent, SolCardComponent, SolButtonComponent, SolEmptyStateComponent],
+  template: `
+    <sol-page-header title="Projects" subtitle="Everything your team is working on">
+      <sol-button (clicked)="create()">New project</sol-button>
+    </sol-page-header>
+    <sol-card>
+      @if (projects().length === 0) {
+        <sol-empty-state icon="folder-open" titleKey="pages.projects.empty.title">
+          <sol-button variant="secondary" (clicked)="create()">Create the first project</sol-button>
+        </sol-empty-state>
+      } @else {
+        @for (project of projects(); track project) {
+          <p>{{ project }}</p>
+        }
+      }
+    </sol-card>
+  `,
+})
+export class ProjectsPageComponent {
+  readonly projects = signal<string[]>([]);
+
+  create(): void {
+    this.projects.update((list) => [...list, `Project ${list.length + 1}`]);
+  }
+}
+```
+
+The other generators follow the same layers:
+
+| Command | Creates |
+| --- | --- |
+| `ng generate @solercia/ui:page <name>` | `pages/<name>/` with `index.ts`, `<name>.routes.ts` and `ui/<name>-page.component.ts` |
+| `ng generate @solercia/ui:widget <name>` | `widgets/<name>/` with `index.ts` and a standalone `OnPush` component |
+| `ng generate @solercia/ui:feature <name>` | `features/<name>/` with `index.ts` and a component using signal inputs and outputs |
+| `ng generate @solercia/ui:entity <name>` | `entities/<name>/` with `model/` and `api/` |
+
+### Step 4. Add a light and dark toggle
+
+```ts
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { SolIconButtonComponent, ThemeService } from '@solercia/ui';
+
+@Component({
+  selector: 'app-theme-toggle',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolIconButtonComponent],
+  template: `
+    <sol-icon-button
+      variant="ghost"
+      [icon]="theme.isDark() ? 'sun' : 'moon'"
+      [ariaLabel]="theme.isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
+      (clicked)="theme.toggleMode()"
+    />
+  `,
+})
+export class ThemeToggleComponent {
+  protected readonly theme = inject(ThemeService);
+}
+```
+
+The user's choice persists in `localStorage` and is independent of the tenant theme.
+
+### Step 5. Check the rules
+
+```bash
+npx eslint .
+```
+
+A clean run is part of the definition of done. See
+[Linting and architecture rules](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/08-linting-and-architecture-rules.md).
+
+## B. Existing project
+
+Adopt the library incrementally; nothing forces you to migrate every screen at once.
+
+### Step 1. Install
+
+```bash
+npm install @solercia/ui @angular/cdk chart.js @dagrejs/dagre
+```
+
+`@angular/cdk` is needed by the kanban components, `chart.js` by `sol-chart` and `@dagrejs/dagre` by the
+flow canvas auto-layout. Install only what you use; `ng add @solercia/ui` also works on an existing
+project if you want the scaffolding.
+
+### Step 2. Register the theme runtime
+
+```ts
+import { ApplicationConfig, provideZonelessChangeDetection } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { provideTheme } from '@solercia/ui';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideZonelessChangeDetection(), provideRouter([]), provideTheme()],
+};
+```
+
+### Step 3. Apply the tokens to the page
+
+```css
+/* src/styles.css */
+body {
+  background: var(--sol-bg-page);
+  color: var(--sol-color-text-primary);
+  font-family: var(--sol-font-family);
+}
+```
+
+### Step 4. Use components in new screens first
+
+Import components into the standalone `imports` of the screen you are building. Replace hand-written
+buttons, tables, dialogs and date pickers as you touch each screen.
+
+### Step 5. Connect your tenant, theme and language (optional)
+
+```ts
+import { ApplicationConfig } from '@angular/core';
+import { SOL_I18N, SOL_TENANT_RESOLVER, THEME_SOURCE, provideTheme } from '@solercia/ui';
+import { AppTenantResolver, AppThemeSource } from '@shared/tokens';
+import { I18nService } from '@shared/i18n';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideTheme(),
+    { provide: THEME_SOURCE, useExisting: AppThemeSource },
+    { provide: SOL_TENANT_RESOLVER, useExisting: AppTenantResolver },
+    { provide: SOL_I18N, useExisting: I18nService },
+  ],
+};
+```
+
+[Theming](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/04-theming.md) shows how to implement `AppThemeSource` and `AppTenantResolver`;
+[Internationalization](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/05-i18n.md) shows the i18n adapter.
+
+### Step 6. Add the lint preset
+
+```bash
+npm install --save-dev @solercia/eslint-config eslint typescript-eslint @eslint/css
+```
+
+```js
+// eslint.config.js
+import solerciaConfig from '@solercia/eslint-config';
+
+export default [
+  { ignores: ['.angular/', 'dist/', 'coverage/', 'node_modules/'] },
+  ...solerciaConfig,
+];
+```
+
+In a large legacy code base, start with the style rules on new folders and widen the scope as screens
+move into the FSD layers.
+
+## Verification checklist
+
+- [ ] The application renders on the «Vértice» theme with no backend running.
+- [ ] The light and dark toggle switches every component and persists after a reload.
+- [ ] `npx eslint .` passes.
+- [ ] A screen at 390 px wide has no horizontal scroll.
+- [ ] Keyboard only: every action is reachable with Tab and Enter or Space.
+
+---
+
+<!-- chapter 04: docs/manual/04-theming.md -->
+
+# Theming
+
+```ts
+import { Injectable, signal } from '@angular/core';
+import type { SolTenantResolver, ThemeFile, ThemeSource } from '@solercia/ui';
+
+/** WHO: the active organization, null before sign-in. */
+@Injectable({ providedIn: 'root' })
+export class AppTenantResolver implements SolTenantResolver {
+  readonly tenantId = signal<number | null>(null);
+  activeTenantId(): number | null {
+    return this.tenantId();
+  }
+}
+
+/** HOW: load that organization's theme. Return null to keep the default. */
+@Injectable({ providedIn: 'root' })
+export class AppThemeSource implements ThemeSource {
+  async loadTheme(tenantId: number | string): Promise<ThemeFile | null> {
+    const response = await fetch(`/api/tenants/${tenantId}/theme`);
+    return response.ok ? ((await response.json()) as ThemeFile) : null;
+  }
+}
+```
+
+Register both with `useExisting` (see [Getting started](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/03-getting-started.md#step-5-connect-your-tenant-theme-and-language-optional))
+and every component re-skins when `tenantId` changes, without a reload.
+
+## How it works
+
+`ThemeService` (`providedIn: 'root'`, started by `provideTheme()`) is the only consumer of the theme
+ports. It:
+
+- reads `SOL_TENANT_RESOLVER.activeTenantId()` inside an effect and asks `THEME_SOURCE` for the theme;
+- discards stale responses for a tenant that is no longer active;
+- validates the document with `isRenderableTheme()` and keeps the previous or default theme when it
+  is not renderable;
+- writes the resolved `--sol-*` properties on `document.documentElement`;
+- manages light and dark mode as a user preference stored in `localStorage` (`sol-dark-mode`);
+- derives the logo, brand name, favicon and one sanitized Google Fonts link.
+
+| Member | Kind | Use |
+| --- | --- | --- |
+| `activeTheme()` | `Signal<ThemeFile \| null>` | The effective theme. |
+| `isDark()` | `Signal<boolean>` | Current mode. |
+| `logo()` | `Signal<ThemeLogo \| null>` | Sanitized logo for the active mode. |
+| `brandName()` | `Signal<string \| null>` | Logo alternative text or tenant slug. |
+| `toggleMode()` / `setDarkMode(dark)` | method | Change the mode and persist it. |
+| `setTenantTheme(theme)` | method | Apply a `ThemeFile` directly, bypassing `THEME_SOURCE` (validated). |
+| `refresh()` | method | Reload the active tenant's theme, for example after saving it. |
+
+The library never fetches a theme by itself: where the document comes from (an API, a file, a
+database `jsonb` column) is the host's decision.
+
+## The `ThemeFile`
+
+A theme is a three-level token document aligned with the W3C Design Tokens format:
+
+```mermaid
+flowchart LR
+  P["primitives<br/>palette, font scale, radius, space"] --> S["modes.light / modes.dark<br/>semantic: primary, text, surface, border"]
+  S --> C["component<br/>card, input, button, sidebar, chart, motion"]
+  C --> V["--sol-* custom properties"]
+```
+
+```jsonc
+{
+  "meta": { "tenant": "acme", "logo": { "url": "/assets/acme.svg", "altText": "ACME", "width": 120 } },
+  "primitives": { "color": { "brand": { "600": "#6D28D9" } } /* font, radius, space, size, z, borderWidth */ },
+  "modes": {
+    "light": { "semantic": { "color": { "primary": "{color.brand.600}" } /* … */ }, "component": { /* … */ } },
+    "dark":  { "semantic": { "color": { "primary": "{color.brand.600}" } /* … */ }, "component": { /* … */ } }
+  }
+}
+```
+
+- Values can reference primitives with `{path}`, as a whole value or inside a shorthand
+  (`"1px solid {color.ink.200}"`).
+- Both `modes.light` and `modes.dark` are required.
+- Blocks introduced after the first version (card, input, button, sidebar, chart, motion, overlay,
+  table, calendar) are optional; a missing block emits its baseline default, so older themes keep
+  working.
+- Background images accept gradients or `none` only; logos and favicons accept `http`, `https` or
+  relative URLs; fonts are Google Fonts built from `family` and `weights`, never from a raw URL.
+
+The full contract, with every field and a minimal complete example, is in
+[`THEMING.md`](https://github.com/solercia-solutions/solercia-ui/blob/main/projects/solercia/ui/docs/THEMING.md). The bundled reference theme «Vértice», with
+every optional block filled in, is `SOL_BUNDLED_DEFAULT_THEME`.
+
+## The tokens
+
+Use these groups in your own styles. The authoritative list, with the contract path and default of
+each variable, is `EMIT_TABLE`.
+
+| Group | Examples |
+| --- | --- |
+| Color | `--sol-color-primary`, `--sol-color-primary-contrast`, `--sol-color-secondary`, `--sol-color-accent`, `--sol-color-success`, `--sol-color-warning`, `--sol-color-danger`, `--sol-color-info` |
+| Text | `--sol-color-text-primary`, `--sol-color-text-secondary`, `--sol-color-text-muted` |
+| Surfaces | `--sol-bg-page`, `--sol-bg-surface`, `--sol-bg-sunken`, `--sol-bg-overlay`, `--sol-bg-page-texture` |
+| Typography | `--sol-font-family`, `--sol-font-family-mono`, `--sol-font-display`, `--sol-font-numeric`, `--sol-font-size-sm`, `--sol-font-size-base`, `--sol-font-size-lg`, `--sol-font-size-xl`, `--sol-font-weight-bold`, `--sol-line-height` |
+| Spacing | `--sol-space-xs`, `--sol-space-sm`, `--sol-space-md`, `--sol-space-lg`, `--sol-space-xl` |
+| Shape | `--sol-border-radius-sm`, `--sol-border-radius-md`, `--sol-border-radius-lg`, `--sol-border-radius-full`, `--sol-border-width-default`, `--sol-border-color-default` |
+| Elevation | `--sol-shadow-sm`, `--sol-shadow-md`, `--sol-shadow-lg`, `--sol-shadow-card` |
+| Sizes | `--sol-size-input-height`, `--sol-size-button-height`, `--sol-size-control-touch`, `--sol-size-header-height`, `--sol-size-sidebar-width` |
+| Layers | `--sol-z-dropdown`, `--sol-z-modal`, `--sol-z-tooltip` |
+| Motion | `--sol-dur-fast`, `--sol-dur-base`, `--sol-dur-slow`, `--sol-ease`, `--sol-ease-entrance` |
+| Components | `--sol-card-*`, `--sol-input-*`, `--sol-button-*`, `--sol-sidebar-*`, `--sol-header-*`, `--sol-chart-1` to `--sol-chart-6` |
+
+```css
+.summary {
+  padding: var(--sol-space-lg);
+  border: var(--sol-border-width-default) solid var(--sol-border-color-default);
+  border-radius: var(--sol-border-radius-lg);
+  background: var(--sol-bg-surface);
+  color: var(--sol-color-text-primary);
+}
+.summary__value {
+  font-family: var(--sol-font-numeric);
+  color: var(--sol-color-primary);
+}
+```
+
+## Your own default theme
+
+Provide your brand theme as the default. It becomes level 2 and the look before sign-in:
+
+```ts
+import { SOL_DEFAULT_THEME, type ThemeFile } from '@solercia/ui';
+import brandTheme from './brand.theme.json';
+
+export const brandThemeProvider = { provide: SOL_DEFAULT_THEME, useValue: brandTheme as ThemeFile };
+```
+
+## Level 3: the static safety net
+
+Add a `:root { --sol-*: … }` block to `styles.css` with literal values. `ThemeService` removes its inline
+properties when it has no applicable theme, so this block governs only as a last resort. The lint
+preset allows literals where a custom property is defined.
+
+## Editing themes: Theme Studio
+
+`@solercia/ui/theme-studio` provides `<sol-theme-studio>`, a complete theme editor with live preview,
+backed by a host store contract (`THEME_STUDIO_STORE`). Use it to let each organization edit its own
+theme and call `ThemeService.refresh()` after saving. See
+[`THEME-STUDIO.md`](https://github.com/solercia-solutions/solercia-ui/blob/main/projects/solercia/ui/docs/THEME-STUDIO.md).
+
+## Themed sign-in
+
+A theme can carry a `meta.login` block (photos, motion, per-mode composition). The entry point
+`@solercia/ui/login-appearance` paints it with `<sol-login-frame>` and ships no authentication logic:
+the host projects its own form. See the [README section](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#themed-sign-in-solerciauilogin-appearance).
+
+## Checklist
+
+- [ ] With no tenant, the application renders on the default theme.
+- [ ] Switching tenant re-skins the UI live; a failing theme request keeps the default.
+- [ ] Dark mode is independent of the tenant and persists across reloads.
+- [ ] No literal color, font or `!important` in component styles.
+
+---
+
+<!-- chapter 05: docs/manual/05-i18n.md -->
+
+# Internationalization
+
+```ts
+import { SOL_I18N, createSolI18n } from '@solercia/ui';
+
+// Colombian Spanish for every component, no i18n engine needed.
+export const spanishProvider = { provide: SOL_I18N, useFactory: () => createSolI18n({ lang: 'es-CO' }) };
+```
+
+Components never import Transloco, ngx-translate or `@angular/localize`. They depend on one small
+contract, `SolI18n`, that the host binds to `SOL_I18N`. The pattern mirrors Angular Material's `*Intl`
+services.
+
+## The contract
+
+```ts
+import type { Signal } from '@angular/core';
+
+interface SolI18n {
+  readonly activeLang: Signal<string>;
+  translate(key: string, params?: Record<string, unknown>): string; // missing key: returns the key
+  t(key: string, params?: Record<string, unknown>): Signal<string>; // recomputes on language change
+  tMany(keys: string[]): Signal<string[]>;
+}
+```
+
+| Member | Use for |
+| --- | --- |
+| `activeLang` | Reacting to language changes, for example a language selector. |
+| `translate(key, params?)` | One-off lookups in imperative code. |
+| `t(key, params?)` | Template bindings; call it in an injection context. |
+| `tMany(keys)` | Ordered lists such as stepper labels. |
+
+## Three ways to provide it
+
+| Situation | Provider |
+| --- | --- |
+| English is enough | Nothing. `SOL_I18N` defaults to `createSolI18n()`, English from the bundled catalog. |
+| Spanish or another fixed language, no engine | `{ provide: SOL_I18N, useFactory: () => createSolI18n({ lang: 'es-CO' }) }` |
+| The application already uses an engine | A facade with the four members, bound with `useExisting`. |
+
+`createSolI18n(options?)` returns a `SolCatalogI18n` with `setLang(lang)`. Its options are `lang`
+(default `'en'`) and `catalogs` (default `{ en: SOL_I18N_EN, 'es-CO': SOL_I18N_ES_CO }`):
+
+```ts
+import { SOL_I18N_EN, createSolI18n, type SolI18nCatalog } from '@solercia/ui';
+
+declare const frenchCatalog: SolI18nCatalog;
+
+const i18n = createSolI18n({ lang: 'fr', catalogs: { en: SOL_I18N_EN, fr: frenchCatalog } });
+i18n.setLang('en');
+```
+
+### Adapter for Transloco
+
+```ts
+import { Injectable, Signal, inject } from '@angular/core';
+import { TranslocoService, translateSignal } from '@jsverse/transloco';
+
+@Injectable({ providedIn: 'root' })
+export class I18nService {
+  private readonly transloco = inject(TranslocoService);
+  readonly activeLang: Signal<string> = this.transloco.activeLang;
+
+  translate(key: string, params?: Record<string, unknown>): string {
+    return this.transloco.translate(key, params);
+  }
+  t(key: string, params?: Record<string, unknown>): Signal<string> {
+    return translateSignal(key, params);
+  }
+  tMany(keys: string[]): Signal<string[]> {
+    return translateSignal(keys);
+  }
+}
+
+// app.config.ts: { provide: SOL_I18N, useExisting: I18nService }
+```
+
+The same shape works for ngx-translate or any other engine: bridge its language-change stream into a
+signal with `toSignal` so `activeLang`, `t` and `tMany` recompute. More examples are in
+[`I18N.md`](https://github.com/solercia-solutions/solercia-ui/blob/main/projects/solercia/ui/docs/I18N.md).
+
+## Bundled catalogs and fallback
+
+Every visible default text in the library goes through a `shared.*` key. Both catalogs ship with the
+package:
+
+| Catalog | Constant | File |
+| --- | --- | --- |
+| English | `SOL_I18N_EN` | `@solercia/ui/i18n/en.json` |
+| Colombian Spanish | `SOL_I18N_ES_CO` | `@solercia/ui/i18n/es-CO.json` |
+
+```mermaid
+flowchart LR
+  A["Explicit input<br/>confirmLabel='Delete'"] -->|set| R["Rendered text"]
+  A -->|not set| B["Host engine<br/>translate('shared.confirmDialog.confirm')"]
+  B -->|translated| R
+  B -->|returns the key unchanged| C["Bundled catalog of the active language<br/>es* → es-CO, else en"]
+  C --> R
+```
+
+- An explicit input (`searchPlaceholder`, `actionsLabel`, `confirmLabel`, `label`) always wins.
+- When the host engine does not know a `shared.*` key, the component falls back to the bundled
+  catalog of the active language, so a host catalog does not need every library key and keys added in
+  later versions keep the host language.
+- With Transloco or ngx-translate you can also merge `@solercia/ui/i18n/es-CO.json` into your `es-CO`
+  translations.
+
+## Inputs that take keys
+
+Inputs whose name ends in `Key` receive an i18n key, not a text: `titleKey` and `descriptionKey` on
+`sol-empty-state`, `ariaLabelKey` on `sol-chart` and `sol-number-input`, `labelKey` on timeline nodes.
+
+```html
+<sol-empty-state icon="folder-open" titleKey="pages.projects.empty.title" descriptionKey="pages.projects.empty.description" />
+```
+
+## Rules for application code
+
+- Put your own texts in your catalog under your own namespaces (`pages.*`, `features.*`); keep
+  `shared.*` for the library.
+- Never hard-code a visible text in a shared component; take it as an input or a key.
+- Tests that assert texts should use the catalogs, not literals typed in the spec.
+- `createIdentitySolI18n()` returns keys unchanged and is meant for tests.
+
+---
+
+<!-- chapter 06: docs/manual/06-components.md -->
+
+# Components
+
+```ts
+import { SolButtonComponent, SolDataTableComponent, SolModalComponent } from '@solercia/ui';
+
+// Every component is standalone: add it to the `imports` of the component that uses it.
+export const projectScreenImports = [SolButtonComponent, SolDataTableComponent, SolModalComponent];
+```
+
+`@solercia/ui` has 57 public components and directives. This chapter helps you choose one; the
+[component reference](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#component-reference) lists every input, output and slot, and the
+showcase demoes each component live, in light and dark mode, down to 390 px.
+
+Conventions used across the library:
+
+- Selectors start with `sol-`; directives with `sol` (`[solReveal]`, `*solWizardStep`, `*solTreeNodeDef`).
+- Class names are `Sol<Name>Component` or `Sol<Name>Directive`.
+- Form controls implement `ControlValueAccessor`, so `[(ngModel)]` and `formControlName` work.
+- Outputs are past-tense or `*Change` events: `clicked`, `closed`, `valueChange`, `itemMoved`.
+- Inputs ending in `Key` take an i18n key; icon-only controls require `ariaLabel`.
+
+## Actions
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-button` | Text button with `primary`, `secondary`, `danger` and `ghost` variants and a loading state. | [Buttons](https://solercia-solutions.github.io/solercia-ui/buttons) |
+| `sol-icon-button` | Icon-only action; `ariaLabel` is required. | [Buttons](https://solercia-solutions.github.io/solercia-ui/buttons) |
+| `sol-icon` | Inline SVG from a registry of about 140 names. | [Icons](https://solercia-solutions.github.io/solercia-ui/icons) |
+
+Reference: [Actions](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#actions).
+
+## Forms
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-input`, `sol-textarea` | Text with label and error message. | [Inputs](https://solercia-solutions.github.io/solercia-ui/inputs) |
+| `sol-form-field` | Label, hint and error around any projected control. | [Inputs](https://solercia-solutions.github.io/solercia-ui/inputs) |
+| `sol-search-input` | A search box that emits the query. | [Inputs](https://solercia-solutions.github.io/solercia-ui/inputs) |
+| `sol-number-input` | Numbers with − and + buttons. | [Inputs](https://solercia-solutions.github.io/solercia-ui/inputs) |
+| `sol-select` | Searchable single or multiple choice; bottom sheet on phones. | [Selection](https://solercia-solutions.github.io/solercia-ui/selection) |
+| `sol-checkbox`, `sol-toggle` | Boolean choices. | [Selection](https://solercia-solutions.github.io/solercia-ui/selection) |
+| `sol-chip`, `sol-chip-group`, `sol-view-toggle` | Filters, choices as chips and segmented controls. | [Chips](https://solercia-solutions.github.io/solercia-ui/chips) |
+| `sol-date-picker`, `sol-day-picker` | A date from a calendar, or a day from the slots the host computed. | [Dates](https://solercia-solutions.github.io/solercia-ui/dates) |
+| `sol-rating-input` | Interactive 1–5 stars. | [Rating](https://solercia-solutions.github.io/solercia-ui/rating) |
+| `sol-file-upload` | Drag-and-drop image picker with validation and preview. | [File upload](https://solercia-solutions.github.io/solercia-ui/file-upload) |
+| `sol-rich-editor` | Rich text with tables, images, mentions; TCPDF-safe HTML output. | [Rich editor](https://solercia-solutions.github.io/solercia-ui/rich-editor) |
+
+Reference: [Forms](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#forms).
+
+## Feedback and status
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-badge`, `sol-score-badge`, `sol-trend`, `sol-message-status` | Status, scores, variations and delivery ticks. | [Status](https://solercia-solutions.github.io/solercia-ui/status) |
+| `sol-avatar`, `sol-star-rating` | People and read-only ratings. | [Status](https://solercia-solutions.github.io/solercia-ui/status) |
+| `sol-spinner`, `sol-skeleton`, `sol-progress-bar` | Loading and progress. | [Loading](https://solercia-solutions.github.io/solercia-ui/loading) |
+| `sol-empty-state` | Empty and no-results states with an optional action. | [Empty state](https://solercia-solutions.github.io/solercia-ui/empty-state) |
+| `sol-tooltip` | Hover and focus hints. | [Tooltip](https://solercia-solutions.github.io/solercia-ui/tooltip) |
+| `sol-notification-panel` | An inbox with loading, error, empty and content states. | [Notifications](https://solercia-solutions.github.io/solercia-ui/notifications) |
+
+Reference: [Feedback and status](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#feedback--status).
+
+## Overlays
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-modal` | A focused task over the page. | [Overlays](https://solercia-solutions.github.io/solercia-ui/overlays) |
+| `sol-drawer` | Side panel or bottom sheet, with a footer slot. | [Overlays](https://solercia-solutions.github.io/solercia-ui/overlays) |
+| `sol-confirm-dialog` | Confirming a destructive or irreversible action. | [Overlays](https://solercia-solutions.github.io/solercia-ui/overlays) |
+
+Reference: [Overlays](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#overlays).
+
+## Navigation
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-tabs` | A tab list; the host renders the active panel. | [Navigation](https://solercia-solutions.github.io/solercia-ui/navigation) |
+| `sol-pagination` | Pages and page size. | [Navigation](https://solercia-solutions.github.io/solercia-ui/navigation) |
+| `sol-page-header` | Page title, subtitle and actions. | [Navigation](https://solercia-solutions.github.io/solercia-ui/navigation) |
+| `sol-stepper`, `sol-wizard` + `*solWizardStep` | Ordered steps, or a full multi-step form. | [Stepper](https://solercia-solutions.github.io/solercia-ui/stepper) |
+| `sol-scope-switcher` | Switching organization, workspace or tenant. | [Scope switcher](https://solercia-solutions.github.io/solercia-ui/scope-switcher) |
+| `sol-tree` + `*solTreeNodeDef` | Hierarchies up to five levels deep, keyboard navigable. | [Tree](https://solercia-solutions.github.io/solercia-ui/tree) |
+
+Reference: [Navigation](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#navigation).
+
+## Layout and motion
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-card` | A surface with optional padding and hover elevation. | [Card](https://solercia-solutions.github.io/solercia-ui/card) |
+| `[solReveal]` | Entrance animation from the theme's motion tokens; respects reduced motion. | [Card](https://solercia-solutions.github.io/solercia-ui/card) |
+
+Reference: [Layout and motion](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#layout--motion).
+
+## Data
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-data-table` | Sorting, filters, search, pagination, row actions; collapses into cards on phones. | [Data table](https://solercia-solutions.github.io/solercia-ui/data-table) |
+| `sol-virtual-scroll` | Long lists with variable heights, such as chat histories. | [Virtual scroll](https://solercia-solutions.github.io/solercia-ui/virtual-scroll) |
+| `sol-chart` | Line, bar, doughnut and sparkline charts themed from tokens. | [Chart](https://solercia-solutions.github.io/solercia-ui/chart) |
+| `sol-timeline` | A Gantt-like hierarchy on a month axis. | [Timeline](https://solercia-solutions.github.io/solercia-ui/timeline) |
+
+Reference: [Data](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#data).
+
+## Planning
+
+| Selector | Use it for | Demo |
+| --- | --- | --- |
+| `sol-kanban-board` and `sol-kanban-*` | Columns with drag and drop by mouse, touch and keyboard, with rollback. | [Kanban](https://solercia-solutions.github.io/solercia-ui/kanban) |
+| `sol-calendar` and `sol-calendar-*` | A week or day agenda. | [Calendar](https://solercia-solutions.github.io/solercia-ui/calendar) |
+| `sol-flow-canvas` | A node graph with pan, zoom, connections and auto-layout. | [Flow canvas](https://solercia-solutions.github.io/solercia-ui/flow-canvas) |
+
+Reference: [Planning](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#planning).
+
+## Secondary entry points
+
+| Entry point | Provides |
+| --- | --- |
+| `@solercia/ui/theme-studio` | `<sol-theme-studio>` theme editor and its store contract. |
+| `@solercia/ui/login-appearance` | `<sol-login-frame>` and the pieces of a themed sign-in screen. |
+
+## Choosing between similar components
+
+| If you need | Use | Not |
+| --- | --- | --- |
+| A yes or no that applies immediately | `sol-toggle` | `sol-checkbox` |
+| A yes or no submitted with a form, or a list of options | `sol-checkbox` | `sol-toggle` |
+| Two to five mutually exclusive views | `sol-view-toggle` | `sol-tabs` |
+| Sections of one page with their own content | `sol-tabs` | `sol-view-toggle` |
+| A short decision about a destructive action | `sol-confirm-dialog` | `sol-modal` |
+| A form or task in context | `sol-drawer` | `sol-modal` on phones |
+| A placeholder that keeps the layout while loading | `sol-skeleton` | `sol-spinner` |
+| A busy indicator inside a button or small area | `sol-spinner` or `sol-button [loading]` | `sol-skeleton` |
+
+---
+
+<!-- chapter 07: docs/manual/07-patterns.md -->
+
+# Patterns
+
+```html
+@switch (state()) {
+  @case ('loading') { <sol-skeleton variant="row" count="5" /> }
+  @case ('error') {
+    <sol-empty-state icon="exclamation-triangle" titleKey="pages.projects.error.title">
+      <sol-button variant="secondary" (clicked)="reload()">Try again</sol-button>
+    </sol-empty-state>
+  }
+  @case ('empty') {
+    <sol-empty-state icon="folder-open" titleKey="pages.projects.empty.title">
+      <sol-button (clicked)="create()">Create project</sol-button>
+    </sol-empty-state>
+  }
+  @case ('no-results') { <sol-empty-state icon="funnel" titleKey="pages.projects.noResults.title" /> }
+  @default { <sol-data-table [data]="visible()" [columns]="columns" /> }
+}
+```
+
+A pattern is a proven way to combine components for a recurring screen. Follow these before
+designing something new.
+
+## The five screen states
+
+Every screen that shows data has five states. Design and test all of them.
+
+| State | Meaning | Component | Rule |
+| --- | --- | --- | --- |
+| Loading | The request is in flight. | `sol-skeleton` for content areas, `sol-spinner` for small areas, `[loading]` on buttons | Keep the layout: the skeleton has the shape of the content. |
+| Empty | The request succeeded and there is nothing yet. | `sol-empty-state` with a call to action | Tell the user how to create the first item. |
+| No results | There is data, but the filters hide all of it. | `sol-empty-state` with a reset action | Never show the "empty" message: offer to clear the filters. |
+| Error | The request failed. | `sol-empty-state` with a retry action | Never confuse "no data" with "the request failed". |
+| Success | Data is shown, or an action completed. | The content; a confirmation message | Confirm actions that changed data. |
+
+Derive the state from signals instead of juggling flags:
+
+```ts
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import {
+  SolButtonComponent,
+  SolDataTableComponent,
+  SolEmptyStateComponent,
+  SolSkeletonComponent,
+  type DataTableColumn,
+  type SolDataTableRow,
+} from '@solercia/ui';
+
+type ScreenState = 'loading' | 'error' | 'empty' | 'no-results' | 'ready';
+
+@Component({
+  selector: 'app-projects-list',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolButtonComponent, SolDataTableComponent, SolEmptyStateComponent, SolSkeletonComponent],
+  template: `
+    @switch (state()) {
+      @case ('loading') { <sol-skeleton variant="row" count="5" /> }
+      @case ('error') {
+        <sol-empty-state icon="exclamation-triangle" titleKey="pages.projects.error.title">
+          <sol-button variant="secondary" (clicked)="reload()">Try again</sol-button>
+        </sol-empty-state>
+      }
+      @case ('empty') { <sol-empty-state icon="folder-open" titleKey="pages.projects.empty.title" /> }
+      @case ('no-results') {
+        <sol-empty-state icon="funnel" titleKey="pages.projects.noResults.title">
+          <sol-button variant="ghost" (clicked)="query.set('')">Clear filters</sol-button>
+        </sol-empty-state>
+      }
+      @default { <sol-data-table [data]="visible()" [columns]="columns" /> }
+    }
+  `,
+})
+export class ProjectsListComponent {
+  readonly loading = signal(true);
+  readonly failed = signal(false);
+  readonly rows = signal<SolDataTableRow[]>([]);
+  readonly query = signal('');
+  readonly columns: DataTableColumn[] = [{ key: 'name', label: 'Name', sortable: true }];
+
+  readonly visible = computed(() =>
+    this.rows().filter((row) => String(row['name']).toLowerCase().includes(this.query().toLowerCase())),
+  );
+  readonly state = computed<ScreenState>(() => {
+    if (this.loading()) return 'loading';
+    if (this.failed()) return 'error';
+    if (this.rows().length === 0) return 'empty';
+    return this.visible().length === 0 ? 'no-results' : 'ready';
+  });
+
+  reload(): void {
+    this.failed.set(false);
+    this.loading.set(true);
+  }
+}
+```
+
+For lists, `sol-data-table [loading]` and `sol-notification-panel [loading] [error]` already render
+their own loading and empty states.
+
+## Forms
+
+- Use the library controls; they implement `ControlValueAccessor` and work with reactive forms
+  (`formControlName`) and `ngModel`.
+- Give every control a visible `label`. Use `sol-form-field` to wrap a native or third-party control.
+- Show validation messages through the `error` input, after the user leaves the field or submits.
+- If the system knows the valid values, offer them (`sol-select`, `sol-date-picker`, `sol-day-picker`)
+  instead of free text.
+- Preselect the most likely value; do not start a form empty when a sensible default exists.
+- Long forms become a `sol-wizard`, one `*solWizardStep` per group of fields.
+
+```html
+<form [formGroup]="form" (ngSubmit)="save()">
+  <sol-input label="Project name" formControlName="name" [error]="nameError()" />
+  <sol-select label="Owner" formControlName="owner" [options]="owners()" />
+  <sol-date-picker formControlName="dueDate" />
+  <sol-button type="submit" [loading]="saving()">Save</sol-button>
+</form>
+```
+
+## Tables
+
+- `sol-data-table` handles sorting, per-column filters (`filter: 'text' | 'select'`), global search and
+  pagination on the client. For server-side paging, pass the current page and use `sol-pagination`.
+- Below `collapseWidth` (767 px by default) rows collapse into cards, so tables work on phones without
+  horizontal scrolling.
+- Put the primary action of the screen in the `[tableActions]` slot and row actions in the
+  `#rowActions` template, or use the built-in `editClicked` and `deleteClicked` outputs.
+- A delete action always goes through `sol-confirm-dialog`.
+
+## Dialogs on mobile
+
+| Component | Phone behavior |
+| --- | --- |
+| `sol-confirm-dialog` | Below 640 px it opens as a bottom sheet with full-width stacked actions and Cancel at the bottom, near the thumb. |
+| `sol-drawer` | `variant="sheet"` opens from the bottom; use it for filters and short forms. |
+| `sol-select` | Opens as a bottom sheet below `mobileBreakpoint` (640 px). |
+| `sol-modal` | Keep modals short on phones; prefer a drawer sheet or a page for long forms. |
+
+All of them are `aria-modal`, trap focus, restore it on close, close on Escape when closeable and lock
+the page scroll. On touch screens every action reaches the 44 px touch target
+(`--sol-size-control-touch`).
+
+```html
+<sol-confirm-dialog
+  [open]="confirming()"
+  title="Delete this project?"
+  message="Its tasks and files are deleted too."
+  confirmLabel="Delete"
+  (confirm)="remove()"
+  (cancel)="confirming.set(false)"
+/>
+```
+
+## Charts
+
+- Use `sol-chart`; never import Chart.js in application code. The chart reads `--sol-chart-1` to
+  `--sol-chart-6`, re-renders on light and dark changes, and Chart.js loads only when the first chart
+  is created.
+- `ariaLabelKey` is required: describe what the chart shows.
+- Show a `sol-skeleton variant="card"` while data loads and a `sol-empty-state` when the series are
+  empty.
+
+```html
+<sol-chart
+  type="bar"
+  ariaLabelKey="pages.dashboard.projectsByStatus"
+  [data]="{ labels: ['Planned', 'Active', 'Done'], series: [{ label: 'Projects', data: [4, 9, 12] }] }"
+/>
+```
+
+## Kanban
+
+- Use `sol-kanban-board`; never import `@angular/cdk/drag-drop` in application code. The board
+  supports mouse, touch and a keyboard "Move to…" menu.
+- Update the columns optimistically and call `rollback()` when persisting fails.
+
+```ts
+import type { KanbanItemMoved, SolKanbanBoardComponent } from '@solercia/ui';
+
+interface Task {
+  id: string;
+  title: string;
+}
+
+declare function moveTask(move: KanbanItemMoved<Task>): Promise<void>;
+
+export async function persistMove(move: KanbanItemMoved<Task>, board: SolKanbanBoardComponent<Task>): Promise<void> {
+  try {
+    await moveTask(move);
+  } catch {
+    board.rollback();
+  }
+}
+```
+
+## Responsive and accessible by default
+
+- Check every screen at 390 px: no horizontal scroll, no hidden primary action.
+- Every action must work with the keyboard; icon-only buttons need `ariaLabel`.
+- Animate with `[solReveal]` and the motion tokens only; they respect `prefers-reduced-motion`.
+
+---
+
+<!-- chapter 08: docs/manual/08-linting-and-architecture-rules.md -->
+
+# Linting and architecture rules
+
+```js
+// eslint.config.js
+import solerciaConfig from '@solercia/eslint-config';
+
+export default [
+  { ignores: ['.angular/', 'dist/', 'coverage/', 'node_modules/'] },
+  ...solerciaConfig,
+];
+```
+
+`@solercia/eslint-config` turns the architecture into rules the linter checks on every commit. A file
+in the wrong folder, an import across layers or a hardcoded color fails CI instead of slipping
+through review. `ng add @solercia/ui` installs and configures it.
+
+## Requirements
+
+| Dependency | Version | Notes |
+| --- | --- | --- |
+| Node.js | 22.14 or later | |
+| `eslint` | 10 | Flat config only. |
+| `typescript-eslint` | 8 | Syntactic rules; no type information needed. |
+| `@eslint/css` | 2, optional | When installed, `.css` files are checked too. |
+
+## What it enforces
+
+| Area | Rule | Enforces |
+| --- | --- | --- |
+| Layer boundaries | `no-restricted-imports` | `app → pages → widgets → features → entities → shared`. A layer imports only from layers below it; `shared/**` never imports from upper layers or `@app/*`. |
+| Public API | `no-restricted-imports` | Slices are consumed through their `index.ts` (`@features/login`), never through deep paths (`@features/login/ui/form`). |
+| Smart and dumb UI | `no-restricted-imports` | `shared/ui` holds presentational components only: no imports from `entities/`, `features/`, `*.store` or `*.facade`. |
+| Wrapped engines | `no-restricted-imports`, `no-restricted-syntax` | `chart.js` only inside `shared/ui/chart`, `maplibre-gl` only inside `shared/ui/map`, `@angular/cdk` only through the `sol-kanban-*` components. |
+| Naming | `@typescript-eslint/naming-convention` | `PascalCase` classes, interfaces and types; `camelCase` variables, functions and parameters. |
+| File names | `solercia/filename-case` | Every dot-separated segment is kebab-case: `appointment-form.component.ts`. |
+| File placement | `solercia/fsd-placement` | Every `.ts` file under `src/` belongs to a layer and an allowed segment. |
+| Theme styles | `solercia/style-tokens` | Inline component `styles` and `style="..."` in inline templates use theme variables. |
+| Theme styles (CSS) | `solercia/css-style-tokens` | The same checks on `src/**/*.css`, when `@eslint/css` is installed. |
+
+### File placement
+
+```text
+src/
+├── main.ts                      allowed outside layers (also test-setup.ts, polyfills.ts, environments/**)
+├── app/                         anything goes (bootstrap, routes, providers)
+├── pages/<slice>/               index.ts, <slice>.routes.ts, ui/
+├── widgets/<slice>/<segment>/
+├── features/<slice>/<segment>/  segment ∈ ui | model | api | lib | config | testing
+├── entities/<slice>/<segment>/  slice groups are allowed: pages/admin/users/ui/
+└── shared/<segment>/            segment ∈ api | config | crud | i18n | lib | model | tenant | tokens | ui
+```
+
+### Styles
+
+| Reported | Use instead |
+| --- | --- |
+| Color literals: `#fff`, `rgb()`, `hsl()`, `oklch()`, named colors | `var(--sol-*)` |
+| A literal `font-family` | `var(--sol-font-family)` or the matching theme variable |
+| `!important` | A more specific selector or a theme variable |
+| `::ng-deep` | A CSS custom property exposed by the child component |
+
+Literals stay allowed where tokens are defined and as fallbacks inside `var()`:
+
+```css
+:host {
+  --sol-card-bg: #ffffff;                       /* defining a custom property */
+  background: var(--sol-bg-surface, #ffffff);   /* fallback inside var() */
+}
+```
+
+Not covered: external templates (`templateUrl`) and `px` units.
+
+## Options
+
+```js
+import { solerciaEslintConfig } from '@solercia/eslint-config';
+
+export default [
+  ...solerciaEslintConfig({
+    srcDir: 'apps/web/src',            // FSD root, default 'src'
+    extraSharedSegments: ['support'],  // project-specific shared/ segments
+    allowOutsideLayers: ['main.ts'],   // replaces the default bootstrap allow-list
+  }),
+];
+```
+
+The style rules accept `{ allowImportant?: boolean, allowNgDeep?: boolean }`.
+
+## Declaring exceptions
+
+Exceptions live in the consuming project's `eslint.config.js`, never in the preset, so they stay
+visible in code review. Each one carries a comment that explains why.
+
+```js
+export default [
+  ...solerciaEslintConfig({ extraSharedSegments: ['support'] }),
+  // Overrides a third-party theme: !important is intentional here.
+  {
+    files: ['src/assets/legacy-theme.css'],
+    rules: { 'solercia/css-style-tokens': ['error', { allowImportant: true }] },
+  },
+];
+```
+
+For a single line, write the reason next to the directive:
+
+```css
+/* eslint-disable-next-line solercia/css-style-tokens -- print stylesheet needs pure black */
+```
+
+| Acceptable exception | Not acceptable |
+| --- | --- |
+| Overriding a third-party stylesheet you do not control | Silencing a rule because a deadline is close |
+| A print stylesheet that needs absolute colors | Disabling a layer rule to import a feature from an entity |
+| A wrapper around a new engine, declared next to the existing ones | Importing Chart.js in a page |
+
+## Commit hooks
+
+`ng add` also configures Husky: `pre-commit` runs `lint-staged` and `commit-msg` runs commitlint with
+the Conventional Commits preset, so broken rules and malformed messages stop before they are
+committed.
+
+---
+
+<!-- chapter 09: docs/manual/09-chat.md -->
+
+# Chat
+
+```ts
+import { ApplicationConfig } from '@angular/core';
+import { provideSolerciaChat } from '@solercia/chat';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideSolerciaChat({
+      apiBase: '/support/api',
+      textos: { titulo: 'Help' },
+    }),
+  ],
+};
+```
+
+```html
+<sol-chat-flotante
+  [(abierto)]="chatOpen"
+  [lanzador]="true"
+  [contexto]="{ ruta: '/contracts/payment-reports', titulo: 'Payment reports' }"
+  titulo="Assistant"
+/>
+```
+
+`@solercia/chat` is an embeddable assistant: answers streamed over Server-Sent Events, the current
+screen as optional context, cited sources, conversation history and a floating bubble. It ships the
+user interface only; the service that answers is separate and implements the API contract below.
+
+## Why a separate package
+
+- Its only peer dependencies are `@angular/core` and `@angular/common` (22.1), so it can be added to
+  applications that do not use `@solercia/ui` yet.
+- It reads the same `--sol-*` tokens, so inside a Solercia application it follows the tenant theme and
+  dark mode without configuration, and it falls back to its own light and dark palette elsewhere.
+- It streams with `fetch` and `ReadableStream`; host `HttpClient` interceptors are not involved. Send
+  any header the API needs (XSRF token, authorization) through `cabeceras()`.
+
+> **Naming note.** The public API uses Spanish identifiers (`contexto`, `titulo`, `cabeceras`) because
+> the package was born in Spanish-speaking public-sector projects. They are stable API; the English
+> meaning is given below.
+
+## Configuration
+
+`provideSolerciaChat(config?)` registers `SOLERCIA_CHAT_CONFIG`. To keep the package out of the initial
+bundle, provide the configuration in the component that uses the chat instead.
+
+| Field | Meaning | Default |
+| --- | --- | --- |
+| `apiBase` | Base URL of the chat API | `'/api'` |
+| `credentials` | `fetch` credentials mode | `'include'` |
+| `cabeceras` | Extra request headers, evaluated per request | none |
+| `textos` | Override any visible text (`Partial<TextosChat>`) | `TEXTOS_CHAT_POR_DEFECTO`, Spanish |
+| `maxCaracteres` | Maximum question length | `1000` |
+| `persistir` | Keep the conversation in `sessionStorage` | `true` |
+| `claveAlmacen` | Storage key; share it to resume a conversation across screens | `'solercia-chat'` |
+| `maxHistorial` | Previous turns sent to the API | `10` |
+| `historial` | Enable the saved-conversations list | `false` |
+
+Default texts are Colombian Spanish; pass `textos` to localize.
+
+## Components
+
+| Component | Use it for | Key inputs and outputs |
+| --- | --- | --- |
+| `<sol-chat>` | An inline chat in a page or side panel | `contexto` (screen), `titulo` (title), `subtitulo` (subtitle), `sugerencias` (up to 4 suggested questions), `compacto` (dense), `contraido` (collapsed), `historial`; outputs `respuesta` (answer) and `error` |
+| `<sol-chat-flotante>` | A floating bubble in the bottom-right corner | `abierto` (open, two-way), `contraido` (minimized, two-way), `lanzador` (launcher button), `conModoCompleto` (full-screen button); outputs `modoCompleto`, `cerrado`, `respuesta`, `error` |
+
+Only one chat is open at a time: while an inline `<sol-chat>` is mounted, the bubble stays hidden. The
+context chip can be removed and attached again by the user and travels with the request only while
+attached.
+
+## API contract
+
+`POST {apiBase}/chat` with `Accept: text/event-stream`:
+
+```json
+{
+  "pregunta": "How do I submit a payment report?",
+  "historial": [{ "rol": "usuario", "texto": "…" }, { "rol": "asistente", "texto": "…" }],
+  "conversacionId": "uuid generated by the browser",
+  "contexto": { "ruta": "/contracts/payment-reports", "titulo": "Payment reports" }
+}
+```
+
+| Server-Sent Event | Data |
+| --- | --- |
+| `fuentes` | Sources retrieved for the answer |
+| `cola` | Queue position: `posicion`, `esperaEstimadaSegundos` |
+| `fragmento` | Answer chunk: `texto` |
+| `fin` | Final answer: `estado`, `respuesta`, `citas`, `documentos`, `casos` |
+| `error` | Error envelope with `status.appDesc` and `status.appCode` |
+
+With `historial: true` the chat also calls `GET`, `PATCH` and `DELETE` on `{apiBase}/conversaciones`.
+The full contract, including history payloads, is in the
+[`@solercia/chat` README](https://github.com/solercia-solutions/solercia-chat#api-contract).
+
+## Rules
+
+1. Configure once with `provideSolerciaChat`; do not wrap the API in `HttpClient`.
+2. Customize through inputs and `textos`; do not fork templates or style internals.
+3. A backend built for the chat implements the API contract exactly, including the event names.
+4. Markdown in answers is rendered as an Angular node tree, never through `innerHTML`.
+
+---
+
+<!-- chapter 10: docs/manual/10-for-ai-agents.md -->
+
+# For AI agents
+
+```text
+Build the "Projects" page with @solercia/ui.
+Read https://raw.githubusercontent.com/solercia-solutions/solercia-ui/main/llms-full.txt first.
+Place it in src/pages/projects/ (FSD). Use sol-page-header, sol-data-table and sol-confirm-dialog.
+Cover loading, empty, no-results, error and success. Style only with var(--sol-*).
+Texts through i18n keys under pages.projects.*. Run npx eslint on the changed files before finishing.
+```
+
+This chapter is written for two readers: the AI coding agent that generates code with the design
+system, and the person who prompts it and reviews its output.
+
+## What to give an agent
+
+| Source | Content | When |
+| --- | --- | --- |
+| [`llms.txt`](https://github.com/solercia-solutions/solercia-ui/blob/main/llms.txt) | Short index: setup, providers, components by category, rules | Always; it is small. |
+| [`llms-full.txt`](https://github.com/solercia-solutions/solercia-ui/blob/main/llms-full.txt) | This whole manual plus the complete component reference | Screens that use several components, or a new project. |
+| `AGENTS.md` of the repository | Repository-specific commands and rules | Changes inside a Solercia repository. |
+| The matching showcase page in `projects/showcase/src/app/pages/` | A working example | A component the agent has not used before. |
+
+Both files ship inside the `@solercia/ui` npm package, so an agent can read them from
+`node_modules/@solercia/ui/` without network access. `@solercia/eslint-config` and `@solercia/chat`
+ship their own `llms.txt`.
+
+## Rules for agents
+
+1. **Reuse before you build.** Look up the component list first; do not hand-roll a button, table,
+   modal, date picker or chart that already exists.
+2. **Style only with tokens.** `var(--sol-*)` for color, typography, spacing, radius, shadow and
+   motion. No literal colors or fonts, no `!important`, no `::ng-deep`.
+3. **Respect required inputs.** Every icon-only control has an `ariaLabel`; `sol-chart` has an
+   `ariaLabelKey`; `sol-empty-state` has a `titleKey`.
+4. **Wrap engines, do not import them.** `<sol-chart>` instead of Chart.js; `sol-kanban-*` instead of
+   `@angular/cdk` drag and drop.
+5. **Cover every state.** Loading, empty, no results, error and success are part of every screen.
+6. **Place files by layer first.** Decide the FSD layer and segment, then write the file. Import slices
+   through their `index.ts`.
+7. **Modern Angular only.** Standalone, `OnPush`, `input()` and `output()`, signals, built-in control flow
+   (`@if`, `@for`, `@switch`). Do not add zone.js or NgModules.
+8. **Texts through i18n.** Visible texts come from keys or inputs, never hard-coded in shared components.
+9. **Never invent APIs.** If an input, output or symbol is not in the reference, it does not exist. Ask,
+   or propose a change to the library instead.
+10. **Fix violations at the source.** Do not add `eslint-disable` comments or loosen the config unless the
+    user asks; declare a needed exception in `eslint.config.js` with a reason.
+
+## Prompt patterns
+
+**A new screen**
+
+```text
+Create the <name> page in src/pages/<name>/ using @solercia/ui.
+Data: <entity> from <endpoint or entity slice>. Actions: <list>.
+States: loading (skeleton), empty (with create action), no results (clear filters), error (retry).
+Phone: must work at 390 px. Keyboard: every action reachable.
+```
+
+**A change to an existing screen**
+
+```text
+In <file>, replace the hand-written table with sol-data-table. Keep the current columns and
+actions. Do not change the API calls. Show the diff and the eslint result.
+```
+
+**A theme**
+
+```text
+Write a ThemeFile for <organization> with primary <color> and secondary <color>.
+Both light and dark modes. Validate it with isRenderableTheme() in a unit test.
+```
+
+## Review checklist
+
+Use it on every change an agent proposes.
+
+- [ ] Uses existing `sol-*` components; nothing duplicated.
+- [ ] Every symbol and input exists in the reference.
+- [ ] No literal colors, fonts, `!important` or `::ng-deep`.
+- [ ] Files are in the right layer and segment; no deep imports into another slice.
+- [ ] Loading, empty, no-results, error and success states exist and look right.
+- [ ] Works at 390 px and with the keyboard; icon-only buttons have `ariaLabel`.
+- [ ] Texts come from i18n keys or inputs.
+- [ ] `npx eslint` on the changed files is clean; tests pass.
+
+## Definition of done for a screen
+
+1. It renders with the default theme and with a tenant theme, in light and dark mode.
+2. It handles the five states.
+3. It passes lint and its tests.
+4. It has no console errors.
+
+---
+
+<!-- chapter 11: docs/manual/11-releases-and-contributing.md -->
+
+# Releases and contributing
+
+```bash
+# One commit on main = one release
+npm test && npm run build:showcase
+git commit -m "feat(solercia): add sol-segmented-progress"
+git tag v0.9.0
+git push origin main && git push origin v0.9.0
+```
+
+Every commit that lands on `main` is a release and carries its own version tag. The tag triggers the
+publish workflow; nobody publishes from a laptop.
+
+## The release flow
+
+```mermaid
+flowchart LR
+  A["Change + spec + showcase + docs"] --> B["Bump version<br/>and CHANGELOG"]
+  B --> C["Commit to main"]
+  C --> D["Tag vX.Y.Z"]
+  D --> E["publish.yml<br/>tag = version?"]
+  E -->|yes| F["npm publish<br/>Trusted Publishing + provenance"]
+  E -->|no| G["Fails: fix the tag or the version"]
+```
+
+1. In the same commit, bump `version` in `projects/solercia/ui/package.json` and add the entry to
+   `projects/solercia/ui/CHANGELOG.md`.
+2. Commit, then tag the commit with exactly the library version: `git tag v<version>`.
+3. Push the commit and the tag.
+4. `.github/workflows/publish.yml` runs the tests, checks that the tag matches the version and publishes
+   to npm only if that version is not published yet.
+
+An untagged commit on `main` is a defect: tag it before anything else. A pushed tag is never moved or
+deleted.
+
+## Versioning
+
+The packages follow [Semantic Versioning](https://semver.org/):
+
+| Change | Bump |
+| --- | --- |
+| Fixes, documentation | `patch` |
+| New components, inputs or outputs | `minor` |
+| Removing or changing an exported symbol, selector, input or output | `major` |
+
+While a package is below 1.0, a `minor` version may include breaking changes; the changelog says so
+explicitly. The changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## Trusted Publishing
+
+The packages publish with npm Trusted Publishing (OIDC): there is no npm token in the repository or
+its secrets, and every version carries a provenance statement linking it to the commit and workflow
+that built it. The Trusted Publisher configured on npmjs.com is organization `solercia-solutions`, the
+package's repository and workflow `publish.yml`; an `ENEEDAUTH` error means one of the three does not
+match.
+
+## Contributing a change to `@solercia/ui`
+
+```bash
+npm ci
+npm start              # showcase on http://localhost:4200
+npm test               # library + schematics build, then Vitest (zoneless)
+npm run build:showcase # must pass: CI builds it
+```
+
+A new or changed public component needs, in the same change:
+
+- [ ] A spec covering its states, keyboard use and accessible names.
+- [ ] A page or variant in `projects/showcase`.
+- [ ] Its entry in the README (overview table and reference) and in `llms.txt`.
+- [ ] The relevant chapter of this manual updated, and `npm run docs:llms` run to regenerate
+      `llms-full.txt` (CI fails when it is out of date).
+- [ ] New `shared.*` texts in both `i18n/en.json` and `i18n/es-CO.json`.
+
+Code rules: standalone, `OnPush`, signal inputs and outputs, no zone.js; styles only through
+`var(--sol-*)`; visible texts through `SOL_I18N` keys or inputs. In specs, create helper templates
+before the component under test.
+
+## Commit messages
+
+Conventional Commits with scope `solercia`, a header of at most 72 characters in lowercase, and a body
+of two to four bullets of at most 100 characters. Commits carry no tool or AI attribution.
+
+```text
+fix(solercia): confirm dialog as a bottom sheet on phones
+
+- opens full width below 640 px with stacked actions and cancel at the bottom
+- every action reaches the 44 px touch target on touch screens
+```
+
+## Documentation outputs
+
+| Command | Produces |
+| --- | --- |
+| `npm run docs:site` | The *Guides* pages of the showcase in `projects/showcase/public/docs-content/` (run by `npm start` and `npm run build:showcase`) |
+| `npm run docs:llms` | `llms-full.txt` at the repository root; `npm run docs:llms:check` fails when it is stale |
+| `npm run docs:manual` | `dist/manual/solercia-design-system.pdf` and `.docx` (local tool; needs Pandoc and a local Chromium) |
+
+---
+
+<!-- chapter 12: docs/manual/12-faq.md -->
+
+# FAQ
+
+```ts
+// The smallest working setup: one provider, the bundled theme, English texts.
+import { ApplicationConfig } from '@angular/core';
+import { provideTheme } from '@solercia/ui';
+
+export const appConfig: ApplicationConfig = { providers: [provideTheme()] };
+```
+
+## Adoption
+
+**Do I need all three packages?**
+No. `@solercia/ui` is the only required one. `ng add` installs `@solercia/eslint-config`;
+`@solercia/chat` is for applications that embed an assistant.
+
+**Does it need zone.js?**
+No. The library and the showcase run with `provideZonelessChangeDetection()`, the Angular 22 default.
+
+**Can I adopt it screen by screen in an existing application?**
+Yes. Register `provideTheme()`, add the tokens base to `styles.css` and use components in the screens
+you touch. See [Getting started](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/03-getting-started.md#b-existing-project).
+
+**Which Angular versions are supported?**
+Angular 22 (`^22.0.0` peer dependencies).
+
+## Theming
+
+**Where do tenant themes come from?**
+From your `THEME_SOURCE` implementation: an API, a static file, a database column. The library never
+fetches a theme itself.
+
+**What happens if a tenant theme is broken?**
+`ThemeService` validates every document. An invalid theme, a failed request or a 404 keeps the default
+theme and logs a console warning; the application never renders unstyled.
+
+**Is dark mode part of the tenant theme?**
+Each theme defines both modes, but which mode is active is the user's preference, stored in
+`localStorage` and toggled with `ThemeService.toggleMode()`.
+
+**Can I use my own colors in a component?**
+Use the `--sol-*` tokens. If no token fits, the theme is missing a decision: add it to the theme, not to
+the component.
+
+## Texts and languages
+
+**Why does a component show a key such as `pages.projects.empty.title`?**
+The key is missing from your catalog: inputs ending in `Key` receive keys, and an engine returns the
+key itself when it does not know it. Add the key to your translations.
+
+**How do I get Spanish texts?**
+`{ provide: SOL_I18N, useFactory: () => createSolI18n({ lang: 'es-CO' }) }`, or merge
+`@solercia/ui/i18n/es-CO.json` into your engine's `es-CO` catalog.
+
+## Extending
+
+**The component I need does not exist. What now?**
+Compose existing components in your application's `shared/ui` or feature first. If the need is
+general, propose it to the library with a use case; it will get a spec, a showcase page and docs.
+
+**Can I override a component's internal styles?**
+No `::ng-deep` and no `!important`. Customize through inputs and the theme tokens a component reads.
+
+**Can I use Chart.js or the CDK directly?**
+Not in application code: the lint preset restricts them to the wrappers (`sol-chart`, `sol-kanban-*`)
+so charts and drag and drop stay themed and accessible.
+
+## Documentation
+
+**Where is the complete list of inputs and outputs?**
+In the [component reference](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#component-reference) of the README, and live in the
+showcase.
+
+**How do I regenerate the PDF and Word manual?**
+`npm run docs:manual`. It needs Pandoc and a local Chromium; see
+[Releases and contributing](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/11-releases-and-contributing.md#documentation-outputs).
+
+**What should an AI agent read?**
+[`llms-full.txt`](https://github.com/solercia-solutions/solercia-ui/blob/main/llms-full.txt): every chapter and the component reference in one file. See
+[For AI agents](https://github.com/solercia-solutions/solercia-ui/blob/main/docs/manual/10-for-ai-agents.md).
+
+---
+
+<!-- appendix: README.md, section "Component reference" -->
+
+# Appendix: component reference
+
+### Actions
+
+#### `sol-button` — `SolButtonComponent`
+Text button with variants, sizes and a loading state.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `variant` | `'primary' \| 'secondary' \| 'danger' \| 'ghost'` | `'primary'` | |
+| `size` | `'sm' \| 'md' \| 'lg' \| 'touch'` | `'md'` | |
+| `disabled` | `boolean` | `false` | |
+| `type` | `string` | `'button'` | |
+| `loading` | `boolean` | `false` | |
+
+Outputs: `clicked: void`. Content: label (`<ng-content>`).
+
+```html
+<sol-button variant="danger" size="sm" [loading]="saving()" (clicked)="remove()">Delete</sol-button>
+```
+
+#### `sol-icon-button` — `SolIconButtonComponent`
+Icon-only button; `ariaLabel` is mandatory.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `icon` | `SolIconName` | — | yes |
+| `ariaLabel` | `string` | — | yes |
+| `type` | `'button' \| 'submit'` | `'button'` | |
+| `variant` | `'default' \| 'danger' \| 'ghost' \| 'outline'` | `'default'` | |
+| `size` | `'sm' \| 'md' \| 'lg' \| 'touch'` | `'md'` | |
+| `disabled` | `boolean` | `false` | |
+
+Outputs: `clicked: void`.
+
+```html
+<sol-icon-button icon="trash" variant="danger" ariaLabel="Delete project" (clicked)="remove()" />
+```
+
+#### `sol-icon` — `SolIconComponent`
+Inline SVG from the built-in registry (~140 names: `home`, `menu`, `edit`, `trash`, `calendar`, `bell`, `sun`, `moon`, …; full list in the showcase *Icon* page).
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `name` | `SolIconName \| string` | — | yes |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | |
+| `variant` | `'outline' \| 'fill'` | `'outline'` | |
+
+```html
+<sol-icon name="star" size="lg" variant="fill" />
+```
+
+---
+
+### Forms
+
+#### `sol-input` — `SolInputComponent` (CVA, `string`)
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `type` | `string` | `'text'` | |
+| `placeholder` | `string` | `''` | |
+| `label` | `string` | `''` | |
+| `error` | `string` | `''` | |
+| `disabled` | `boolean` | `false` | |
+| `autocomplete` | `string \| undefined` | `undefined` | |
+| `min` | `string \| undefined` | `undefined` | |
+
+```html
+<sol-input label="Email" type="email" autocomplete="email" [(ngModel)]="email" [error]="emailError()" />
+```
+
+#### `sol-textarea` — `SolTextareaComponent` (CVA, `string`)
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `placeholder` | `string` | `''` | |
+| `label` | `string` | `''` | |
+| `error` | `string` | `''` | |
+| `disabled` | `boolean` | `false` | |
+| `rows` | `number` | `3` | |
+
+```html
+<sol-textarea label="Notes" [rows]="4" formControlName="notes" />
+```
+
+#### `sol-form-field` — `SolFormFieldComponent`
+Label/hint/error wrapper for any projected control.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `label` | `string` | `''` | |
+| `error` | `string` | `''` | |
+| `hint` | `string` | `''` | |
+
+```html
+<sol-form-field label="Website" hint="Include https://"><input formControlName="website" /></sol-form-field>
+```
+
+#### `sol-search-input` — `SolSearchInputComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `placeholder` | `string` | `shared.searchInput.placeholder` («Search...») | |
+
+Outputs: `searchChange: string`. (Debounce behavior: not verified.)
+
+```html
+<sol-search-input placeholder="Search projects…" (searchChange)="query.set($event)" />
+```
+
+#### `sol-number-input` — `SolNumberInputComponent` (CVA, `number \| null`)
+Stepper input with − / + buttons.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `min` | `number` | `0` | |
+| `max` | `number` | `Number.MAX_SAFE_INTEGER` | |
+| `step` | `number` | `1` | |
+| `disabled` | `boolean` | `false` | |
+| `ariaLabelKey` | `string` (i18n key) | — | yes |
+| `decrementLabelKey` | `string` | `'shared.numberInput.decrement'` | |
+| `incrementLabelKey` | `string` | `'shared.numberInput.increment'` | |
+
+```html
+<sol-number-input ariaLabelKey="pages.checkout.seats" [min]="1" [max]="20" [(ngModel)]="seats" />
+```
+
+#### `sol-select` — `SolSelectComponent` (CVA, `string`; `string[]` when `multiple`)
+Searchable single/multi select; bottom sheet below `mobileBreakpoint`.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `options` | `SolSelectOption[]` (`{ value: string; label: string }`) | `[]` | |
+| `placeholder` | `string` | `shared.select.placeholder` («Select...») | |
+| `label` | `string` | `''` | |
+| `error` | `string` | `''` | |
+| `disabled` | `boolean` | `false` | |
+| `searchable` | `boolean` | `true` | |
+| `multiple` | `boolean` | `false` | |
+| `showAllOption` | `boolean` | `false` | |
+| `allOptionLabel` | `string` | `shared.select.all` («All») | |
+| `ariaLabel` | `string` | `''` | |
+| `searchPlaceholder` | `string` | `shared.select.searchPlaceholder` («Search...») | |
+| `emptyLabel` | `string` | `shared.select.empty` («No results») | |
+| `value` | `string \| null \| undefined` | `undefined` | |
+| `mobileBreakpoint` | `number` | `640` | |
+
+Outputs: `valueChange: string`.
+
+```html
+<sol-select label="Country" placeholder="Select a country" searchPlaceholder="Search…" emptyLabel="No results"
+            [options]="[{ value: 'co', label: 'Colombia' }, { value: 'mx', label: 'Mexico' }]" [(ngModel)]="country" />
+```
+
+#### `sol-checkbox` — `SolCheckboxComponent` (CVA, `boolean`)
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `label` | `string` | `''` | |
+| `disabled` | `boolean` | `false` | |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | |
+| `color` | `'primary' \| 'secondary' \| 'success' \| 'danger' \| 'amber' \| 'teal' \| 'indigo' \| 'purple' \| 'pink'` | `'primary'` | |
+| `shape` | `'rounded' \| 'square' \| 'circle'` | `'rounded'` | |
+| `ripple` | `boolean` | `true` | |
+| `icon` | `'check' \| 'minus' \| 'heart' \| 'star'` | `'check'` | |
+| `linkText` | `string` | `''` | |
+| `linkHref` | `string` | `''` | |
+
+Outputs: `changed: boolean`.
+
+```html
+<sol-checkbox label="I accept the" linkText="terms" linkHref="/terms" formControlName="terms" />
+```
+
+#### `sol-toggle` — `SolToggleComponent` (CVA, `boolean`)
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `label` | `string` | `''` | |
+| `ariaLabel` | `string` | `''` | |
+| `disabled` | `boolean` | `false` | |
+| `size` | `'sm' \| 'md'` | `'md'` | |
+| `onText` | `string \| undefined` | `undefined` | |
+| `offText` | `string \| undefined` | `undefined` | |
+
+```html
+<sol-toggle label="Email alerts" [(ngModel)]="alerts" />
+```
+
+#### `sol-chip` — `SolChipComponent`
+Single filter/choice chip.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `value` | `string` | — | yes |
+| `label` | `string` | — | yes |
+| `emoji` | `string` | `''` | |
+| `count` | `number \| null` | `null` | |
+| `selected` | `boolean` | `false` | |
+| `disabled` | `boolean` | `false` | |
+| `size` | `'sm' \| 'md'` | `'md'` | |
+| `removable` | `boolean` | `false` | |
+| `role` | `'button' \| 'radio' \| 'checkbox'` | `'button'` | |
+| `tabIndex` | `number` | `0` | |
+| `removeLabelKey` | `string` | `'shared.chip.remove'` | |
+
+Outputs: `toggled: string`, `removed: string` (both emit `value`).
+
+```html
+<sol-chip value="urgent" label="Urgent" emoji="🔥" [count]="3" [selected]="urgent()" (toggled)="toggle($event)" />
+```
+
+#### `sol-chip-group` — `SolChipGroupComponent` (CVA, `string` or `string[]` when `multiple`)
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `options` | `SolChipOption[]` (`{ value, label, emoji?, disabled?, count? }`) | — | yes |
+| `multiple` | `boolean` | `false` | |
+| `allowDeselect` | `boolean` | `true` | |
+| `disabled` | `boolean` | `false` | |
+| `size` | `'sm' \| 'md'` | `'md'` | |
+| `removable` | `boolean` | `false` | |
+| `ariaLabelKey` | `string` (i18n key) | — | yes |
+| `removeLabelKey` | `string` | `'shared.chip.remove'` | |
+
+```html
+<sol-chip-group ariaLabelKey="pages.projects.categories" [options]="categories" [multiple]="true" [(ngModel)]="selected" />
+```
+
+#### `sol-view-toggle` — `SolViewToggleComponent`
+Segmented control.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `options` | `SolViewToggleOption[]` (`{ value, label, icon?: SolIconName }`) | — | yes |
+| `value` | `string` | — | yes |
+
+Outputs: `valueChange: string`.
+
+```html
+<sol-view-toggle [options]="[{ value: 'list', label: 'List', icon: 'list' }, { value: 'board', label: 'Board', icon: 'view-columns' }]"
+                 [value]="view()" (valueChange)="view.set($event)" />
+```
+
+#### `sol-date-picker` — `SolDatePickerComponent` (CVA, `Date \| string \| null`; emits ISO `yyyy-mm-dd`)
+Calendar popover with day/month/year views.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `value` | `Date \| string \| null` | `null` (assumed) | |
+| `min` | `Date \| string \| null` | `null` (assumed) | |
+| `max` | `Date \| string \| null` | `null` (assumed) | |
+| `placeholder` | `string` | `''` (falls back to `shared.datePicker.placeholder`) | |
+| `disabled` | `boolean` | `false` | |
+| `size` | `'sm' \| 'md'` | `'md'` | |
+
+Outputs: `valueChange: string`.
+
+```html
+<sol-date-picker min="2026-11-24" max="2026-12-24" formControlName="dueDate" />
+```
+
+#### `sol-day-picker` — `SolDayPickerComponent`
+Horizontal strip of bookable days computed by the host.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `days` | `DayPickerItem[]` (`{ dateStr, dayName, dayNumber, isToday?, isPast }`) | — | yes |
+| `selectedDate` | `string \| null` | `null` | |
+
+Outputs: `dateSelected: string`.
+
+```html
+<sol-day-picker [days]="days()" [selectedDate]="date()" (dateSelected)="date.set($event)" />
+```
+
+#### `sol-rating-input` — `SolRatingInputComponent` (CVA, `number \| null`, 1–5)
+Interactive radiogroup of stars.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `size` | `'sm' \| 'md' \| 'lg'` | `'lg'` | |
+| `disabled` | `boolean` | `false` | |
+| `readOnly` | `boolean` | `false` | |
+| `error` | `string` | `''` | |
+| `allowClear` | `boolean` | `false` | |
+| `ariaLabelKey` | `string` | `'shared.ratingInput.groupLabel'` | |
+| `optionLabelKey` | `string` | `'shared.ratingInput.option'` | |
+| `clearLabelKey` | `string` | `'shared.ratingInput.clear'` | |
+
+Outputs: `ratingChanged: number \| null`.
+
+```html
+<sol-rating-input formControlName="rating" [allowClear]="true" (ratingChanged)="save($event)" />
+```
+
+#### `sol-file-upload` — `SolFileUploadComponent`
+Drag-and-drop image picker with validation and preview.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `accept` | `string` | `'image/jpeg,image/png,image/webp,image/gif'` | |
+| `maxSizeBytes` | `number` | `5 * 1024 * 1024` | |
+| `label` | `string` | `shared.fileUpload.label` («Drag or click to upload») | |
+| `hint` | `string` | `shared.fileUpload.hint` («JPG, PNG, WEBP or GIF · max. 5 MB») | |
+
+Outputs: `fileSelected: File`, `previewReady: string` (data URL), `fileError: string`, `fileRemoved: void`.
+
+```html
+<sol-file-upload label="Drag your logo here" hint="PNG · max. 200 KB" accept="image/png" [maxSizeBytes]="204800"
+                 (fileSelected)="upload($event)" (fileError)="error.set($event)" />
+```
+
+#### `sol-rich-editor` — `SolRichEditorComponent` (CVA, HTML `string`)
+Rich text editor (headings, lists, alignment, links, tables, images, @mentions, #task links); output HTML is TCPDF-safe.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `placeholder` | `string` | `''` | |
+| `minHeight` | `string` | `'12rem'` | |
+| `maxHeight` | `string` | `''` | |
+| `ariaLabel` | `string` | `''` | |
+| `disabled` | `boolean` | `false` | |
+| `imageMaxBytes` | `number` | `5 * 1024 * 1024` | |
+| `imageUpload` | `SolRichImageUploader \| null` (`(file: File) => Promise<string>`) | `null` | |
+| `mentionableUsers` | `MentionUser[]` (`{ id, name }`) | `[]` | |
+| `linkableTasks` | `LinkableTask[]` (`{ key, title }`) | `[]` | |
+
+Outputs: `valueChange: string`, `mentionsChange: string[]`, `taskLinksChange: string[]`.
+
+```html
+<sol-rich-editor ariaLabel="Description" [imageUpload]="upload" [mentionableUsers]="users" [(ngModel)]="html" />
+```
+```ts
+upload: SolRichImageUploader = (file) => this.api.uploadImage(file); // resolves the public URL
+```
+
+---
+
+### Feedback & status
+
+#### `sol-badge` — `SolBadgeComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `variant` | `'success' \| 'warning' \| 'danger' \| 'info' \| 'neutral'` | `'neutral'` | |
+| `size` | `'sm' \| 'md'` | `'sm'` | |
+
+```html
+<sol-badge variant="success">Active</sol-badge>
+```
+
+#### `sol-message-status` — `SolMessageStatusComponent`
+Delivery ticks with an accessible label.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `status` | `'pending' \| 'sent' \| 'delivered' \| 'read' \| 'failed'` | — | yes |
+
+```html
+<sol-message-status [status]="message.status" />
+```
+
+#### `sol-score-badge` — `SolScoreBadgeComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `value` | `number \| null` | `null` | |
+| `max` | `number` | `100` | |
+| `thresholds` | `readonly SolScoreThreshold[]` (`{ upTo, tone }`) | `DEFAULT_SCORE_THRESHOLDS` (≤50 danger, ≤80 warning, else success) | |
+| `pending` | `boolean` | `false` | |
+
+```html
+<sol-score-badge [value]="lead.score" />
+```
+
+#### `sol-trend` — `SolTrendComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `current` | `number` | — | yes |
+| `previous` | `number \| null` | `null` | |
+| `invert` | `boolean` | `false` | |
+| `format` | `(delta: number) => string` | `defaultTrendFormat` | |
+
+```html
+<sol-trend [current]="4" [previous]="6" [invert]="true" />  <!-- lower churn is good -->
+```
+
+#### `sol-avatar` — `SolAvatarComponent`
+Image or initials on a deterministic palette color.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `name` | `string \| null \| undefined` | — | yes |
+| `imageUrl` | `string \| null` | `null` | |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | |
+
+```html
+<sol-avatar [name]="user.fullName" [imageUrl]="user.photo" size="lg" />
+```
+
+#### `sol-star-rating` — `SolStarRatingComponent`
+Read-only stars (`role="img"`).
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `value` | `number \| null` | `null` | |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'sm'` | |
+| `showValue` | `boolean` | `false` | |
+
+```html
+<sol-star-rating [value]="4.5" [showValue]="true" />
+```
+
+#### `sol-spinner` — `SolSpinnerComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | |
+| `color` | `string` (CSS color) | `''` (theme primary) | |
+
+```html
+<sol-spinner size="lg" />
+```
+
+#### `sol-skeleton` — `SolSkeletonComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `variant` | `'text' \| 'title' \| 'stat' \| 'card' \| 'row' \| 'circle' \| 'rounded' \| 'square'` | `'rounded'` | |
+| `width` | `string` | `''` | |
+| `height` | `string` | `''` | |
+| `aspectRatio` | `string` | `''` | |
+| `count` | `number` (`numberAttribute`) | `1` | |
+
+```html
+<sol-skeleton variant="text" count="3" />
+```
+
+#### `sol-progress-bar` — `SolProgressBarComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `mode` | `'continuous' \| 'segmented'` | `'continuous'` | |
+| `value` | `number` | `0` | |
+| `max` | `number` | `100` | |
+| `steps` | `number` | `0` | |
+| `current` | `number` | `0` | |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | |
+| `variant` | `'primary' \| 'success' \| 'warning' \| 'danger'` | `'primary'` | |
+| `showLabel` | `boolean` | `false` | |
+| `label` | `string` | `''` | |
+| `ariaLabel` | `string` | `''` | |
+
+```html
+<sol-progress-bar [value]="uploaded()" variant="success" [showLabel]="true" label="Upload" />
+<sol-progress-bar mode="segmented" [steps]="5" [current]="2" />
+```
+
+#### `sol-empty-state` — `SolEmptyStateComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `icon` | `SolIconName` | `'list'` | |
+| `titleKey` | `string` (i18n key) | — | yes |
+| `descriptionKey` | `string` (i18n key) | `''` | |
+
+Content: call-to-action (`<ng-content>`).
+
+```html
+<sol-empty-state icon="folder-open" titleKey="pages.projects.empty.title" descriptionKey="pages.projects.empty.description">
+  <sol-button (clicked)="create()">Create project</sol-button>
+</sol-empty-state>
+```
+
+#### `sol-tooltip` — `SolTooltipComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `text` | `string` | — | yes |
+
+```html
+<sol-tooltip text="Edit the project"><sol-icon-button icon="edit" ariaLabel="Edit" /></sol-tooltip>
+```
+
+#### `sol-notification-panel` — `SolNotificationPanelComponent`
+Inbox with loading / error / empty / content states, relative times and unread count.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `items` | `readonly SolNotificationItem[] \| null \| undefined` (`{ id, title, body?, timestamp?, read?, typeLabel?, tone?, data? }`) | `[]` | |
+| `loading` | `boolean` | `false` | |
+| `error` | `boolean` | `false` | |
+| `errorMessage` | `string` | `''` | |
+| `emptyTitleKey` | `string` | `'shared.notificationPanel.emptyTitle'` | |
+| `emptyDescriptionKey` | `string` | `'shared.notificationPanel.emptyDescription'` | |
+
+Outputs: `itemSelected: T`, `markedRead: T`, `markedAllRead: void`, `retryRequested: void`, `closed: void`.
+
+```html
+<sol-notification-panel [items]="notifications()" [loading]="loading()" [error]="failed()"
+  (itemSelected)="open($event)" (markedRead)="markRead($event)" (markedAllRead)="markAll()" (retryRequested)="reload()" (closed)="close()" />
+```
+
+---
+
+### Overlays
+
+#### `sol-modal` — `SolModalComponent`
+Host-controlled modal dialog; Escape closes, focus trapped and restored, body scroll locked.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `open` | `boolean` | `false` | |
+| `title` | `string` | `''` | |
+| `size` | `'sm' \| 'md' \| 'lg' \| 'xl'` | `'md'` | |
+| `closeable` | `boolean` | `true` | |
+| `closeOnBackdrop` | `boolean` | `false` | |
+| `ariaLabel` | `string` | `''` (used only when there is no `title`) | |
+
+Outputs: `closed: void`. Content: body (single slot; place footer buttons inside). Accessibility: the panel
+is `role="dialog"` + `aria-modal="true"`, labelled by the title (or `ariaLabel`); focus moves into it on
+open, Tab/Shift+Tab stay inside, Escape closes when `closeable`, focus returns to the previously focused
+element and the page scroll is locked while open. The close button reads `shared.modal.close`.
+
+```html
+<sol-modal [open]="open()" title="Invite a teammate" (closed)="open.set(false)">
+  <sol-input label="Email" [(ngModel)]="email" />
+  <sol-button (clicked)="send()">Send invite</sol-button>
+</sol-modal>
+```
+
+#### `sol-drawer` — `SolDrawerComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `open` | `boolean` | `false` | |
+| `title` | `string` | `''` | |
+| `side` | `'start' \| 'end'` | `'end'` | |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | |
+| `variant` | `'panel' \| 'sheet'` | `'panel'` | |
+| `closeable` | `boolean` | `true` | |
+| `closeOnBackdrop` | `boolean` | `true` | |
+| `ariaLabel` | `string` | `''` (used only when there is no `title`) | |
+
+Outputs: `closed: void`. Content: body + `[drawerFooter]` slot. Same dialog accessibility as `sol-modal`.
+
+```html
+<sol-drawer [open]="filtersOpen()" title="Filters" (closed)="filtersOpen.set(false)">
+  …
+  <div drawerFooter><sol-button (clicked)="apply()">Apply</sol-button></div>
+</sol-drawer>
+```
+
+#### `sol-confirm-dialog` — `SolConfirmDialogComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `open` | `boolean` | `false` | |
+| `title` | `string` | `shared.confirmDialog.title` («Are you sure?») | |
+| `message` | `string` | `''` | |
+| `confirmLabel` | `string` | `shared.confirmDialog.confirm` («Confirm») | |
+| `cancelLabel` | `string` | `shared.confirmDialog.cancel` («Cancel») | |
+| `variant` | `'danger' \| 'warning' \| 'info'` | `'danger'` | |
+
+Outputs: `confirm: void`, `cancel: void`. Accessibility: the panel is `role="alertdialog"` +
+`aria-modal="true"`, labelled by the title and described by the message; focus starts on Cancel (the
+least destructive action), stays inside, returns to the trigger on close, and the page scroll is locked.
+
+```html
+<sol-confirm-dialog [open]="confirming()" title="Delete this project?" confirmLabel="Delete" cancelLabel="Cancel"
+                    (confirm)="remove()" (cancel)="confirming.set(false)" />
+```
+
+---
+
+### Navigation
+
+#### `sol-tabs` — `SolTabsComponent`
+Tab list only; the host renders the active panel.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `tabs` | `SolTabItem[]` (`{ id, label, icon? }`) | — | yes |
+| `activeTab` | `string` | `''` | |
+
+Outputs: `tabChange: string`.
+
+```html
+<sol-tabs [tabs]="tabs" [activeTab]="tab()" (tabChange)="tab.set($event)" />
+```
+
+#### `sol-pagination` — `SolPaginationComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `totalItems` | `number` | `0` | |
+| `pageSize` | `number` | `10` | |
+| `currentPage` | `number` | `1` | |
+| `pageSizeOptions` | `number[]` | `[10, 25, 50]` | |
+
+Outputs: `pageChanged: number`, `pageSizeChanged: number`.
+
+```html
+<sol-pagination [totalItems]="total()" [pageSize]="size()" [currentPage]="page()" (pageChanged)="page.set($event)" (pageSizeChanged)="size.set($event)" />
+```
+
+#### `sol-page-header` — `SolPageHeaderComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `title` | `string` | — | yes |
+| `subtitle` | `string` | `''` | |
+
+Content: actions.
+
+```html
+<sol-page-header title="Projects" subtitle="Manage your portfolio"><sol-button>New project</sol-button></sol-page-header>
+```
+
+#### `sol-stepper` — `SolStepperComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `steps` | `SolStepperStep[]` (`{ id, labelKey, descriptionKey?, error? }`) | — | yes |
+| `activeIndex` | `number` | `0` | |
+| `furthestIndex` | `number \| null` | `null` | |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | |
+| `interactive` | `boolean` | `false` | |
+| `navigation` | `'linear' \| 'free'` | `'linear'` | |
+| `ariaLabelKey` | `string` | `'shared.stepper.aria'` | |
+
+Outputs: `stepSelected: number`.
+
+```html
+<sol-stepper [steps]="steps" [activeIndex]="step()" [interactive]="true" (stepSelected)="step.set($event)" />
+```
+
+#### `sol-wizard` — `SolWizardComponent` + `[solWizardStep]` — `SolWizardStepDirective`
+Wizard = segmented progress bar + stepper pills + one panel per `*solWizardStep` + Back/Next/Finish footer.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `steps` | `SolWizardStep[]` (`{ id, label?, labelKey?, icon? }`) | — | yes |
+| `current` | `number` (`model`, use `[(current)]`) | `0` | |
+| `showProgressBar` | `boolean` | `true` | |
+| `hidePreviousOnFirst` | `boolean` | `true` | |
+| `canAdvance` | `boolean \| ((index: number) => boolean)` | `true` | |
+| `previousLabel` / `nextLabel` / `finishLabel` | `string` | `''` (library defaults; set explicitly for English) | |
+
+Outputs: `next: void`, `previous: void`, `stepChange: number`, `finish: void`, `currentChange: number`. The directive has no inputs (structural: `*solWizardStep`).
+
+```html
+<sol-wizard [steps]="steps" [(current)]="current" [canAdvance]="canAdvance" nextLabel="Next" previousLabel="Back" finishLabel="Create" (finish)="save()">
+  <ng-container *solWizardStep><sol-input label="Name" [(ngModel)]="name" /></ng-container>
+  <ng-container *solWizardStep>Summary…</ng-container>
+</sol-wizard>
+```
+
+#### `sol-scope-switcher` — `SolScopeSwitcherComponent`
+Menu to switch the active organization / workspace / tenant.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `scopes` | `readonly SolScope[]` (`{ id, label, sublabel?, icon?, imageUrl?, data? }`) | `[]` | |
+| `activeScopeId` | `string \| null \| undefined` | `null` | |
+| `status` | `'idle' \| 'loading' \| 'error'` | `'idle'` | |
+| `disabled` | `boolean` | `false` | |
+| `align` | `'start' \| 'end'` | `'end'` | |
+| `errorMessage` / `emptyMessage` / `loadingMessage` | `string` | `''` (i18n defaults) | |
+| `triggerAriaLabel` / `panelAriaLabel` | `string` | `''` (i18n defaults) | |
+
+Outputs: `scopeSelected: SolScope`, `openChange: boolean`.
+
+```html
+<sol-scope-switcher [scopes]="companies()" [activeScopeId]="activeId()" [status]="status()" (scopeSelected)="switchTo($event)" />
+```
+
+#### `sol-tree` — `SolTreeComponent` + `[solTreeNodeDef]` — `SolTreeNodeDefDirective`
+Accessible tree (role `tree`), keyboard navigation, max depth 5.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `nodes` | `readonly SolTreeNode[]` (`{ id, label, children?, data? }`) | — | yes |
+| `expandedIds` | `readonly string[] \| null` (`model`, `[(expandedIds)]`) | `null` | |
+| `defaultExpandedDepth` | `number` | `1` | |
+| `maxDepth` | `number` | `SOL_TREE_MAX_DEPTH` (5) | |
+| `indent` | `number` (px) | `16` | |
+| `ariaLabel` | `string` | `''` | |
+
+Outputs: `nodeSelected: SolTreeNode`, `nodeToggled: SolTreeToggleEvent` (`{ node, expanded, expandedIds }`), `expandedIdsChange`.
+Template context of `solTreeNodeDef`: `$implicit`/`node`, `depth`, `expanded`, `hasChildren` (its `data` is typed `unknown`).
+
+```html
+<sol-tree [nodes]="tree()" [(expandedIds)]="expanded" (nodeSelected)="open($event)">
+  <ng-template solTreeNodeDef let-node let-depth="depth"><span>{{ node.label }}</span></ng-template>
+</sol-tree>
+```
+
+---
+
+### Layout & motion
+
+#### `sol-card` — `SolCardComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `padding` | `boolean` | `true` | |
+| `hoverable` | `boolean` | `false` | |
+
+```html
+<sol-card [hoverable]="true">…</sol-card>
+```
+
+#### `[solReveal]` — `SolRevealDirective`
+Entrance animation from the theme motion tokens; respects reduced motion.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `solRevealIndex` | `number` (stagger index) | `0` | |
+| `solRevealReplay` | `unknown` (change to replay) | `undefined` | |
+
+```html
+@for (item of items(); track item.id; let i = $index) {
+  <sol-card solReveal [solRevealIndex]="i" [solRevealReplay]="filter()">{{ item.name }}</sol-card>
+}
+```
+
+---
+
+### Data
+
+#### `sol-data-table` — `SolDataTableComponent`
+Sorting, per-column filters, global search, pagination, edit/delete actions, row reveal and a collapsed layout below `collapseWidth`.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `data` | `SolDataTableRow[]` (`Record<string, unknown>`) | `[]` | |
+| `columns` | `DataTableColumn[]` (`{ key, label, sortable?, width?, badge?, filter?: 'text' \| 'select', cellTemplate? }`) | `[]` | |
+| `loading` | `boolean` | `false` | |
+| `searchPlaceholder` | `string` | `shared.table.searchPlaceholder` («Search...») | |
+| `emptyMessage` | `string` | `shared.table.empty` («No data available») | |
+| `paginated` | `boolean` | `true` | |
+| `showToolbar` | `boolean` | `true` | |
+| `filterPosition` | `'left' \| 'right'` | `'left'` | |
+| `showActions` / `showEditAction` / `showDeleteAction` | `boolean` | `true` | |
+| `trackByKey` | `string` | `'id'` | |
+| `actionsLabel` | `string` | `shared.table.actions` («Actions») | |
+| `actionsPosition` | `'start' \| 'end'` | `'end'` | |
+| `toggleDetailsLabel` | `string` | `shared.table.toggleDetails` («Show or hide the row details») | |
+| `rowReveal` | `boolean` | `true` | |
+| `collapseWidth` | `number` (px) | `767` | |
+| `variant` | `'clean' \| 'zebra' \| 'bordered' \| 'emphasis-header' \| 'banded' \| null` | `null` (theme) | |
+
+Outputs: `editClicked: SolDataTableRow`, `deleteClicked: SolDataTableRow`.
+Content: `[tableFilters]` and `[tableActions]` slots; `<ng-template #rowActions let-row>` replaces the action buttons.
+
+```html
+<sol-data-table [data]="people()" [columns]="columns" searchPlaceholder="Search…" actionsLabel="Actions"
+                (editClicked)="edit($event)" (deleteClicked)="remove($event)">
+  <sol-button tableActions size="sm" (clicked)="create()">New</sol-button>
+</sol-data-table>
+```
+```ts
+columns: DataTableColumn[] = [
+  { key: 'name', label: 'Name', sortable: true, filter: 'text' },
+  { key: 'status', label: 'Status', badge: true, filter: 'select' },
+];
+```
+
+#### `sol-virtual-scroll` — `SolVirtualScrollComponent`
+Windowed list with variable heights; chat-oriented (follows output, loads history at top). Requires an `<ng-template>` child (context `$implicit`, `index`) and a sized container.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `items` | `readonly T[]` | — | yes |
+| `itemKey` | `(item: T, index: number) => string \| number` | `(_, i) => i` | |
+| `estimatedItemHeight` | `number` | `56` | |
+| `bufferPx` | `number` | `240` | |
+| `followOutput` | `boolean` | `true` | |
+| `nearTopThreshold` | `number` | `120` | |
+
+Outputs: `nearTop: void`, `atBottomChange: boolean`.
+
+```html
+<sol-virtual-scroll [items]="messages()" [itemKey]="byId" [estimatedItemHeight]="64" (nearTop)="loadOlder()">
+  <ng-template let-msg let-index="index"><app-message [message]="msg" /></ng-template>
+</sol-virtual-scroll>
+```
+
+#### `sol-chart` — `SolChartComponent`
+Chart.js wrapper themed from `--sol-*`; re-renders on light/dark.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `type` | `'line' \| 'bar' \| 'doughnut' \| 'sparkline'` | — | yes |
+| `data` | `SolChartData` (`{ labels: string[]; series: { label, data: number[], color? }[] }`) | — | yes |
+| `options` | `SolChartOptions` (`{ legend?, yMax? }`) | `{}` | |
+| `ariaLabelKey` | `string` (i18n key) | — | yes |
+| `height` | `string` | `'260px'` | |
+
+```html
+<sol-chart type="line" ariaLabelKey="pages.dashboard.revenue" [data]="{ labels: months, series: [{ label: '2026', data: revenue }] }" />
+```
+
+#### `sol-timeline` — `SolTimelineComponent`
+Gantt-like hierarchy on a month axis; undated nodes listed apart.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `nodes` | `TimelineNode[]` (`{ id, label?, labelKey?, start?, end?, status?, children?, collapsed? }`) | — | yes |
+| `statusToken` | `SolTimelineStatusResolver \| null` (`(status) => cssColor`) | `null` (`defaultStatusToken`: done/completed/closed, active/in progress, blocked, at risk, pending) | |
+| `legend` | `TimelineLegendItem[]` (`{ status, labelKey }`) | `[]` | |
+| `collapsible` | `boolean` | `true` | |
+
+Outputs: `nodeToggled: { id, collapsed }`, `nodeClicked: TimelineNode`.
+
+```html
+<sol-timeline [nodes]="plan()" [legend]="[{ status: 'done', labelKey: 'pages.plan.done' }]" (nodeClicked)="open($event)" />
+```
+
+---
+
+### Planning
+
+#### `sol-kanban-board` — `SolKanbanBoardComponent`
+Columns with CDK drag and drop (mouse, touch, keyboard “Move to…”), optimistic mirror and `rollback()`.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `columns` | `KanbanColumn<T>[]` (`{ id, title?, titleKey?, items: T[], accent?, droppable?, terminalAnchor? }`) | — | yes |
+| `cardTemplate` | `TemplateRef<{ $implicit: T; item: T }>` | — | yes |
+| `headerTemplate` | `TemplateRef<{ $implicit: KanbanColumn }> \| null` | `null` | |
+| `anchorTemplate` | `TemplateRef<{ $implicit: KanbanColumn }> \| null` (shown when `terminalAnchor`) | `null` | |
+| `emptyTemplate` | `TemplateRef<unknown> \| null` | `null` | |
+
+Outputs: `itemMoved: KanbanItemMoved<T>` (`{ item, fromColumnId, toColumnId, previousIndex, currentIndex }`), `columnAction: KanbanColumnAction`, `addRequested: string` (column id), `externalItemDropped: { toColumnId, data }`. Public method: `rollback()`.
+
+```html
+<ng-template #card let-task><p>{{ task.title }}</p></ng-template>
+<sol-kanban-board #board [columns]="columns()" [cardTemplate]="card" (itemMoved)="persist($event, board)" (addRequested)="create($event)" />
+```
+```ts
+async persist(move: KanbanItemMoved<Task>, board: SolKanbanBoardComponent<Task>) {
+  try { await this.api.move(move); } catch { board.rollback(); }
+}
+```
+
+#### `sol-kanban-column` — `SolKanbanColumnComponent`
+One column (normally rendered by the board).
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `column` | `KanbanColumn<T>` | — | yes |
+| `cardTemplate` | `TemplateRef<KanbanCardTemplateContext<T>>` | — | yes |
+| `headerTemplate` / `anchorTemplate` / `emptyTemplate` | as board | `null` | |
+| `allColumns` | `KanbanColumn<T>[] \| null` (targets for keyboard moves) | `null` | |
+
+Outputs: `action: KanbanColumnAction`, `dragActiveChanged: boolean`, `itemDropped: KanbanRawDropEvent`.
+
+```html
+<sol-kanban-column [column]="{ id: 'todo', title: 'To do', items: tasks, droppable: false }" [cardTemplate]="card" />
+```
+
+#### `sol-kanban-card` — `SolKanbanCardComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `item` | `T extends KanbanItem` (`{ id }`) | — | yes |
+| `cardTemplate` | `TemplateRef<KanbanCardTemplateContext<T>>` | — | yes |
+
+Outputs: `dragActiveChanged: boolean`.
+
+```html
+<sol-kanban-card [item]="task" [cardTemplate]="card" />
+```
+
+#### `sol-kanban-drag-source` — `SolKanbanDragSourceComponent`
+External list whose items can be dropped into a board’s columns (board emits `externalItemDropped`).
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `items` | `T[]` | — | yes |
+| `itemTemplate` | `TemplateRef<{ $implicit: T }>` | — | yes |
+| `connectedTo` | `string[]` (column ids) | `[]` | |
+| `disabledIds` | `ReadonlySet<string \| number>` | `new Set()` | |
+| `listId` | `string` | `'sol-kanban-drag-source'` | |
+
+```html
+<sol-kanban-drag-source [items]="backlog()" [connectedTo]="['todo', 'doing']" [itemTemplate]="card" />
+```
+
+#### `sol-calendar` — `SolCalendarComponent`
+Week/day agenda = header + grid + optional legend.
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `events` | `SolCalendarEvent[]` (`{ id, start, end, title, color?, data? }`) | — | yes |
+| `view` | `'week' \| 'day'` | — | yes |
+| `currentDate` | `Date` | — | yes |
+| `eventTemplate` | `TemplateRef<{ $implicit: T; event: T }> \| null` | `null` | |
+| `legend` | `SolCalendarLegendItem[]` (`{ color, labelKey }`) `\| null` | `null` | |
+
+Outputs: `eventClicked: T`, `slotClicked: { date: Date; time: string }`. `color` accepts hex, functional colors or `var(--sol-*)`.
+
+```html
+<sol-calendar [events]="appointments()" view="week" [currentDate]="today" (slotClicked)="book($event)" (eventClicked)="open($event)" />
+```
+
+#### `sol-calendar-header` — `SolCalendarHeaderComponent`
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `currentDate` | `Date` | — | yes |
+| `view` | `'week' \| 'day'` | — | yes |
+
+Outputs: `dateChange: Date`, `viewChange: SolCalendarView`.
+
+```html
+<sol-calendar-header [currentDate]="date()" [view]="view()" (dateChange)="date.set($event)" (viewChange)="view.set($event)" />
+```
+
+#### `sol-calendar-grid` — `SolCalendarGridComponent`
+Same inputs/outputs as `sol-calendar` minus `legend`.
+
+```html
+<sol-calendar-grid [events]="events()" view="day" [currentDate]="date()" [eventTemplate]="eventTpl" />
+```
+
+#### `sol-flow-canvas` — `SolFlowCanvasComponent`
+Pan/zoom node graph: drag nodes, connect ports, keyboard moves with live announcements, “Arrange” auto-layout (dagre, lazy).
+
+| Input | Type | Default | Req |
+|---|---|---|---|
+| `nodes` | `SolFlowCanvasNode[]` (`{ id, label, kind, position: { x, y }, visualState?: 'idle' \| 'running' \| 'ok' \| 'error', badges?, metadata? }`) | `[]` | |
+| `edges` | `SolFlowCanvasEdge[]` (`{ id, sourceId, targetId, kind: 'condition' \| 'intent' \| 'always', label?, priority? }`) | `[]` | |
+| `readonly` | `boolean` | `false` | |
+| `selectedId` | `string \| null` | `null` | |
+| `highlightedNodeId` | `string \| null` | `null` | |
+| `nodeTemplate` | `TemplateRef<{ $implicit, node, selected, highlighted }> \| null` | `null` | |
+
+Outputs: `nodeMoved: { id, position }`, `nodeSelected: { id }`, `connectionCreated: { sourceId, targetId }`, `connectionRemoved: { id }`. The host owns positions and edges.
+
+```html
+<div style="height: 400px">
+  <sol-flow-canvas [nodes]="nodes()" [edges]="edges()" (nodeMoved)="move($event)" (connectionCreated)="connect($event)" />
+</div>
+```
+
+---
+
+### Secondary entry points (not demoed in the showcase)
+
+- `@solercia/ui/theme-studio`: `sol-theme-studio`, `sol-theme-studio-preview`, token `THEME_STUDIO_STORE`
+  (host store contract), catalogs `SOL_THEME_STUDIO_I18N_EN` / `SOL_THEME_STUDIO_I18N_ES_CO`, form/theme
+  helpers (`buildThemeFile`, `mapThemeFileToForm`, `parseThemeJson`, …). See `docs/THEME-STUDIO.md`.
+- `@solercia/ui/login-appearance`: `sol-login-frame`, `sol-login-brand`, `sol-login-scene`, `sol-login-photos`,
+  `sol-login-shapes`, `sol-login-panel-background`, `sol-login-preview`, `sol-login-appearance-editor`, plus
+  `resolveLoginView`, `normalizeLogin`, `normalizeLoginAppearance`, catalogs
+  `SOL_LOGIN_APPEARANCE_I18N_EN` / `SOL_LOGIN_APPEARANCE_I18N_ES_CO`. See [Themed sign-in](https://github.com/solercia-solutions/solercia-ui/blob/main/README.md#themed-sign-in-solerciauilogin-appearance).

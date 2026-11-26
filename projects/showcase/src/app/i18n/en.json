@@ -47,6 +47,12 @@
     "calendar": {
       "confirmed": "Confirmed",
       "tentative": "Tentative"
+    },
+    "docs": {
+      "errorTitle": "We could not load this guide",
+      "errorDescription": "Check your connection and try again.",
+      "notFoundTitle": "This guide does not exist",
+      "notFoundDescription": "Pick a chapter from the Guides list."
     }
   }
 }

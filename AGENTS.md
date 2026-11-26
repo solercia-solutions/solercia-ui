@@ -20,7 +20,9 @@ An Angular 22 workspace with two projects:
 | `projects/solercia/ui/schematics/` | `ng add` and `ng generate` schematics |
 | `projects/solercia/ui/docs/` | Theming, i18n, theme studio and multitenant guides |
 | `projects/solercia/ui/i18n/es-CO.json` | Library text catalog used by the specs |
-| `README.md` | Single source of docs; `npm run build` copies it and `llms.txt` into the package |
+| `README.md` | Component reference and quick start; `npm run build` copies it, `llms.txt` and `llms-full.txt` into the package |
+| `docs/manual/` | Design-system manual (one Markdown source for the showcase Guides, `llms-full.txt` and the PDF/Word manual) |
+| `scripts/` | `build-docs.mjs` (Guides), `build-llms-full.mjs` (`llms-full.txt`), `build-manual.mjs` (PDF and Word) |
 
 ## Commands
 
@@ -29,6 +31,8 @@ npm ci
 npm test                # builds library + schematics, runs Vitest (zoneless); must pass before every commit
 npm run build:showcase  # must also pass: CI builds the showcase
 npm start               # serve the showcase on http://localhost:4200
+npm run docs:llms       # regenerate llms-full.txt (CI runs docs:llms:check)
+npm run docs:manual     # local only: dist/manual/solercia-design-system.pdf and .docx
 ```
 
 Rebuilding the library while `ng serve showcase` runs deletes `dist/solercia/ui`: restart the server.
@@ -42,6 +46,10 @@ Rebuilding the library while `ng serve showcase` runs deletes `dist/solercia/ui`
   hard-coded Spanish defaults.
 - Every new or changed public component needs: a spec, a page or variant in `projects/showcase`, its
   entry in the README (overview table and reference) and in `llms.txt`.
+- Documentation moves with the public API: any change to an exported symbol, selector, input, output,
+  port or `ng add` behavior updates the affected chapter in `docs/manual/` in the same commit, and
+  `npm run docs:llms` regenerates `llms-full.txt` (also needed after README reference changes).
+  Manual snippets use only symbols exported from `public-api.ts`.
 - Cover loading, empty, no-results, error and success states, and keyboard and screen-reader access.
 - Changing or removing an exported symbol, selector, input or output is a breaking change.
 

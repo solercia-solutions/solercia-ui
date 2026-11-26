@@ -9,6 +9,7 @@ import {
   type SolViewToggleOption,
 } from '@solercia/ui';
 import { SHOWCASE_GROUPS } from './navigation';
+import { DocsTocService } from './docs/docs-toc.service';
 import { ShowcaseI18nService, type ShowcaseLang } from './i18n/showcase-i18n.service';
 
 @Component({
@@ -44,10 +45,20 @@ import { ShowcaseI18nService, type ShowcaseLang } from './i18n/showcase-i18n.ser
     </header>
 
     <div class="layout">
-      <nav class="sidebar" [class.sidebar--open]="menuOpen()" aria-label="Components">
+      <nav class="sidebar" [class.sidebar--open]="menuOpen()" aria-label="Guides and components">
         <a class="sidebar__link" routerLink="/" routerLinkActive="sidebar__link--active" [routerLinkActiveOptions]="{ exact: true }">
           Overview
         </a>
+        <p class="sidebar__group">Guides</p>
+        @for (chapter of docs.chapters(); track chapter.slug) {
+          <a class="sidebar__link" [routerLink]="['/docs', chapter.slug]" routerLinkActive="sidebar__link--active">
+            {{ chapter.title }}
+          </a>
+        } @empty {
+          @if (docs.status() === 'error') {
+            <p class="sidebar__footer">The guides could not be loaded.</p>
+          }
+        }
         @for (group of groups; track group.label) {
           <p class="sidebar__group">{{ group.label }}</p>
           @for (page of group.pages; track page.path) {
@@ -191,6 +202,7 @@ import { ShowcaseI18nService, type ShowcaseLang } from './i18n/showcase-i18n.ser
 export class App {
   protected readonly theme = inject(ThemeService);
   protected readonly i18n = inject(ShowcaseI18nService);
+  protected readonly docs = inject(DocsTocService);
   protected readonly groups = SHOWCASE_GROUPS;
   protected readonly menuOpen = signal(false);
   protected readonly pageCount = computed(() => this.groups.reduce((total, group) => total + group.pages.length, 0));

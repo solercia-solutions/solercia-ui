@@ -58,6 +58,13 @@
             ],
             "styles": [
               "projects/showcase/src/styles.css"
+            ],
+            "allowedCommonJsDependencies": [
+              "@braintree/sanitize-url",
+              "cytoscape-cose-bilkent",
+              "cytoscape-fcose",
+              "dayjs",
+              "elkjs"
             ]
           },
           "configurations": {

@@ -22,6 +22,10 @@ import { DemoComponent } from '../shared/demo.component';
           <sol-badge variant="success">57 components & directives</sol-badge>
           <sol-badge>Light & dark</sol-badge>
         </p>
+        <p class="hero__guides">
+          New here? Read <a routerLink="/docs/getting-started">Getting started</a> or browse the
+          <a routerLink="/docs/introduction">design-system guides</a>.
+        </p>
       </div>
     </section>
 
@@ -72,6 +76,13 @@ import { DemoComponent } from '../shared/demo.component';
       flex-wrap: wrap;
       gap: var(--sol-space-xs);
       margin: 0;
+    }
+    .hero__guides {
+      margin: var(--sol-space-sm) 0 0;
+      color: var(--sol-color-text-secondary);
+    }
+    .hero__guides a {
+      color: var(--sol-color-primary);
     }
     .groups {
       display: grid;

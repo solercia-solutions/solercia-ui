@@ -3,11 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "ng build @solercia/ui && ng serve showcase",
-    "build:showcase": "npm run build && ng build showcase",
-    "build": "ng build @solercia/ui && npm run build:schematics && node -e \"for (const f of ['README.md', 'llms.txt']) require('fs').copyFileSync(f, 'dist/solercia/ui/' + f)\"",
+    "start": "npm run docs:site && ng build @solercia/ui && ng serve showcase",
+    "build:showcase": "npm run build && npm run docs:site && ng build showcase",
+    "build": "ng build @solercia/ui && npm run build:schematics && node -e \"for (const f of ['README.md', 'llms.txt', 'llms-full.txt']) require('fs').copyFileSync(f, 'dist/solercia/ui/' + f)\"",
     "build:schematics": "tsc -p projects/solercia/ui/tsconfig.schematics.json && node projects/solercia/ui/schematics/build-assets.mjs",
-    "test": "npm run build && ng test @solercia/ui --watch=false"
+    "test": "npm run build && ng test @solercia/ui --watch=false",
+    "docs:site": "node scripts/build-docs.mjs",
+    "docs:llms": "node scripts/build-llms-full.mjs",
+    "docs:llms:check": "node scripts/build-llms-full.mjs --check",
+    "docs:manual": "node scripts/build-manual.mjs"
   },
   "dependencies": {
     "@angular/common": "22.0.6",
@@ -18,6 +22,7 @@
     "@angular/router": "22.0.6",
     "@dagrejs/dagre": "3.0.0",
     "chart.js": "4.5.1",
+    "mermaid": "12.3.0",
     "rxjs": "7.8.2",
     "tslib": "2.8.1"
   },
@@ -28,6 +33,7 @@
     "@angular/compiler-cli": "22.0.6",
     "@types/node": "26.1.1",
     "jsdom": "29.1.1",
+    "marked": "18.2.0",
     "ng-packagr": "22.0.1",
     "typescript": "6.0.3",
     "vitest": "4.1.10"

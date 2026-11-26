@@ -5,6 +5,18 @@ All notable changes to this package are documented in this file. The format foll
 [SemVer](https://semver.org/). The package started at `0.1.0`; while it is pre-1.0 and has only a
 few consumers, `minor` versions may include breaking changes.
 
+## [0.8.3] - 2026-11-26
+
+### Added
+
+- Design-system manual in `docs/manual/` (13 chapters): one Markdown source published as the Guides
+  section of the showcase, as `llms-full.txt` for AI agents (also shipped in the package) and as a
+  PDF/Word manual (`npm run docs:manual`). No changes to the library code.
+
+### Fixed
+
+- `MULTITENANT_SETUP.md` described the pre-0.8.0 identity i18n default.
+
 ## [0.8.2] - 2026-11-25
 
 ### Fixed

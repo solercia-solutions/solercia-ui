@@ -4,6 +4,8 @@
 /node_modules
 /.angular
 /coverage
+# Generated from docs/manual by `npm run docs:site`
+/projects/showcase/public/docs-content/
 npm-debug.log
 .env
 .env.*
