@@ -188,6 +188,45 @@ const CONFIRM_ICON_NAMES: Readonly<Record<SolConfirmDialogVariant, SolIconName>>
     .sol-confirm-btn--info:hover {
       background: color-mix(in srgb, var(--sol-color-info, #3b82f6) 85%, var(--sol-confirm-hover-shade, #000000));
     }
+    /* Touch screens: every action meets the 44px touch target. */
+    @media (pointer: coarse) {
+      .sol-confirm-btn {
+        min-height: var(--sol-size-control-touch, 44px);
+      }
+    }
+    /*
+     * Phones: a bottom sheet with full-width stacked actions. Cancel comes last in the DOM, so a
+     * plain column leaves the safe action at the bottom, closest to the thumb; initial focus is on
+     * Cancel.
+     */
+    @media (max-width: 639px) {
+      .sol-confirm-overlay {
+        align-items: flex-end;
+      }
+      .sol-confirm-panel {
+        width: 100%;
+        border-radius: var(--sol-border-radius-lg, 12px) var(--sol-border-radius-lg, 12px) 0 0;
+        padding-bottom: calc(var(--sol-space-lg, 1.5rem) + env(safe-area-inset-bottom, 0px));
+        animation: sol-confirm-sheet-in 0.2s ease-out;
+      }
+      .sol-confirm-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .sol-confirm-btn {
+        width: 100%;
+        min-height: var(--sol-size-control-touch, 44px);
+      }
+    }
+    @keyframes sol-confirm-sheet-in {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sol-confirm-panel {
+        animation: none;
+      }
+    }
     .sol-confirm-btn:focus-visible {
       outline: none;
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--sol-color-primary, #6366f1) 40%, transparent);

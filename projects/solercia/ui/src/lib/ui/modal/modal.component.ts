@@ -158,6 +158,14 @@ import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-i
       }
     }
 
+    /* Touch screens: the close button meets the 44px touch target. */
+    @media (pointer: coarse) {
+      .sol-modal-close {
+        width: var(--sol-size-control-touch, 44px);
+        height: var(--sol-size-control-touch, 44px);
+      }
+    }
+
     @keyframes sol-modal-fade-in {
       from { opacity: 0; }
       to   { opacity: 1; }

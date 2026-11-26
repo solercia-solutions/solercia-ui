@@ -5,6 +5,16 @@ All notable changes to this package are documented in this file. The format foll
 [SemVer](https://semver.org/). The package started at `0.1.0`; while it is pre-1.0 and has only a
 few consumers, `minor` versions may include breaking changes.
 
+## [0.8.2] - 2026-11-25
+
+### Fixed
+
+- `sol-confirm-dialog` on phones: below 640 px it opens as a bottom sheet (full width, safe-area
+  padding) with full-width stacked actions and Cancel, the safe action, at the bottom near the thumb.
+  On touch screens every action is at least `--sol-size-control-touch` (44 px) tall. Before, the
+  buttons were 36 px tall, side by side, in a centered panel.
+- `sol-modal` close button reaches the 44 px touch target on touch screens.
+
 ## [0.8.1] - 2026-11-25
 
 ### Fixed
