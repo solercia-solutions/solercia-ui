@@ -5,6 +5,16 @@ All notable changes to this package are documented in this file. The format foll
 [SemVer](https://semver.org/). The package started at `0.1.0`; while it is pre-1.0 and has only a
 few consumers, `minor` versions may include breaking changes.
 
+## [0.8.1] - 2026-11-25
+
+### Fixed
+
+- `chart.js` no longer lands in the initial bundle of apps that do not render `sol-chart`. The
+  `Chart.register()` call ran at module load, a side effect that kept chart.js in every app importing
+  anything from `@solercia/ui`; it now runs once, lazily, when the first chart is created. Measured
+  with an Angular production build of an app that only imports `SOL_I18N`: initial bundle from
+  305.8 kB to 115.4 kB.
+
 ## [0.8.0] - 2026-11-25
 
 ### Changed

@@ -37,22 +37,31 @@ import {
   type SolChartType,
 } from './chart-theme';
 
-// Registro tree-shakeable: SOLO los controladores/elementos/plugins que los 4
-// tipos declarativos necesitan (nada de chart.js/auto, que arrastra todo).
-Chart.register(
-  LineController,
-  BarController,
-  DoughnutController,
-  LineElement,
-  PointElement,
-  BarElement,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  Legend,
-  Tooltip,
-  Filler,
-);
+let chartJsRegistered = false;
+
+/**
+ * Registers only what the four declarative chart types need (never chart.js/auto). It runs lazily
+ * on the first real chart, not at module load: a top-level `Chart.register()` is a side effect
+ * that keeps chart.js in the initial bundle of every app importing anything from `@solercia/ui`.
+ */
+function ensureChartJsRegistered(): void {
+  if (chartJsRegistered) return;
+  Chart.register(
+    LineController,
+    BarController,
+    DoughnutController,
+    LineElement,
+    PointElement,
+    BarElement,
+    ArcElement,
+    CategoryScale,
+    LinearScale,
+    Legend,
+    Tooltip,
+    Filler,
+  );
+  chartJsRegistered = true;
+}
 
 /** Contrato mínimo que sol-chart necesita de una instancia del motor. */
 export interface SolChartEngineHandle {
@@ -70,8 +79,11 @@ export type SolChartEngineFactory = (
  * `new Chart(...)`. Los specs la sustituyen para probar el componente sin
  * canvas real; un eventual cambio de motor se resuelve aquí y en el adapter.
  */
-export const SOL_CHART_ENGINE = new InjectionToken<SolChartEngineFactory>('SOL_CHART_ENGINE', {
-  factory: () => (canvas, config) => new Chart(canvas, config),
+export const SOL_CHART_ENGINE = /* @__PURE__ */ new InjectionToken<SolChartEngineFactory>('SOL_CHART_ENGINE', {
+  factory: () => (canvas, config) => {
+    ensureChartJsRegistered();
+    return new Chart(canvas, config);
+  },
 });
 
 /**
