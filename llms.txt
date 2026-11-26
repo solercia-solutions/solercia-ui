@@ -5,7 +5,7 @@
 ## Setup
 
 - `ng add @solercia/ui` (scaffolds FSD layers, path aliases @app/@pages/@widgets/@features/@entities/@shared, theme and i18n adapters, @solercia/eslint-config, Husky and commitlint) or `npm install @solercia/ui @angular/cdk chart.js @dagrejs/dagre`.
-- Providers: `provideTheme()`; optional `{ provide: THEME_SOURCE, useExisting: AppThemeSource }` (loadTheme(tenantId) -> ThemeFile | null), `{ provide: SOL_TENANT_RESOLVER, useExisting: ... }` (activeTenantId()), `{ provide: SOL_I18N, useExisting: I18nService }` (t, translate, activeLang, tMany; identity default).
+- Providers: `provideTheme()`; optional `{ provide: THEME_SOURCE, useExisting: AppThemeSource }` (loadTheme(tenantId) -> ThemeFile | null), `{ provide: SOL_TENANT_RESOLVER, useExisting: ... }` (activeTenantId()), `{ provide: SOL_I18N, useExisting: I18nService }` (t, translate, activeLang, tMany). Default is English from the bundled catalog; Spanish: `{ provide: SOL_I18N, useFactory: () => createSolI18n({ lang: 'es-CO' }) }`, or merge `SOL_I18N_ES_CO` / `@solercia/ui/i18n/es-CO.json` into your engine. A `shared.*` key your engine returns unchanged falls back to the bundled catalog of the active language (es* -> es-CO, else en).
 - Without providers the bundled "Vértice" theme applies. `ThemeService`: activeTheme(), isDark(), logo(), toggleMode(), setDarkMode(), setTenantTheme().
 - Import every symbol from '@solercia/ui' into the standalone component `imports`. Secondary entry points: '@solercia/ui/theme-studio', '@solercia/ui/login-appearance'.
 
@@ -25,7 +25,8 @@
 - Reuse an existing sol-* component before writing a new one.
 - Style only with var(--sol-*); no hardcoded colors or fonts, no !important, no ::ng-deep (enforced by @solercia/eslint-config).
 - Set required inputs; icon-only controls need ariaLabel. Inputs ending in `Key` take i18n keys resolved by SOL_I18N.
-- Some defaults are Spanish (searchPlaceholder, actionsLabel, confirmLabel, file-upload label/hint): set them explicitly in other languages.
+- Default texts come from `shared.*` i18n keys (English without a host catalog); explicit inputs such as searchPlaceholder, actionsLabel, confirmLabel or file-upload label/hint always win. Add new library keys to both i18n/en.json and i18n/es-CO.json.
+- sol-modal, sol-drawer (role=dialog) and sol-confirm-dialog (role=alertdialog) are aria-modal, trap and restore focus, close on Escape when closeable and lock page scroll; give a title, or ariaLabel on modal/drawer when there is none.
 - Use <sol-chart> instead of importing chart.js and sol-kanban-* instead of @angular/cdk drag and drop.
 - Cover loading (sol-skeleton, sol-spinner), empty (sol-empty-state), error and success states.
 - Working examples: projects/showcase/src/app/pages/.

@@ -22,6 +22,7 @@ import { SolButtonComponent } from '../button/button.component';
 import { SolIconComponent } from '../icon/icon.component';
 import { SolSkeletonComponent } from '../skeleton/skeleton.component';
 import { ThemeService } from '../../tokens';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import type { SolTableVariant } from '../../tokens/theme.model';
 
 /** Fila genérica de la tabla: un objeto plano indexable por clave. */
@@ -218,7 +219,7 @@ export interface DataTableColumn {
           </div>
           <div class="sol-data-table__toolbar-right">
             <sol-search-input
-              [placeholder]="searchPlaceholder()"
+              [placeholder]="searchPlaceholderText()"
               (searchChange)="onSearch($event)"
             />
           </div>
@@ -249,7 +250,7 @@ export interface DataTableColumn {
            posiciones ('start'/'end', ver input actionsPosition) para no
            duplicar el mismo th/td dos veces en el template. -->
       <ng-template #actionsHeaderCell>
-        <th class="sol-data-table__th sol-data-table__th--actions">{{ actionsLabel() }}</th>
+        <th class="sol-data-table__th sol-data-table__th--actions">{{ actionsText() }}</th>
       </ng-template>
 
       <ng-template #actionsFilterCell>
@@ -287,7 +288,7 @@ export interface DataTableColumn {
                   type="button"
                   class="sol-data-table__card-head"
                   [attr.aria-expanded]="isRowExpanded(trackId($index, row))"
-                  [attr.aria-label]="toggleDetailsLabel()"
+                  [attr.aria-label]="toggleDetailsText()"
                   (click)="toggleRow(trackId($index, row))"
                   data-testid="fila-colapsada"
                 >
@@ -353,7 +354,7 @@ export interface DataTableColumn {
                 }
               </li>
             } @empty {
-              <li class="sol-data-table__empty">{{ emptyMessage() }}</li>
+              <li class="sol-data-table__empty">{{ emptyText() }}</li>
             }
           </ul>
         }
@@ -412,7 +413,7 @@ export interface DataTableColumn {
                           [value]="columnFilters()[col.key] ?? ''"
                           (change)="onColumnFilterChange(col.key, $event)"
                         >
-                          <option value="">Todas</option>
+                          <option value="">{{ filterAllText() }}</option>
                           @for (opt of columnFilterOptions(col); track opt) {
                             <option [value]="opt">{{ opt }}</option>
                           }
@@ -462,7 +463,7 @@ export interface DataTableColumn {
                 } @empty {
                   <tr>
                     <td class="sol-data-table__empty" [attr.colspan]="columns().length + (showActions() ? 1 : 0)">
-                      {{ emptyMessage() }}
+                      {{ emptyText() }}
                     </td>
                   </tr>
                 }
@@ -871,6 +872,7 @@ export interface DataTableColumn {
 export class SolDataTableComponent {
   private readonly themeService = inject(ThemeService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly i18n = injectSolI18n();
 
   readonly data = input<SolDataTableRow[]>([]);
   readonly columns = input<DataTableColumn[]>([]);
@@ -879,8 +881,10 @@ export class SolDataTableComponent {
    * skeleton tokenizadas y oculta la paginación mientras esté activo.
    */
   readonly loading = input<boolean>(false);
-  readonly searchPlaceholder = input<string>('Buscar...');
-  readonly emptyMessage = input<string>('No hay datos disponibles');
+  /** Search placeholder. Without a value it uses `shared.table.searchPlaceholder`. */
+  readonly searchPlaceholder = input<string | undefined>(undefined);
+  /** Empty-state message. Without a value it uses `shared.table.empty`. */
+  readonly emptyMessage = input<string | undefined>(undefined);
   readonly paginated = input<boolean>(true);
   readonly showToolbar = input<boolean>(true);
   readonly filterPosition = input<'left' | 'right'>('left');
@@ -888,8 +892,8 @@ export class SolDataTableComponent {
   readonly showEditAction = input<boolean>(true);
   readonly showDeleteAction = input<boolean>(true);
   readonly trackByKey = input<string>('id');
-  /** Encabezado de la columna de acciones. */
-  readonly actionsLabel = input<string>('Acciones');
+  /** Encabezado de la columna de acciones. Sin valor usa `shared.table.actions`. */
+  readonly actionsLabel = input<string | undefined>(undefined);
   /**
    * Posición de la columna de acciones (0.6.0). `'end'` (default) preserva
    * el comportamiento previo — th/td de acciones después de las columnas de
@@ -900,13 +904,10 @@ export class SolDataTableComponent {
    */
   readonly actionsPosition = input<'start' | 'end'>('end');
   /**
-   * aria-label del botón ▶ de expansión de fila en el modo móvil. El default
-   * se alinea con el texto de la clave i18n `shared.table.toggleDetails`
-   * para que cualquier consumidor que no lo sobreescriba (vía
-   * `[toggleDetailsLabel]`) obtenga el texto correcto sin necesidad de
-   * traducción explícita.
+   * aria-label del botón ▶ de expansión de fila en el modo móvil. Sin valor
+   * usa la clave i18n `shared.table.toggleDetails`.
    */
-  readonly toggleDetailsLabel = input<string>('Mostrar u ocultar el detalle de la fila');
+  readonly toggleDetailsLabel = input<string | undefined>(undefined);
   /**
    * Activa la animación de entrada (`solRowReveal`, ver directiva interna
    * arriba) en cada fila/tarjeta. Default `true`: preserva el
@@ -962,6 +963,18 @@ export class SolDataTableComponent {
   readonly sortDirection = signal<'asc' | 'desc'>('asc');
   /** Valor de filtro por columna (0.6.0), indexado por `DataTableColumn.key`. */
   readonly columnFilters = signal<Record<string, string>>({});
+
+  // Visible texts: an explicit input always wins (even ''); otherwise the shared.table.* key.
+  readonly searchPlaceholderText = computed(() => this.text(this.searchPlaceholder(), 'shared.table.searchPlaceholder'));
+  readonly emptyText = computed(() => this.text(this.emptyMessage(), 'shared.table.empty'));
+  readonly actionsText = computed(() => this.text(this.actionsLabel(), 'shared.table.actions'));
+  readonly toggleDetailsText = computed(() => this.text(this.toggleDetailsLabel(), 'shared.table.toggleDetails'));
+  readonly filterAllText = computed(() => this.text(undefined, 'shared.table.filterAll'));
+
+  private text(override: string | undefined, key: string): string {
+    this.i18n.activeLang();
+    return override ?? this.i18n.translate(key);
+  }
 
   /**
    * Clave de replay de `solRowReveal`: cambia con cualquier búsqueda, orden

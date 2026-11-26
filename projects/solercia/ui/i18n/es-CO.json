@@ -34,7 +34,11 @@
       "clear": "Quitar la calificación"
     },
     "table": {
-      "toggleDetails": "Mostrar u ocultar el detalle de la fila"
+      "toggleDetails": "Mostrar u ocultar el detalle de la fila",
+      "searchPlaceholder": "Buscar...",
+      "empty": "No hay datos disponibles",
+      "actions": "Acciones",
+      "filterAll": "Todas"
     },
     "stepper": {
       "aria": "Progreso del asistente",
@@ -230,6 +234,51 @@
         "10": "nov",
         "11": "dic"
       }
+    },
+    "modal": {
+      "close": "Cerrar"
+    },
+    "confirmDialog": {
+      "title": "¿Estás seguro?",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar"
+    },
+    "searchInput": {
+      "placeholder": "Buscar...",
+      "clear": "Limpiar búsqueda"
+    },
+    "select": {
+      "placeholder": "Selecciona...",
+      "all": "Todos",
+      "searchPlaceholder": "Buscar...",
+      "empty": "Sin resultados",
+      "selectAll": "Todos",
+      "selectNone": "Ninguno"
+    },
+    "fileUpload": {
+      "label": "Arrastra o haz clic para subir",
+      "hint": "JPG, PNG, WEBP o GIF · máx. 5 MB",
+      "preview": "Vista previa",
+      "remove": "Quitar imagen",
+      "change": "Cambiar imagen",
+      "invalidType": "Formato no válido. Solo se permiten: {{types}}",
+      "tooLarge": "La imagen pesa {{size}} MB y supera el máximo de {{max}} MB"
+    },
+    "wizard": {
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "finish": "Finalizar"
+    },
+    "progressBar": {
+      "stepOf": "Paso {{current}} de {{total}}",
+      "aria": "Progreso"
+    },
+    "pagination": {
+      "show": "Mostrar",
+      "rows": "filas",
+      "range": "{{start}}–{{end}} de {{total}}",
+      "previous": "Página anterior",
+      "next": "Página siguiente"
     }
   }
 }

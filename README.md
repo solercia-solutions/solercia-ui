@@ -74,7 +74,7 @@ export const appConfig: ApplicationConfig = {
     provideTheme(),
     { provide: THEME_SOURCE, useExisting: AppThemeSource },          // optional
     { provide: SOL_TENANT_RESOLVER, useExisting: AppTenantResolver }, // optional (multi-tenant)
-    { provide: SOL_I18N, useExisting: I18nService },                  // optional (identity by default)
+    { provide: SOL_I18N, useExisting: I18nService },                  // optional (English by default)
   ],
 };
 ```
@@ -94,7 +94,7 @@ body {
 }
 ```
 
-A complete reference integration (with a JSON-catalog `SolI18n` engine for English and es-CO) lives in
+A complete reference integration (a `SolI18n` engine that merges the bundled catalogs with its own keys) lives in
 `projects/showcase/src/app/app.config.ts` and `projects/showcase/src/app/i18n/showcase-i18n.service.ts`.
 
 ### What `ng add @solercia/ui` does
@@ -126,7 +126,9 @@ It does **not** wire `THEME_SOURCE`/`SOL_I18N` providers automatically; the scaf
 | `THEME_SOURCE` | `InjectionToken<ThemeSource>` | Host port: `loadTheme(tenantId): Promise<ThemeFile \| null>`. Default returns `null`. |
 | `SOL_TENANT_RESOLVER` | `InjectionToken<SolTenantResolver>` (optional) | Host port: `activeTenantId(): number \| null`. When provided, `ThemeService` reloads the tenant theme whenever it changes. |
 | `SOL_DEFAULT_THEME` | `InjectionToken<ThemeFile>` | Fallback theme; defaults to `SOL_BUNDLED_DEFAULT_THEME` (“Vértice”). Degradation: tenant theme → default theme → inline `:root` CSS. |
-| `SOL_I18N` | `InjectionToken<SolI18n>` | Host i18n engine: `activeLang: Signal<string>`, `translate(key, params?)`, `t(key, params?): Signal<string>`, `tMany(keys)`. Default is an identity engine (returns the key). The library ships `projects/solercia/ui/i18n/es-CO.json` (keys under `shared.*`), **not** an English catalog and not inside the npm package. |
+| `SOL_I18N` | `InjectionToken<SolI18n>` | Host i18n engine: `activeLang: Signal<string>`, `translate(key, params?)`, `t(key, params?): Signal<string>`, `tMany(keys)`. Default is an English engine backed by the bundled catalog. |
+| `createSolI18n(options?)` | function | Catalog-backed `SolI18n` engine with `setLang(lang)`. Options: `lang` (default `'en'`), `catalogs` (default `{ en: SOL_I18N_EN, 'es-CO': SOL_I18N_ES_CO }`). `createSolI18n({ lang: 'es-CO' })` gives Colombian Spanish. |
+| `SOL_I18N_EN` / `SOL_I18N_ES_CO` | `SolI18nCatalog` | Bundled `shared.*` catalogs, also shipped as `@solercia/ui/i18n/en.json` and `@solercia/ui/i18n/es-CO.json` to merge into Transloco or ngx-translate. |
 | `SOL_CHART_ENGINE` | `InjectionToken<SolChartEngineFactory>` | Chart.js factory used by `sol-chart`; override only to swap or mock the engine. |
 | `SOL_CALENDAR_COLOR` | `InjectionToken<SolCalendarColorStrategy>` | Calendar event color strategy (`resolve(event, isDark): { bg, border, text }`). Default derives from `event.color` with `color-mix()` over tokens. |
 | `KanbanReorderService` | service | Pure reorder helper: `reorder(columns, rawDropEvent) → { columns, moved } \| null`. Used by the board; reusable by hosts. |
@@ -141,13 +143,23 @@ No zone.js required: the library works with `provideZonelessChangeDetection()` (
 - **Theming.** The host implements two optional ports: `SOL_TENANT_RESOLVER` (who the active tenant is)
   and `THEME_SOURCE` (how to load its `ThemeFile`). Degradation, best to worst: tenant theme from
   `THEME_SOURCE` → `SOL_DEFAULT_THEME` (bundled «Vértice») → inline `:root` CSS in the host's `styles.css`.
-- **i18n.** `SOL_I18N` is a `SolI18n` contract (`t`, `translate`, `activeLang`, `tMany`) with an identity
-  default that returns the key, mirroring Angular Material's `*Intl` services. Bind Transloco,
-  ngx-translate or your own engine. The repository ships a Colombian Spanish catalog
-  ([`projects/solercia/ui/i18n/es-CO.json`](./projects/solercia/ui/i18n/es-CO.json)) and the showcase
-  ships an English one ([`projects/showcase/src/app/i18n/en.json`](./projects/showcase/src/app/i18n/en.json)).
-- **Hard-coded defaults.** A few inputs default to Spanish text (`searchPlaceholder`, `actionsLabel`,
-  `confirmLabel`, file upload `label`/`hint`). Set them explicitly in other languages.
+- **i18n.** `SOL_I18N` is a `SolI18n` contract (`t`, `translate`, `activeLang`, `tMany`), mirroring
+  Angular Material's `*Intl` services. **English is the default**: without a provider every component
+  text comes from the bundled English catalog. Every visible default goes through a `shared.*` key;
+  an explicit input (`searchPlaceholder`, `actionsLabel`, `confirmLabel`, `label`…) always wins.
+- **Bundled catalogs.** `SOL_I18N_EN` and `SOL_I18N_ES_CO` (also `@solercia/ui/i18n/en.json` and
+  `@solercia/ui/i18n/es-CO.json`) hold every `shared.*` key. When your engine returns a `shared.*` key
+  unchanged, the component falls back to the bundled catalog of the active language (`es*` → Colombian
+  Spanish, anything else → English), so a host catalog does not need every library key.
+- **Spanish.** Use the bundled engine, or merge the catalog into yours:
+
+  ```ts
+  import { SOL_I18N, SOL_I18N_ES_CO, createSolI18n } from '@solercia/ui';
+
+  { provide: SOL_I18N, useFactory: () => createSolI18n({ lang: 'es-CO' }) }   // bundled engine
+  // Transloco / ngx-translate: merge SOL_I18N_ES_CO (or @solercia/ui/i18n/es-CO.json) into the
+  // es-CO translations and bind SOL_I18N to an adapter whose activeLang() returns 'es-CO'.
+  ```
 
 In-depth guides:
 
@@ -348,7 +360,7 @@ Label/hint/error wrapper for any projected control.
 #### `sol-search-input` — `SolSearchInputComponent`
 | Input | Type | Default | Req |
 |---|---|---|---|
-| `placeholder` | `string` | `'Buscar...'` | |
+| `placeholder` | `string` | `shared.searchInput.placeholder` («Search...») | |
 
 Outputs: `searchChange: string`. (Debounce behavior: not verified.)
 
@@ -379,17 +391,17 @@ Searchable single/multi select; bottom sheet below `mobileBreakpoint`.
 | Input | Type | Default | Req |
 |---|---|---|---|
 | `options` | `SolSelectOption[]` (`{ value: string; label: string }`) | `[]` | |
-| `placeholder` | `string` | `'Selecciona...'` | |
+| `placeholder` | `string` | `shared.select.placeholder` («Select...») | |
 | `label` | `string` | `''` | |
 | `error` | `string` | `''` | |
 | `disabled` | `boolean` | `false` | |
 | `searchable` | `boolean` | `true` | |
 | `multiple` | `boolean` | `false` | |
 | `showAllOption` | `boolean` | `false` | |
-| `allOptionLabel` | `string` | `'Todos'` | |
+| `allOptionLabel` | `string` | `shared.select.all` («All») | |
 | `ariaLabel` | `string` | `''` | |
-| `searchPlaceholder` | `string` | `'Buscar...'` | |
-| `emptyLabel` | `string` | `'Sin resultados'` | |
+| `searchPlaceholder` | `string` | `shared.select.searchPlaceholder` («Search...») | |
+| `emptyLabel` | `string` | `shared.select.empty` («No results») | |
 | `value` | `string \| null \| undefined` | `undefined` | |
 | `mobileBreakpoint` | `number` | `640` | |
 
@@ -546,8 +558,8 @@ Drag-and-drop image picker with validation and preview.
 |---|---|---|---|
 | `accept` | `string` | `'image/jpeg,image/png,image/webp,image/gif'` | |
 | `maxSizeBytes` | `number` | `5 * 1024 * 1024` | |
-| `label` | `string` | `'Arrastra o haz clic para subir'` | |
-| `hint` | `string` | `'JPG, PNG, WEBP o GIF · máx. 5 MB'` | |
+| `label` | `string` | `shared.fileUpload.label` («Drag or click to upload») | |
+| `hint` | `string` | `shared.fileUpload.hint` («JPG, PNG, WEBP or GIF · max. 5 MB») | |
 
 Outputs: `fileSelected: File`, `previewReady: string` (data URL), `fileError: string`, `fileRemoved: void`.
 
@@ -745,7 +757,7 @@ Outputs: `itemSelected: T`, `markedRead: T`, `markedAllRead: void`, `retryReques
 ### Overlays
 
 #### `sol-modal` — `SolModalComponent`
-Host-controlled modal; Escape closes, focus trapped, body scroll locked.
+Host-controlled modal dialog; Escape closes, focus trapped and restored, body scroll locked.
 
 | Input | Type | Default | Req |
 |---|---|---|---|
@@ -754,8 +766,12 @@ Host-controlled modal; Escape closes, focus trapped, body scroll locked.
 | `size` | `'sm' \| 'md' \| 'lg' \| 'xl'` | `'md'` | |
 | `closeable` | `boolean` | `true` | |
 | `closeOnBackdrop` | `boolean` | `false` | |
+| `ariaLabel` | `string` | `''` (used only when there is no `title`) | |
 
-Outputs: `closed: void`. Content: body (single slot; place footer buttons inside). Note: the panel has no `role="dialog"`/`aria-modal` attribute in the current template.
+Outputs: `closed: void`. Content: body (single slot; place footer buttons inside). Accessibility: the panel
+is `role="dialog"` + `aria-modal="true"`, labelled by the title (or `ariaLabel`); focus moves into it on
+open, Tab/Shift+Tab stay inside, Escape closes when `closeable`, focus returns to the previously focused
+element and the page scroll is locked while open. The close button reads `shared.modal.close`.
 
 ```html
 <sol-modal [open]="open()" title="Invite a teammate" (closed)="open.set(false)">
@@ -774,8 +790,9 @@ Outputs: `closed: void`. Content: body (single slot; place footer buttons inside
 | `variant` | `'panel' \| 'sheet'` | `'panel'` | |
 | `closeable` | `boolean` | `true` | |
 | `closeOnBackdrop` | `boolean` | `true` | |
+| `ariaLabel` | `string` | `''` (used only when there is no `title`) | |
 
-Outputs: `closed: void`. Content: body + `[drawerFooter]` slot.
+Outputs: `closed: void`. Content: body + `[drawerFooter]` slot. Same dialog accessibility as `sol-modal`.
 
 ```html
 <sol-drawer [open]="filtersOpen()" title="Filters" (closed)="filtersOpen.set(false)">
@@ -788,13 +805,15 @@ Outputs: `closed: void`. Content: body + `[drawerFooter]` slot.
 | Input | Type | Default | Req |
 |---|---|---|---|
 | `open` | `boolean` | `false` | |
-| `title` | `string` | `'¿Estás seguro?'` | |
+| `title` | `string` | `shared.confirmDialog.title` («Are you sure?») | |
 | `message` | `string` | `''` | |
-| `confirmLabel` | `string` | `'Confirmar'` | |
-| `cancelLabel` | `string` | `'Cancelar'` | |
+| `confirmLabel` | `string` | `shared.confirmDialog.confirm` («Confirm») | |
+| `cancelLabel` | `string` | `shared.confirmDialog.cancel` («Cancel») | |
 | `variant` | `'danger' \| 'warning' \| 'info'` | `'danger'` | |
 
-Outputs: `confirm: void`, `cancel: void`.
+Outputs: `confirm: void`, `cancel: void`. Accessibility: the panel is `role="alertdialog"` +
+`aria-modal="true"`, labelled by the title and described by the message; focus starts on Cancel (the
+least destructive action), stays inside, returns to the trigger on close, and the page scroll is locked.
 
 ```html
 <sol-confirm-dialog [open]="confirming()" title="Delete this project?" confirmLabel="Delete" cancelLabel="Cancel"
@@ -963,16 +982,16 @@ Sorting, per-column filters, global search, pagination, edit/delete actions, row
 | `data` | `SolDataTableRow[]` (`Record<string, unknown>`) | `[]` | |
 | `columns` | `DataTableColumn[]` (`{ key, label, sortable?, width?, badge?, filter?: 'text' \| 'select', cellTemplate? }`) | `[]` | |
 | `loading` | `boolean` | `false` | |
-| `searchPlaceholder` | `string` | `'Buscar...'` | |
-| `emptyMessage` | `string` | `'No hay datos disponibles'` | |
+| `searchPlaceholder` | `string` | `shared.table.searchPlaceholder` («Search...») | |
+| `emptyMessage` | `string` | `shared.table.empty` («No data available») | |
 | `paginated` | `boolean` | `true` | |
 | `showToolbar` | `boolean` | `true` | |
 | `filterPosition` | `'left' \| 'right'` | `'left'` | |
 | `showActions` / `showEditAction` / `showDeleteAction` | `boolean` | `true` | |
 | `trackByKey` | `string` | `'id'` | |
-| `actionsLabel` | `string` | `'Acciones'` | |
+| `actionsLabel` | `string` | `shared.table.actions` («Actions») | |
 | `actionsPosition` | `'start' \| 'end'` | `'end'` | |
-| `toggleDetailsLabel` | `string` | `'Mostrar u ocultar el detalle de la fila'` | |
+| `toggleDetailsLabel` | `string` | `shared.table.toggleDetails` («Show or hide the row details») | |
 | `rowReveal` | `boolean` | `true` | |
 | `collapseWidth` | `number` (px) | `767` | |
 | `variant` | `'clean' \| 'zebra' \| 'bordered' \| 'emphasis-header' \| 'banded' \| null` | `null` (theme) | |
@@ -1190,7 +1209,7 @@ npm start   # builds the library and serves the showcase on http://localhost:420
 ```
 
 The showcase is also the reference integration: zoneless bootstrap, `provideTheme()`, a `THEME_SOURCE`
-adapter and a JSON-catalog `SolI18n` engine with English and Spanish
+adapter and a `SolI18n` engine that merges the bundled English and Spanish catalogs with its own keys
 ([`app.config.ts`](./projects/showcase/src/app/app.config.ts)). Each page shows live variants, sizes and
 states with a collapsible code snippet, in light and dark mode, down to 390 px.
 
@@ -1221,7 +1240,8 @@ npm run build          # dist/solercia/ui
 npm run build:showcase # library + showcase
 ```
 
-Text-asserting tests use the library's own catalog, `projects/solercia/ui/i18n/es-CO.json`.
+Text-asserting tests use the library's own catalogs, `projects/solercia/ui/i18n/en.json` and `es-CO.json`
+(add every new `shared.*` key to both; `catalog-*.ts` mirror them and a spec keeps them in sync).
 Rebuilding the library while `ng serve showcase` runs deletes `dist/solercia/ui`: restart the dev server.
 
 ### Releasing

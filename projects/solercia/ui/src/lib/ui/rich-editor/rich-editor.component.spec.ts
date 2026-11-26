@@ -203,8 +203,9 @@ describe('SolRichEditorComponent', () => {
 
   describe('toolbar', () => {
     it('renderiza los grupos de botones con aria-label i18n', () => {
-      const boldBtn = root().querySelector('[aria-label="shared.richEditor.bold"]');
-      const tableBtn = root().querySelector('[aria-label="shared.richEditor.insertTable"]');
+      // The mock host returns keys unchanged in es-CO: the bundled Spanish catalog fills them in.
+      const boldBtn = root().querySelector('[aria-label="Negrita"]');
+      const tableBtn = root().querySelector('[aria-label="Insertar tabla"]');
       expect(boldBtn).not.toBeNull();
       expect(tableBtn).not.toBeNull();
     });

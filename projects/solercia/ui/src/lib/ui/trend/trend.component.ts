@@ -2,10 +2,9 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
-  inject,
   input,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent, type SolIconName } from '../icon/icon.component';
 import { TONE_COLOR, type SolTone } from '../tone/sol-tone';
 
@@ -76,7 +75,7 @@ function invertTone(tone: SolTone): SolTone {
   `,
 })
 export class SolTrendComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Valor actual de la métrica. */
   readonly current = input.required<number>();

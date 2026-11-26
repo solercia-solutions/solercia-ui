@@ -7,7 +7,6 @@ import {
   computed,
   contentChild,
   effect,
-  inject,
   input,
   output,
   signal,
@@ -15,7 +14,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 import {
   buildOffsets,
@@ -156,7 +155,7 @@ interface VisibleRow<T> {
   `,
 })
 export class SolVirtualScrollComponent<T = unknown> implements AfterViewChecked {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Lista completa de ítems (el componente solo renderiza la ventana). */
   readonly items = input.required<readonly T[]>();

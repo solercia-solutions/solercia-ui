@@ -3,12 +3,11 @@ import {
   ChangeDetectionStrategy,
   computed,
   effect,
-  inject,
   input,
   output,
   signal,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 import {
   computeGlobalRange,
@@ -286,7 +285,7 @@ const MONTH_KEYS = Array.from({ length: 12 }, (_, i) => `shared.timeline.months.
   `,
 })
 export class SolTimelineComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /**
    * Nodos raíz del timeline. Tipado `TimelineNode[] | null | undefined` a

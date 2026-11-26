@@ -2,11 +2,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
   output,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolBadgeComponent } from '../badge/badge.component';
 import { SolButtonComponent } from '../button/button.component';
 import { SolEmptyStateComponent } from '../empty-state/empty-state.component';
@@ -477,7 +476,7 @@ const MINUTE_MS = 60_000;
 export class SolNotificationPanelComponent<
   T extends SolNotificationItem = SolNotificationItem,
 > {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /**
    * Notificaciones a mostrar. El panel NO las va a buscar: el consumidor es

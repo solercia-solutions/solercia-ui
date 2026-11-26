@@ -13,7 +13,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 import { SolFloatingPanelDirective } from '../overlay/floating-panel.directive';
 
@@ -582,7 +582,7 @@ const POPOVER_WIDTH = 300;
   `,
 })
 export class SolDatePickerComponent implements ControlValueAccessor {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly hostEl = inject(ElementRef) as ElementRef<HTMLElement>;
 
   // ── API pública ──
@@ -672,8 +672,8 @@ export class SolDatePickerComponent implements ControlValueAccessor {
 
   // ── Derivados ──
 
-  /** Locale efectivo (reactivo al idioma activo); es-CO por defecto. */
-  private readonly locale = computed(() => this.i18n.activeLang() || 'es-CO');
+  /** Locale efectivo (reactivo al idioma activo); inglés por defecto. */
+  private readonly locale = computed(() => this.i18n.activeLang() || 'en');
 
   readonly isDisabled = computed(() => this.disabled() || this.formDisabled());
 

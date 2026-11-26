@@ -28,7 +28,7 @@ import {
 } from 'chart.js';
 import type { ChartConfiguration } from 'chart.js';
 import { ThemeService } from '../../tokens';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import {
   buildChartConfig,
   readChartTheme,
@@ -117,7 +117,7 @@ export const SOL_CHART_ENGINE = new InjectionToken<SolChartEngineFactory>('SOL_C
 })
 export class SolChartComponent {
   private readonly themeService = inject(ThemeService);
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly engineFactory = inject(SOL_CHART_ENGINE);
   private readonly destroyRef = inject(DestroyRef);
 

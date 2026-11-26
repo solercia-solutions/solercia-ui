@@ -4,7 +4,6 @@ import {
   computed,
   ElementRef,
   forwardRef,
-  inject,
   input,
   output,
   signal,
@@ -12,7 +11,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 
 export type SolRatingInputSize = 'sm' | 'md' | 'lg';
@@ -296,7 +295,7 @@ const MAX_STARS = 5;
   `,
 })
 export class SolRatingInputComponent implements ControlValueAccessor {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Botones de estrella renderizados, en el mismo orden que `stars`. */
   private readonly starRefs = viewChildren<ElementRef<HTMLButtonElement>>('starRef');
@@ -386,11 +385,11 @@ export class SolRatingInputComponent implements ControlValueAccessor {
   });
 
   protected readonly groupLabel = computed(() =>
-    this.text(this.ariaLabelKey(), 'Calificación de 1 a 5 estrellas'),
+    this.text(this.ariaLabelKey(), 'Rating from 1 to 5 stars'),
   );
 
   protected readonly clearLabel = computed(() =>
-    this.text(this.clearLabelKey(), 'Quitar la calificación'),
+    this.text(this.clearLabelKey(), 'Clear the rating'),
   );
 
   private onChange: (value: number | null) => void = () => {};
@@ -412,7 +411,7 @@ export class SolRatingInputComponent implements ControlValueAccessor {
   }
 
   protected optionLabel(star: number): string {
-    return this.text(this.optionLabelKey(), `${star} de ${MAX_STARS}`, {
+    return this.text(this.optionLabelKey(), `${star} of ${MAX_STARS}`, {
       value: star,
       max: MAX_STARS,
     });
@@ -512,7 +511,7 @@ export class SolRatingInputComponent implements ControlValueAccessor {
   }
 
   /**
-   * Resuelve un texto por i18n con respaldo es-CO propio.
+   * Resuelve un texto por i18n con respaldo propio en inglés.
    *
    * El contrato `SolI18n` devuelve la CLAVE cuando falta la traducción, así que
    * ese caso se detecta y se cae al texto de la casa en vez de anunciarle la

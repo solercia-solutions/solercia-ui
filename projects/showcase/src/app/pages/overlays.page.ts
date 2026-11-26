@@ -83,7 +83,6 @@ type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
           [title]="confirmTitle()"
           message="This action is logged in the audit trail."
           [confirmLabel]="confirmVariant() === 'danger' ? 'Delete' : 'Continue'"
-          cancelLabel="Cancel"
           (confirm)="close('confirmed')"
           (cancel)="close('cancelled')"
         />
@@ -167,8 +166,7 @@ export class OverlaysPage {
   variant="danger"
   title="Delete this project?"
   message="This action is logged in the audit trail."
-  confirmLabel="Delete"
-  cancelLabel="Cancel"
+  confirmLabel="Delete"            <!-- cancelLabel defaults to shared.confirmDialog.cancel -->
   (confirm)="remove()"
   (cancel)="confirming.set(false)"
 />`;

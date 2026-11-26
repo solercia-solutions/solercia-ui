@@ -2,10 +2,9 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
-  inject,
   input,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { TONE_COLOR, type SolTone } from '../tone/sol-tone';
 
 /** Re-exportado por compatibilidad — la definición canónica vive en `ui/tone/sol-tone.ts`. */
@@ -74,7 +73,7 @@ export function resolveScoreTone(score: number, thresholds: readonly SolScoreThr
   `,
 })
 export class SolScoreBadgeComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Puntaje a mostrar; `null` = sin dato todavía. */
   readonly value = input<number | null>(null);

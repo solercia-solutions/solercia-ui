@@ -258,3 +258,18 @@ describe('SolDrawerComponent — accesibilidad y contenido proyectado', () => {
     expect(document.activeElement).toBe(trigger);
   });
 });
+
+describe('SolDrawerComponent — accessible name without a title', () => {
+  it('uses the ariaLabel input instead of an empty labelledby heading', () => {
+    TestBed.configureTestingModule({ imports: [SolDrawerComponent] });
+    const fixture = TestBed.createComponent(SolDrawerComponent);
+    fixture.componentRef.setInput('open', true);
+    fixture.componentRef.setInput('ariaLabel', 'Filters');
+    fixture.detectChanges();
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('.sol-drawer-panel') as HTMLElement;
+    expect(panel.getAttribute('aria-label')).toBe('Filters');
+    expect(panel.hasAttribute('aria-labelledby')).toBe(false);
+    fixture.componentRef.setInput('open', false);
+    fixture.detectChanges();
+  });
+});

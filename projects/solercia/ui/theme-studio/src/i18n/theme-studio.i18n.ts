@@ -643,7 +643,7 @@ function interpolate(template: string, params?: Record<string, unknown>): string
 /**
  * Traductor de la pantalla (llamar en contexto de inyección): resuelve `sol.themeStudio.<key>`
  * con `SOL_I18N` y, si el host no tiene la clave, cae al diccionario por defecto del idioma activo
- * (`en*` → inglés; cualquier otro → español colombiano). Lee `activeLang()`, así que el texto se
+ * (`es*` → español colombiano; cualquier otro → inglés). Lee `activeLang()`, así que el texto se
  * recalcula al cambiar el idioma.
  */
 export function injectThemeStudioText(): (key: string, params?: Record<string, unknown>) => string {
@@ -653,7 +653,7 @@ export function injectThemeStudioText(): (key: string, params?: Record<string, u
     const fullKey = THEME_STUDIO_I18N_PREFIX + key;
     const translated = i18n.translate(fullKey, params);
     if (translated && translated !== fullKey) return translated;
-    const dictionary = lang.toLowerCase().startsWith('en') ? SOL_THEME_STUDIO_I18N_EN : SOL_THEME_STUDIO_I18N_ES_CO;
-    return interpolate(lookup(dictionary, key) ?? lookup(SOL_THEME_STUDIO_I18N_ES_CO, key) ?? fullKey, params);
+    const dictionary = lang.toLowerCase().startsWith('es') ? SOL_THEME_STUDIO_I18N_ES_CO : SOL_THEME_STUDIO_I18N_EN;
+    return interpolate(lookup(dictionary, key) ?? lookup(SOL_THEME_STUDIO_I18N_EN, key) ?? fullKey, params);
   };
 }

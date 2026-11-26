@@ -1,11 +1,13 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  computed,
   input,
   output,
   signal,
 } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 
 const DEFAULT_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 const DEFAULT_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -34,19 +36,19 @@ const DEFAULT_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
       />
 
       @if (previewUrl()) {
-        <img [src]="previewUrl()!" [alt]="fileName() || 'Vista previa'" class="sol-file-upload__preview" />
+        <img [src]="previewUrl()!" [alt]="fileName() || t('preview')" class="sol-file-upload__preview" />
         <div class="sol-file-upload__overlay">
-          <button type="button" class="sol-file-upload__remove" (click)="removeImage($event)" title="Quitar imagen">
+          <button type="button" class="sol-file-upload__remove" (click)="removeImage($event)" [attr.title]="t('remove')" [attr.aria-label]="t('remove')">
             <sol-icon name="x" size="sm" />
           </button>
           <sol-icon name="photo" size="md" class="sol-file-upload__overlay-icon" />
-          <span class="sol-file-upload__overlay-text">Cambiar imagen</span>
+          <span class="sol-file-upload__overlay-text">{{ t('change') }}</span>
         </div>
       } @else {
         <div class="sol-file-upload__placeholder">
           <sol-icon name="cloud-arrow-up" size="lg" class="sol-file-upload__icon" />
-          <span class="sol-file-upload__hint-primary">{{ label() }}</span>
-          <span class="sol-file-upload__hint-secondary">{{ hint() }}</span>
+          <span class="sol-file-upload__hint-primary">{{ labelText() }}</span>
+          <span class="sol-file-upload__hint-secondary">{{ hintText() }}</span>
         </div>
       }
     </label>
@@ -216,8 +218,12 @@ const DEFAULT_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 export class SolFileUploadComponent {
   readonly accept = input<string>(DEFAULT_ACCEPT);
   readonly maxSizeBytes = input<number>(DEFAULT_MAX_SIZE);
-  readonly label = input<string>('Arrastra o haz clic para subir');
-  readonly hint = input<string>('JPG, PNG, WEBP o GIF · máx. 5 MB');
+  private readonly i18n = injectSolI18n();
+
+  /** Main text of the drop zone. Without a value it uses `shared.fileUpload.label`. */
+  readonly label = input<string | undefined>(undefined);
+  /** Secondary text of the drop zone. Without a value it uses `shared.fileUpload.hint`. */
+  readonly hint = input<string | undefined>(undefined);
 
   readonly fileSelected = output<File>();
   readonly previewReady = output<string>();
@@ -229,6 +235,15 @@ export class SolFileUploadComponent {
   readonly previewUrl = signal<string | null>(null);
   readonly fileName = signal<string | null>(null);
   readonly errorMessage = signal<string | null>(null);
+
+  readonly labelText = computed(() => this.label() ?? this.t('label'));
+  readonly hintText = computed(() => this.hint() ?? this.t('hint'));
+
+  /** Resolves `shared.fileUpload.<key>` (reacts to language changes). */
+  protected t(key: string, params?: Record<string, unknown>): string {
+    this.i18n.activeLang();
+    return this.i18n.translate(`shared.fileUpload.${key}`, params);
+  }
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
@@ -281,7 +296,7 @@ export class SolFileUploadComponent {
 
     if (!this.isAcceptedType(file.type)) {
       const types = this.getReadableTypes();
-      const msg = `Formato no válido. Solo se permiten: ${types}`;
+      const msg = this.t('invalidType', { types });
       this.errorMessage.set(msg);
       this.fileError.emit(msg);
       return;
@@ -291,7 +306,7 @@ export class SolFileUploadComponent {
     if (maxSize > 0 && file.size > maxSize) {
       const maxMB = (maxSize / (1024 * 1024)).toFixed(0);
       const fileMB = (file.size / (1024 * 1024)).toFixed(1);
-      const msg = `La imagen pesa ${fileMB} MB y supera el máximo de ${maxMB} MB`;
+      const msg = this.t('tooLarge', { size: fileMB, max: maxMB });
       this.errorMessage.set(msg);
       this.fileError.emit(msg);
       return;

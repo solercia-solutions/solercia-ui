@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { Subject, of, throwError, type Observable } from 'rxjs';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { SOL_I18N, ThemeService, type SolI18n, type ThemeFile } from '@solercia/ui';
+import { SOL_I18N, ThemeService, createSolI18n, type SolI18n, type ThemeFile } from '@solercia/ui';
 import { buildThemeFile } from '../lib/theme-builder';
 import { DEFAULT_STUDIO_FORM, cloneStudioForm } from '../model/theme-studio-form.model';
 import { THEME_STUDIO_STORE, type ThemeStudioStore, type ThemeVersion, type ThemeVersionPage } from '../store/theme-studio-store';
@@ -61,7 +61,11 @@ describe('SolThemeStudioComponent', () => {
   let notices: SolThemeStudioNotice[];
   let appliedThemes: ThemeFile[];
 
-  function setup(store: FakeStore | null, i18n?: SolI18n, inputs: Record<string, unknown> = {}): void {
+  /**
+   * These specs assert the Colombian Spanish texts, so by default they run under a Spanish host
+   * (`createSolI18n({ lang: 'es-CO' })`); `null` mounts without any SOL_I18N provider (English).
+   */
+  function setup(store: FakeStore | null, i18n?: SolI18n | null, inputs: Record<string, unknown> = {}): void {
     themeService = {
       isDark: signal(false),
       activeTheme: signal(null),
@@ -71,7 +75,7 @@ describe('SolThemeStudioComponent', () => {
     };
     const providers: unknown[] = [{ provide: ThemeService, useValue: themeService }];
     if (store) providers.push({ provide: THEME_STUDIO_STORE, useValue: store as unknown as ThemeStudioStore });
-    if (i18n) providers.push({ provide: SOL_I18N, useValue: i18n });
+    if (i18n !== null) providers.push({ provide: SOL_I18N, useValue: i18n ?? createSolI18n({ lang: 'es-CO' }) });
     TestBed.configureTestingModule({ imports: [SolThemeStudioComponent], providers: providers as never[] });
     fixture = TestBed.createComponent(SolThemeStudioComponent);
     notices = [];
@@ -309,6 +313,11 @@ describe('SolThemeStudioComponent', () => {
 
     expect(hexValue('primary')).toBe('#17324F');
     expect(notices.at(-1)).toMatchObject({ kind: 'warning', messageKey: 'sol.themeStudio.alerts.invalidHex' });
+  });
+
+  it('sin proveedor de SOL_I18N los textos salen en inglés', () => {
+    setup(fullStore(), null);
+    expect(el().querySelector('.studio-subtitle')?.textContent).toContain("Design the organization's theme");
   });
 
   it('los textos del host ganan; sin clave del host cae al diccionario del idioma activo', () => {

@@ -4,12 +4,11 @@ import {
   TemplateRef,
   computed,
   effect,
-  inject,
   input,
   output,
   signal,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { isSafeCssColor } from './calendar-color';
 import { SolCalendarGridComponent, type SolCalendarEventTemplateContext } from './calendar-grid.component';
 import { SolCalendarHeaderComponent } from './calendar-header.component';
@@ -113,7 +112,7 @@ import type { SolCalendarEvent, SolCalendarLegendItem, SolCalendarView } from '.
   `,
 })
 export class SolCalendarComponent<T extends SolCalendarEvent = SolCalendarEvent> {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Tolera `null`/`undefined` (lección PR3/PR4/PR5): `input.required()` no garantiza un dato válido en runtime. */
   readonly events = input.required<T[] | null | undefined>();

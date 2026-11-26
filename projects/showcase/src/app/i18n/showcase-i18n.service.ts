@@ -1,17 +1,16 @@
 import { Injectable, Signal, computed, signal } from '@angular/core';
-import type { SolI18n } from '@solercia/ui';
-import en from './en.json';
-// The library ships its reference catalog in Colombian Spanish. A real host would keep
-// its own copy; the showcase reads it straight from the library sources.
-import esCO from '../../../../solercia/ui/i18n/es-CO.json';
+import { SOL_I18N_EN, SOL_I18N_ES_CO, type SolI18n } from '@solercia/ui';
+import showcaseEn from './en.json';
 
 export type ShowcaseLang = 'en' | 'es-CO';
 
 type Catalog = Record<string, unknown>;
 
+// The library ships its `shared.*` catalogs (SOL_I18N_EN / SOL_I18N_ES_CO, also as
+// `@solercia/ui/i18n/*.json`); a host merges them with its own keys, as the showcase does here.
 const CATALOGS: Record<ShowcaseLang, Catalog> = {
-  en: en as Catalog,
-  'es-CO': esCO as Catalog,
+  en: { ...SOL_I18N_EN, ...(showcaseEn as Catalog) },
+  'es-CO': { ...SOL_I18N_ES_CO },
 };
 
 function lookup(catalog: Catalog, key: string): string | undefined {

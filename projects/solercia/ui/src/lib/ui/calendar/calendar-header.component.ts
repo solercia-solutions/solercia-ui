@@ -1,6 +1,6 @@
-import { Component, ChangeDetectionStrategy, computed, inject, input, output } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, input, output } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { getWeekStart } from './calendar-layout';
 import type { SolCalendarView } from './calendar.model';
 
@@ -157,7 +157,7 @@ import type { SolCalendarView } from './calendar.model';
   `,
 })
 export class SolCalendarHeaderComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Tolera `null`/`undefined`/fecha inválida (lección PR3/PR4/PR5): `input.required()` no garantiza un dato válido en runtime. */
   readonly currentDate = input.required<Date | null | undefined>();

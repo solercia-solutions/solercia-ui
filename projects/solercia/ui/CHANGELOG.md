@@ -5,6 +5,47 @@ All notable changes to this package are documented in this file. The format foll
 [SemVer](https://semver.org/). The package started at `0.1.0`; while it is pre-1.0 and has only a
 few consumers, `minor` versions may include breaking changes.
 
+## [0.8.0] - 2026-11-25
+
+### Changed
+
+- **English is the default language.** Without a `SOL_I18N` provider, `SOL_I18N` is now an English
+  engine backed by the bundled catalog (it used to be an identity engine with `activeLang` `es-CO`), and
+  every visible default goes through a `shared.*` key: `sol-data-table` (`searchPlaceholder`,
+  `emptyMessage`, `actionsLabel`, `toggleDetailsLabel`, column filter «All»), `sol-search-input`,
+  `sol-select` (`placeholder`, `allOptionLabel`, `searchPlaceholder`, `emptyLabel`, All/None buttons),
+  `sol-confirm-dialog` (`title`, `confirmLabel`, `cancelLabel`), `sol-file-upload` (`label`, `hint`,
+  preview texts and validation messages), `sol-modal`, `sol-pagination`, `sol-wizard` and
+  `sol-progress-bar`. `@solercia/ui/theme-studio` and `@solercia/ui/login-appearance` also default to
+  English (`es*` languages keep Spanish). `sol-star-rating` formats the value with the active locale.
+- **Behavior change for hosts without a catalog:** a host that relied on the hard-coded Spanish
+  defaults now sees English. To keep Spanish, provide
+  `{ provide: SOL_I18N, useFactory: () => createSolI18n({ lang: 'es-CO' }) }`, or merge
+  `SOL_I18N_ES_CO` (`@solercia/ui/i18n/es-CO.json`) into your engine. A host engine whose
+  `activeLang()` starts with `es` keeps Spanish even for keys it does not know: unknown `shared.*` keys
+  fall back to the bundled catalog of the active language. Explicit inputs always win.
+- Those text inputs now default to `undefined` (type `string | undefined`) instead of a literal; an
+  explicit value, including `''`, is rendered as given.
+
+### Added
+
+- Bundled catalogs `SOL_I18N_EN` and `SOL_I18N_ES_CO` (type `SolI18nCatalog`), also shipped as
+  `@solercia/ui/i18n/en.json` and `@solercia/ui/i18n/es-CO.json` to merge into Transloco or ngx-translate.
+- `createSolI18n({ lang?, catalogs? })`: catalog-backed `SolI18n` engine with `setLang(lang)`.
+- New `shared.*` keys: `modal`, `confirmDialog`, `searchInput`, `select`, `fileUpload`, `pagination`,
+  `wizard`, `progressBar` and `table.searchPlaceholder|empty|actions|filterAll`.
+- `ariaLabel` input on `sol-modal` and `sol-drawer`, used as the accessible name when there is no title.
+
+### Fixed
+
+- `sol-modal` is now an accessible modal dialog: `role="dialog"`, `aria-modal="true"`, `aria-labelledby`
+  bound to the title (or `aria-label`), focus moves inside on open and is trapped (Tab/Shift+Tab), focus
+  returns to the previously focused element on close, the page scroll is locked while open, and the
+  close button has an i18n label (it was a hard-coded «Cerrar»). No empty heading without a title.
+- `sol-confirm-dialog`: `role="alertdialog"` moved to the panel with `aria-labelledby`/`aria-describedby`,
+  focus starts on Cancel, is trapped and restored, and the page scroll is locked while open.
+- `sol-pagination`: the page-size label is tied to its select and the previous/next buttons have labels.
+
 ## [0.7.2] - 2026-11-24
 
 ### Added

@@ -2,10 +2,9 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
-  inject,
   input,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 
 export type SolProgressMode = 'continuous' | 'segmented';
 export type SolProgressSize = 'sm' | 'md' | 'lg';
@@ -145,7 +144,7 @@ export type SolProgressVariant = 'primary' | 'success' | 'warning' | 'danger';
   `,
 })
 export class SolProgressBarComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** `continuous` (value/max) o `segmented` (steps/current). */
   readonly mode = input<SolProgressMode>('continuous');
@@ -225,7 +224,7 @@ export class SolProgressBarComponent {
       const params = { current: this.current() + 1, total: this.steps() };
       const key = 'shared.progressBar.stepOf';
       const t = this.i18n.translate(key, params);
-      return t && t !== key ? t : `Paso ${params.current} de ${params.total}`;
+      return t && t !== key ? t : `Step ${params.current} of ${params.total}`;
     }
 
     return `${Math.round(this.percent())} %`;
@@ -238,6 +237,6 @@ export class SolProgressBarComponent {
     if (override) return override;
     const key = 'shared.progressBar.aria';
     const t = this.i18n.translate(key);
-    return t && t !== key ? t : 'Progreso';
+    return t && t !== key ? t : 'Progress';
   });
 }

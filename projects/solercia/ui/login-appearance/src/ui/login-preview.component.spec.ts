@@ -24,12 +24,12 @@ const canvas = (host: HTMLElement) => host.querySelector('[data-testid="login-pr
 describe('SolLoginPreviewComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  it('shows the theme logo over the title and the mock fields with their labels in Spanish', () => {
+  it('shows the theme logo over the title and the mock fields with their labels in English', () => {
     const host = mount({ modes: { dark: { background: 'facets' } } }, true);
 
     expect(host.querySelector('[data-testid="login-brand-logo"]')?.getAttribute('src')).toBe('/uploads/logo.png');
-    expect(host.textContent).toContain('Correo electrónico');
-    expect(host.textContent).toContain('Ingresa tu contraseña');
+    expect(host.textContent).toContain('Email');
+    expect(host.textContent).toContain('Enter your password');
     expect(host.querySelector('sol-login-shapes')).not.toBeNull();
   });
 
@@ -40,7 +40,7 @@ describe('SolLoginPreviewComponent', () => {
   it('uses the theme tagline as caption, then the library fallback, unless one is given', () => {
     expect(mount({}, false, theme({ tagline: 'Agenda sin filas' })).textContent).toContain('Agenda sin filas');
     TestBed.resetTestingModule();
-    expect(mount({}, false, theme({ tagline: '  ' })).textContent).toContain('Todo tu trabajo, en un solo lugar.');
+    expect(mount({}, false, theme({ tagline: '  ' })).textContent).toContain('All your work, in one place.');
     TestBed.resetTestingModule();
     expect(mount({}, false, theme({ tagline: 'Agenda sin filas' }), 'Otra frase').textContent).toContain('Otra frase');
   });

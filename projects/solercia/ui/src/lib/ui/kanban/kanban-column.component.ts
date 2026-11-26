@@ -3,14 +3,13 @@ import {
   ChangeDetectionStrategy,
   TemplateRef,
   computed,
-  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { TONE_COLOR } from '../tone/sol-tone';
 import { SolKanbanCardComponent, type KanbanCardTemplateContext } from './kanban-card.component';
 import { KANBAN_ADD_ACTION, type KanbanColumn, type KanbanColumnAction, type KanbanItem } from './kanban.model';
@@ -259,7 +258,7 @@ export interface KanbanMoveTarget {
   `,
 })
 export class SolKanbanColumnComponent<T extends KanbanItem = KanbanItem> {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Tolera `null`/`undefined` (lección PR3/PR4): `input.required()` no garantiza no-nulo en runtime. */
   readonly column = input.required<KanbanColumn<T> | null | undefined>();

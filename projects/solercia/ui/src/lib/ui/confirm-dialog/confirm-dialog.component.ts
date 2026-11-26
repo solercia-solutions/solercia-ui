@@ -1,5 +1,18 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  HostListener,
+  computed,
+  effect,
+  input,
+  output,
+  viewChild,
+} from '@angular/core';
 import { SolIconComponent, type SolIconName } from '../icon/icon.component';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
+import { bodyScrollLock } from '../overlay/body-scroll-lock';
+import { createFocusTrap } from '../overlay/focus-trap';
 
 /** Variante visual: define el ícono y el color del botón de confirmación. */
 export type SolConfirmDialogVariant = 'danger' | 'warning' | 'info';
@@ -24,35 +37,38 @@ const CONFIRM_ICON_NAMES: Readonly<Record<SolConfirmDialogVariant, SolIconName>>
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open()) {
-      <div
-        class="sol-confirm-overlay"
-        role="alertdialog"
-        aria-modal="true"
-        data-testid="sol-confirm-dialog"
-        [attr.aria-label]="title()"
-        (click)="onBackdropClick()"
-      >
-        <div class="sol-confirm-panel" (click)="$event.stopPropagation()">
+      <div class="sol-confirm-overlay" data-testid="sol-confirm-dialog" (click)="onBackdropClick()">
+        <div
+          #panel
+          class="sol-confirm-panel"
+          role="alertdialog"
+          aria-modal="true"
+          [attr.aria-labelledby]="titleId"
+          [attr.aria-describedby]="message() ? messageId : null"
+          tabindex="-1"
+          (click)="$event.stopPropagation()"
+        >
           <div class="sol-confirm-header">
             <sol-icon class="sol-confirm-icon" [class]="iconClasses()" [name]="iconName()" />
-            <h2 class="sol-confirm-title">{{ title() }}</h2>
+            <h2 [id]="titleId" class="sol-confirm-title">{{ titleText() }}</h2>
           </div>
 
           @if (message()) {
-            <p class="sol-confirm-message">{{ message() }}</p>
+            <p [id]="messageId" class="sol-confirm-message">{{ message() }}</p>
           }
 
           <div class="sol-confirm-actions">
             <button type="button" data-testid="sol-confirm-accept" [class]="confirmBtnClasses()" (click)="onConfirm()">
-              {{ confirmLabel() }}
+              {{ confirmText() }}
             </button>
             <button
+              #cancelButton
               type="button"
               data-testid="sol-confirm-cancel"
               class="sol-confirm-btn sol-confirm-btn--cancel"
               (click)="onCancel()"
             >
-              {{ cancelLabel() }}
+              {{ cancelText() }}
             </button>
           </div>
         </div>
@@ -71,6 +87,9 @@ const CONFIRM_ICON_NAMES: Readonly<Record<SolConfirmDialogVariant, SolIconName>>
       backdrop-filter: var(--sol-overlay-blur, blur(3px));
       -webkit-backdrop-filter: var(--sol-overlay-blur, blur(3px));
       animation: sol-confirm-fade-in 0.15s ease-out;
+    }
+    .sol-confirm-panel:focus {
+      outline: none;
     }
     .sol-confirm-panel {
       width: min(28rem, 92vw);
@@ -184,16 +203,19 @@ const CONFIRM_ICON_NAMES: Readonly<Record<SolConfirmDialogVariant, SolIconName>>
   `,
 })
 export class SolConfirmDialogComponent {
+  private static nextId = 0;
+  private readonly i18n = injectSolI18n();
+
   /** Abre o cierra el diálogo. */
   readonly open = input<boolean>(false);
-  /** Título del diálogo. */
-  readonly title = input<string>('¿Estás seguro?');
+  /** Título del diálogo. Sin valor usa `shared.confirmDialog.title` («Are you sure?»). */
+  readonly title = input<string | undefined>(undefined);
   /** Mensaje bajo el título (opcional). */
   readonly message = input<string>('');
-  /** Texto del botón de confirmación. */
-  readonly confirmLabel = input<string>('Confirmar');
-  /** Texto del botón de cancelación. */
-  readonly cancelLabel = input<string>('Cancelar');
+  /** Texto del botón de confirmación. Sin valor usa `shared.confirmDialog.confirm`. */
+  readonly confirmLabel = input<string | undefined>(undefined);
+  /** Texto del botón de cancelación. Sin valor usa `shared.confirmDialog.cancel`. */
+  readonly cancelLabel = input<string | undefined>(undefined);
   /** Variante visual: ícono y color del botón de confirmación. */
   readonly variant = input<SolConfirmDialogVariant>('danger');
 
@@ -205,6 +227,42 @@ export class SolConfirmDialogComponent {
   protected readonly iconClasses = computed(() => `sol-confirm-icon sol-confirm-icon--${this.variant()}`);
   protected readonly confirmBtnClasses = computed(() => `sol-confirm-btn sol-confirm-btn--${this.variant()}`);
   protected readonly iconName = computed((): SolIconName => CONFIRM_ICON_NAMES[this.variant()]);
+
+  protected readonly titleId = `sol-confirm-title-${SolConfirmDialogComponent.nextId}`;
+  protected readonly messageId = `sol-confirm-message-${SolConfirmDialogComponent.nextId++}`;
+
+  protected readonly titleText = computed(() => this.text(this.title(), 'shared.confirmDialog.title'));
+  protected readonly confirmText = computed(() => this.text(this.confirmLabel(), 'shared.confirmDialog.confirm'));
+  protected readonly cancelText = computed(() => this.text(this.cancelLabel(), 'shared.confirmDialog.cancel'));
+
+  private readonly panelEl = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly cancelButton = viewChild<ElementRef<HTMLElement>>('cancelButton');
+
+  constructor() {
+    // Same lifecycle as sol-modal and sol-drawer (scroll lock + focus trap + focus restore).
+    // Initial focus goes to Cancel, the least destructive action (WAI-ARIA alertdialog).
+    effect(onCleanup => {
+      const panel = this.panelEl()?.nativeElement ?? null;
+      if (!panel) return;
+
+      const trigger = document.activeElement as HTMLElement | null;
+      bodyScrollLock.lock();
+      const trap = createFocusTrap(panel);
+      trap.activate(trigger);
+      this.cancelButton()?.nativeElement.focus();
+
+      onCleanup(() => {
+        trap.deactivate();
+        bodyScrollLock.unlock();
+      });
+    });
+  }
+
+  /** An explicit input always wins (even `''`); otherwise the i18n key. */
+  private text(override: string | undefined, key: string): string {
+    this.i18n.activeLang();
+    return override ?? this.i18n.translate(key);
+  }
 
   @HostListener('document:keydown.escape')
   protected onEscapeKey(): void {

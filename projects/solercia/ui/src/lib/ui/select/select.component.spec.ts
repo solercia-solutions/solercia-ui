@@ -112,7 +112,7 @@ describe('SolSelectComponent — dropdown propio con CVA', () => {
     expect(emitted[1]).toEqual([]);
   });
 
-  it('la búsqueda filtra opciones y sin coincidencias muestra "Sin resultados"', () => {
+  it('la búsqueda filtra opciones y sin coincidencias muestra "No results"', () => {
     trigger().click();
     fixture.detectChanges();
 
@@ -126,7 +126,7 @@ describe('SolSelectComponent — dropdown propio con CVA', () => {
     search.value = 'zzz';
     search.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-    expect(document.querySelector('.sol-select__empty')?.textContent).toContain('Sin resultados');
+    expect(document.querySelector('.sol-select__empty')?.textContent).toContain('No results');
   });
 
   it('Escape en la búsqueda y el clic FUERA cierran el dropdown', () => {
@@ -329,7 +329,7 @@ describe('SolSelectComponent — teclado y accesibilidad', () => {
   it('los textos del buscador y el nombre del trigger se pueden cambiar; por defecto siguen igual', async () => {
     expect(trigger().getAttribute('aria-label')).toBeNull();
     await open();
-    expect((document.querySelector('.sol-select__search') as HTMLInputElement).placeholder).toBe('Buscar...');
+    expect((document.querySelector('.sol-select__search') as HTMLInputElement).placeholder).toBe('Search...');
     component.closeDropdown();
     fixture.detectChanges();
 

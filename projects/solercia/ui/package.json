@@ -1,6 +1,6 @@
 {
     "name": "@solercia/ui",
-    "version": "0.7.2",
+    "version": "0.8.0",
     "description": "Solercia design system (sol-* components, port-based host-agnostic theming, i18n contract and ng add/ng generate schematics) for Angular projects in the Solercia ecosystem.",
     "keywords": [
         "angular",

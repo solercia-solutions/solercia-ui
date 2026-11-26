@@ -12,7 +12,7 @@ import {
   output,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolStepperComponent, type SolStepperStep } from '../stepper/stepper.component';
 import { SolButtonComponent } from '../button/button.component';
 import { SolIconComponent, type SolIconName } from '../icon/icon.component';
@@ -228,7 +228,7 @@ export class SolWizardStepDirective {
   `,
 })
 export class SolWizardComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Pasos a renderizar, en orden. */
   readonly steps = input.required<SolWizardStep[]>();
@@ -307,16 +307,16 @@ export class SolWizardComponent {
   });
 
   readonly previousText = computed(() =>
-    this.text(this.previousLabel(), 'shared.wizard.previous', 'Anterior'),
+    this.text(this.previousLabel(), 'shared.wizard.previous', 'Previous'),
   );
   readonly nextText = computed(() =>
-    this.text(this.nextLabel(), 'shared.wizard.next', 'Siguiente'),
+    this.text(this.nextLabel(), 'shared.wizard.next', 'Next'),
   );
   readonly finishText = computed(() =>
-    this.text(this.finishLabel(), 'shared.wizard.finish', 'Finalizar'),
+    this.text(this.finishLabel(), 'shared.wizard.finish', 'Finish'),
   );
 
-  /** Resuelve texto: override → clave i18n (si existe) → default es-CO. */
+  /** Resuelve texto: override → clave i18n (catálogo del host o el incluido) → respaldo en inglés. */
   private text(override: string, key: string, fallback: string): string {
     this.i18n.activeLang();
     const value = override.trim();

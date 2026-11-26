@@ -175,7 +175,7 @@ function interpolate(template: string, params?: Record<string, unknown>): string
 /**
  * Translator (call in an injection context): resolves `sol.loginAppearance.<key>` with `SOL_I18N`
  * and, when the host lacks the key, falls back to the default dictionary of the active language
- * (`en*` → English; anything else → Colombian Spanish). Reads `activeLang()`, so it reacts to
+ * (`es*` → Colombian Spanish; anything else → English). Reads `activeLang()`, so it reacts to
  * language changes.
  */
 export function injectLoginAppearanceText(): (key: string, params?: Record<string, unknown>) => string {
@@ -184,7 +184,7 @@ export function injectLoginAppearanceText(): (key: string, params?: Record<strin
     const fullKey = LOGIN_APPEARANCE_I18N_PREFIX + key;
     const translated = i18n.translate(fullKey, params);
     if (translated && translated !== fullKey) return translated;
-    const dictionary = i18n.activeLang().toLowerCase().startsWith('en') ? SOL_LOGIN_APPEARANCE_I18N_EN : SOL_LOGIN_APPEARANCE_I18N_ES_CO;
-    return interpolate(lookup(dictionary, key) ?? lookup(SOL_LOGIN_APPEARANCE_I18N_ES_CO, key) ?? fullKey, params);
+    const dictionary = i18n.activeLang().toLowerCase().startsWith('es') ? SOL_LOGIN_APPEARANCE_I18N_ES_CO : SOL_LOGIN_APPEARANCE_I18N_EN;
+    return interpolate(lookup(dictionary, key) ?? lookup(SOL_LOGIN_APPEARANCE_I18N_EN, key) ?? fullKey, params);
   };
 }

@@ -2,10 +2,9 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
-  inject,
   input,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent, type SolIconName } from '../icon/icon.component';
 
 export type SolMessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
@@ -59,7 +58,7 @@ const STATUS_COLOR: Record<SolMessageStatus, string> = {
   `,
 })
 export class SolMessageStatusComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   readonly status = input.required<SolMessageStatus>();
 

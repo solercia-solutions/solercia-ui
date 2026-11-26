@@ -6,6 +6,7 @@ import {
   computed,
 } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 
 @Component({
   selector: 'sol-pagination',
@@ -15,8 +16,9 @@ import { SolIconComponent } from '../icon/icon.component';
   template: `
     <div class="sol-pagination">
       <div class="sol-pagination__size">
-        <label class="sol-pagination__size-label">Mostrar</label>
+        <label class="sol-pagination__size-label" [attr.for]="sizeSelectId">{{ t('show') }}</label>
         <select
+          [id]="sizeSelectId"
           class="sol-pagination__size-select"
           [value]="pageSize()"
           (change)="onPageSizeChange($event)"
@@ -25,17 +27,18 @@ import { SolIconComponent } from '../icon/icon.component';
             <option [value]="size">{{ size }}</option>
           }
         </select>
-        <span class="sol-pagination__size-label">filas</span>
+        <span class="sol-pagination__size-label">{{ t('rows') }}</span>
       </div>
 
       <div class="sol-pagination__nav">
         <span class="sol-pagination__info">
-          {{ startItem() }}–{{ endItem() }} de {{ totalItems() }}
+          {{ rangeText() }}
         </span>
         <button
           type="button"
           class="sol-pagination__btn"
           [disabled]="currentPage() <= 1"
+          [attr.aria-label]="t('previous')"
           (click)="onPageChange(currentPage() - 1)"
         >
           <sol-icon name="chevron-left" size="sm" />
@@ -54,6 +57,7 @@ import { SolIconComponent } from '../icon/icon.component';
           type="button"
           class="sol-pagination__btn"
           [disabled]="currentPage() >= totalPages()"
+          [attr.aria-label]="t('next')"
           (click)="onPageChange(currentPage() + 1)"
         >
           <sol-icon name="chevron-right" size="sm" />
@@ -151,6 +155,12 @@ import { SolIconComponent } from '../icon/icon.component';
   `,
 })
 export class SolPaginationComponent {
+  private static nextId = 0;
+  private readonly i18n = injectSolI18n();
+
+  /** Id that ties the page-size label to its select. */
+  readonly sizeSelectId = `sol-pagination-size-${SolPaginationComponent.nextId++}`;
+
   readonly totalItems = input<number>(0);
   readonly pageSize = input<number>(10);
   readonly currentPage = input<number>(1);
@@ -170,6 +180,16 @@ export class SolPaginationComponent {
   readonly endItem = computed(() =>
     Math.min(this.currentPage() * this.pageSize(), this.totalItems())
   );
+
+  readonly rangeText = computed(() =>
+    this.t('range', { start: this.startItem(), end: this.endItem(), total: this.totalItems() }),
+  );
+
+  /** Resolves `shared.pagination.<key>` (reacts to language changes). */
+  protected t(key: string, params?: Record<string, unknown>): string {
+    this.i18n.activeLang();
+    return this.i18n.translate(`shared.pagination.${key}`, params);
+  }
 
   readonly pages = computed(() => {
     const total = this.totalPages();

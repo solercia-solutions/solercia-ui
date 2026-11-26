@@ -1,0 +1,290 @@
+import type { SolI18nCatalog } from './sol-i18n-catalogs';
+
+/**
+ * Colombian Spanish catalog. Mirror of `projects/solercia/ui/i18n/es-CO.json` (the file shipped as a
+ * package asset); `sol-i18n.spec.ts` fails when both drift apart.
+ */
+export const CATALOG_ES_CO: SolI18nCatalog = {
+  "shared": {
+    "spinner": {
+      "loading": "Cargando"
+    },
+    "map": {
+      "loading": "Cargando el mapa…",
+      "unavailable": "No pudimos mostrar el mapa en este navegador. La lista tiene la misma información.",
+      "zoomIn": "Acercar",
+      "zoomOut": "Alejar",
+      "attribution": {
+        "openFreeMap": "OpenFreeMap",
+        "openMapTiles": "© OpenMapTiles",
+        "openStreetMap": "© colaboradores de OpenStreetMap"
+      }
+    },
+    "scopeSwitcher": {
+      "loading": "Cargando tus ámbitos",
+      "empty": "No tienes ámbitos disponibles",
+      "error": "No pudimos completar el cambio. Verifica tu conexión e inténtalo de nuevo.",
+      "trigger": "Selecciona el ámbito activo",
+      "panel": "Ámbitos disponibles",
+      "activeOption": "Ámbito activo"
+    },
+    "nav": {
+      "more": "Más"
+    },
+    "starRating": {
+      "label": "{{rating}} de {{max}}"
+    },
+    "ratingInput": {
+      "groupLabel": "Calificación de 1 a 5 estrellas",
+      "option": "{{value}} de {{max}}",
+      "clear": "Quitar la calificación"
+    },
+    "table": {
+      "toggleDetails": "Mostrar u ocultar el detalle de la fila",
+      "searchPlaceholder": "Buscar...",
+      "empty": "No hay datos disponibles",
+      "actions": "Acciones",
+      "filterAll": "Todas"
+    },
+    "stepper": {
+      "aria": "Progreso del asistente",
+      "state": {
+        "completed": "Paso completado",
+        "current": "Paso actual",
+        "pending": "Paso pendiente",
+        "error": "Paso con errores"
+      }
+    },
+    "chip": {
+      "remove": "Quitar"
+    },
+    "numberInput": {
+      "decrement": "Disminuir",
+      "increment": "Aumentar"
+    },
+    "drawer": {
+      "close": "Cerrar"
+    },
+    "crud": {
+      "exportCsv": "Exportar CSV",
+      "created": "Registro creado correctamente",
+      "updated": "Registro actualizado correctamente",
+      "deleted": "Registro eliminado correctamente"
+    },
+    "form": {
+      "save": "Guardar cambios",
+      "create": "Crear",
+      "cancel": "Cancelar",
+      "yes": "Sí",
+      "no": "No",
+      "delete": "Eliminar"
+    },
+    "fixtures": {
+      "sample": "Datos de ejemplo"
+    },
+    "virtualScroll": {
+      "newMessages": "mensajes nuevos"
+    },
+    "richEditor": {
+      "toolbar": "Herramientas de formato",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "underline": "Subrayado",
+      "strike": "Tachado",
+      "heading": "Estilo de título",
+      "paragraph": "Párrafo",
+      "heading1": "Título 1",
+      "heading2": "Título 2",
+      "heading3": "Título 3",
+      "bulletList": "Lista con viñetas",
+      "numberedList": "Lista numerada",
+      "alignLeft": "Alinear a la izquierda",
+      "alignCenter": "Centrar",
+      "alignRight": "Alinear a la derecha",
+      "insertImage": "Insertar imagen",
+      "insertTable": "Insertar tabla",
+      "insertLink": "Insertar enlace",
+      "removeLink": "Quitar enlace",
+      "removeFormat": "Quitar formato",
+      "tablePicker": "Selecciona filas y columnas",
+      "linkPlaceholder": "Pega o escribe el enlace",
+      "linkConfirm": "Aplicar",
+      "editorAria": "Editor de texto enriquecido",
+      "imageTooLarge": "La imagen supera el tamaño máximo permitido",
+      "mentionList": "Mencionar usuario",
+      "taskList": "Enlazar tarea"
+    },
+    "datePicker": {
+      "placeholder": "dd/mm/aaaa",
+      "trigger": "Abrir el calendario para elegir una fecha",
+      "dialog": "Calendario para elegir una fecha",
+      "prev": "Anterior",
+      "next": "Siguiente",
+      "chooseView": "Cambiar entre días, meses y años"
+    },
+    "messageStatus": {
+      "pending": "Pendiente de envío",
+      "sent": "Enviado",
+      "delivered": "Entregado",
+      "read": "Leído",
+      "failed": "No se pudo entregar"
+    },
+    "scoreBadge": {
+      "pending": "Calculando…",
+      "empty": "Sin dato"
+    },
+    "trend": {
+      "noData": "Sin comparación disponible",
+      "up": "En aumento",
+      "down": "En descenso",
+      "flat": "Sin cambios"
+    },
+    "notificationPanel": {
+      "dialogAria": "Centro de notificaciones",
+      "title": "Notificaciones",
+      "unreadCount": "{{count}} sin leer",
+      "markAllRead": "Marcar todas como leídas",
+      "markRead": "Marcar como leída",
+      "unreadDot": "Sin leer",
+      "close": "Cerrar el panel de notificaciones",
+      "emptyTitle": "No tienes notificaciones",
+      "emptyDescription": "Cuando ocurra algo que necesites saber, lo verás aquí.",
+      "errorTitle": "No pudimos cargar tus notificaciones",
+      "errorDescription": "Revisa tu conexión e inténtalo de nuevo.",
+      "retry": "Reintentar",
+      "relativeTime": {
+        "now": "Justo ahora",
+        "minutes": "hace {{count}} min",
+        "hours": "hace {{count}} h",
+        "days": "hace {{count}} d"
+      }
+    },
+    "tree": {
+      "ariaLabel": "Árbol jerárquico",
+      "expandAria": "Expandir {{label}}",
+      "collapseAria": "Contraer {{label}}"
+    },
+    "timeline": {
+      "emptyState": "No hay elementos para mostrar",
+      "undatedTitle": "Sin fechas",
+      "expandNode": "Expandir",
+      "collapseNode": "Contraer",
+      "months": {
+        "0": "ene",
+        "1": "feb",
+        "2": "mar",
+        "3": "abr",
+        "4": "may",
+        "5": "jun",
+        "6": "jul",
+        "7": "ago",
+        "8": "sep",
+        "9": "oct",
+        "10": "nov",
+        "11": "dic"
+      }
+    },
+    "flowCanvas": {
+      "regionLabel": "Lienzo de flujo",
+      "nodeAriaLabel": "Nodo {{label}}",
+      "connectFromLabel": "Conectar desde {{label}}",
+      "removeConnectionLabel": "Quitar conexión",
+      "movedAnnouncement": "{{label}} se movió.",
+      "moveCancelledAnnouncement": "Se canceló el movimiento del nodo.",
+      "connectArmedAnnouncement": "Modo conectar activo desde {{label}} — selecciona el nodo destino. {{count}} destinos válidos disponibles.",
+      "connectionCreatedAnnouncement": "Conexión creada de {{source}} a {{target}}.",
+      "connectionRemovedAnnouncement": "Conexión eliminada.",
+      "autoLayoutButton": "Organizar",
+      "autoLayoutButtonAriaLabel": "Organizar automáticamente los nodos del lienzo"
+    },
+    "kanban": {
+      "columnAria": "Columna {{title}}",
+      "itemCountAriaSingular": "1 tarjeta",
+      "itemCountAriaPlural": "{{count}} tarjetas",
+      "emptyColumn": "Sin tarjetas",
+      "addColumn": "Agregar",
+      "moveAriaLabel": "Mover tarjeta",
+      "movePlaceholder": "Mover a...",
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "moveToColumn": "Mover a {{column}}",
+      "movedWithinColumn": "Tarjeta reordenada dentro de la columna",
+      "movedToColumn": "Tarjeta movida a la columna {{column}}"
+    },
+    "calendar": {
+      "today": "Hoy",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "viewWeek": "Semana",
+      "viewDay": "Día",
+      "weekdayShort": {
+        "0": "Dom",
+        "1": "Lun",
+        "2": "Mar",
+        "3": "Mié",
+        "4": "Jue",
+        "5": "Vie",
+        "6": "Sáb"
+      },
+      "months": {
+        "0": "ene",
+        "1": "feb",
+        "2": "mar",
+        "3": "abr",
+        "4": "may",
+        "5": "jun",
+        "6": "jul",
+        "7": "ago",
+        "8": "sep",
+        "9": "oct",
+        "10": "nov",
+        "11": "dic"
+      }
+    },
+    "modal": {
+      "close": "Cerrar"
+    },
+    "confirmDialog": {
+      "title": "¿Estás seguro?",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar"
+    },
+    "searchInput": {
+      "placeholder": "Buscar...",
+      "clear": "Limpiar búsqueda"
+    },
+    "select": {
+      "placeholder": "Selecciona...",
+      "all": "Todos",
+      "searchPlaceholder": "Buscar...",
+      "empty": "Sin resultados",
+      "selectAll": "Todos",
+      "selectNone": "Ninguno"
+    },
+    "fileUpload": {
+      "label": "Arrastra o haz clic para subir",
+      "hint": "JPG, PNG, WEBP o GIF · máx. 5 MB",
+      "preview": "Vista previa",
+      "remove": "Quitar imagen",
+      "change": "Cambiar imagen",
+      "invalidType": "Formato no válido. Solo se permiten: {{types}}",
+      "tooLarge": "La imagen pesa {{size}} MB y supera el máximo de {{max}} MB"
+    },
+    "wizard": {
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "finish": "Finalizar"
+    },
+    "progressBar": {
+      "stepOf": "Paso {{current}} de {{total}}",
+      "aria": "Progreso"
+    },
+    "pagination": {
+      "show": "Mostrar",
+      "rows": "filas",
+      "range": "{{start}}–{{end}} de {{total}}",
+      "previous": "Página anterior",
+      "next": "Página siguiente"
+    }
+  }
+};

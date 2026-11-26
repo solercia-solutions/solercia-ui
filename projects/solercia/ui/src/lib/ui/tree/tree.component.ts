@@ -18,7 +18,7 @@ import {
   type Signal,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 
 /**
@@ -294,7 +294,7 @@ export class SolTreeNodeComponent {
 
   private readonly el: ElementRef<HTMLElement> = inject(ElementRef);
   private readonly state = inject(SolTreeState);
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   protected readonly children = computed<readonly SolTreeNode[]>(
     () => this.node().children ?? [],
@@ -337,8 +337,8 @@ export class SolTreeNodeComponent {
     this.i18n.activeLang();
     const label = this.node().label;
     return this.expanded()
-      ? this.text('shared.tree.collapseAria', `Contraer ${label}`, label)
-      : this.text('shared.tree.expandAria', `Expandir ${label}`, label);
+      ? this.text('shared.tree.collapseAria', `Collapse ${label}`, label)
+      : this.text('shared.tree.expandAria', `Expand ${label}`, label);
   });
 
   protected onToggleClick(event: MouseEvent): void {
@@ -417,7 +417,7 @@ export class SolTreeNodeComponent {
     items[index + delta]?.focus();
   }
 
-  /** Resuelve texto: clave i18n (si el host la traduce) → default es-CO. */
+  /** Resuelve texto: clave i18n (catálogo del host o el incluido) → respaldo en inglés. */
   private text(key: string, fallback: string, label: string): string {
     const translated = this.i18n.translate(key, { label });
     return translated && translated !== key ? translated : fallback;
@@ -479,7 +479,7 @@ export class SolTreeNodeComponent {
   `,
 })
 export class SolTreeComponent<T = unknown> implements SolTreeOwner {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly state = inject(SolTreeState);
 
   /** Raíces del bosque. Un árbol de una sola raíz es un arreglo de un elemento. */
@@ -556,7 +556,7 @@ export class SolTreeComponent<T = unknown> implements SolTreeOwner {
     const translated = this.i18n.translate('shared.tree.ariaLabel');
     return translated && translated !== 'shared.tree.ariaLabel'
       ? translated
-      : 'Árbol jerárquico';
+      : 'Hierarchical tree';
   });
 
   constructor() {

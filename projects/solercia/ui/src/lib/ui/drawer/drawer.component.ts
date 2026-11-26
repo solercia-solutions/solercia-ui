@@ -5,13 +5,12 @@ import {
   HostListener,
   computed,
   effect,
-  inject,
   input,
   output,
   viewChild,
 } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { bodyScrollLock } from '../overlay/body-scroll-lock';
 import { createFocusTrap, type FocusTrapHandle } from '../overlay/focus-trap';
 import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-interactions';
@@ -54,12 +53,15 @@ export type SolDrawerVariant = 'panel' | 'sheet';
           [class]="panelClasses()"
           role="dialog"
           aria-modal="true"
-          [attr.aria-labelledby]="titleId"
+          [attr.aria-labelledby]="title() ? titleId : null"
+          [attr.aria-label]="title() ? null : ariaLabel() || null"
           tabindex="-1"
           (click)="$event.stopPropagation()"
         >
           <header class="sol-drawer-header">
-            <h2 [id]="titleId" class="sol-drawer-title">{{ title() }}</h2>
+            @if (title()) {
+              <h2 [id]="titleId" class="sol-drawer-title">{{ title() }}</h2>
+            }
             @if (closeable()) {
               <button
                 type="button"
@@ -151,6 +153,7 @@ export type SolDrawerVariant = 'panel' | 'sheet';
       justify-content: center;
       min-width: 2.75rem;
       min-height: 2.75rem;
+      margin-inline-start: auto;
       border: none;
       border-radius: var(--sol-border-radius-lg, 8px);
       background: transparent;
@@ -243,7 +246,7 @@ export type SolDrawerVariant = 'panel' | 'sheet';
 })
 export class SolDrawerComponent {
   private static nextId = 0;
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Whether the drawer is open. */
   readonly open = input<boolean>(false);
@@ -270,6 +273,9 @@ export class SolDrawerComponent {
    * click, matching the common side-sheet UX.
    */
   readonly closeOnBackdrop = input<boolean>(true);
+
+  /** Accessible name of the dialog when there is no `title` (ignored when a title is set). */
+  readonly ariaLabel = input<string>('');
 
   /** Emitted when the drawer requests to be closed. */
   readonly closed = output<void>();

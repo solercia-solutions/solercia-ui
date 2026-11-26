@@ -259,10 +259,10 @@ describe('SolLoginAppearanceEditorComponent', () => {
     expect(clicks).toBe(1);
   });
 
-  it('texts are Colombian Spanish by default', () => {
+  it('texts are English by default', () => {
     const text = mount().host.textContent ?? '';
 
-    expect(text).toContain('Restablecer valores predeterminados');
-    expect(text).toContain('Duración de cada foto');
+    expect(text).toContain('Restore defaults');
+    expect(text).toContain('Duration of each photo');
   });
 });

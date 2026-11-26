@@ -165,8 +165,9 @@ names from `EMIT_TABLE` (`lib/tokens/theme.service.ts`).
 
 If your components should translate, implement the `SolI18n` facade and bind it
 with `{ provide: SOL_I18N, useExisting: YourI18nService }`. Full recipe (Transloco,
-ngx-translate, or the identity default) in [`I18N.md`](./I18N.md). Skip this step
-and the library uses the identity default (keys render unchanged).
+ngx-translate, or the bundled engine) in [`I18N.md`](./I18N.md). Skip this step
+and the library renders English from its bundled catalog; for Spanish without an
+engine provide `createSolI18n({ lang: 'es-CO' })`.
 
 ---
 
@@ -184,7 +185,7 @@ and the library uses the identity default (keys render unchanged).
       reloads.
 - [ ] `styles.css` has a `:root` `--sol-*` block as the level-3 net.
 - [ ] (If translating) `SOL_I18N` is bound to a `SolI18n` facade; otherwise the
-      identity default is intentionally in use.
+      English default is intentionally in use.
 
 ---
 

@@ -1,11 +1,13 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  computed,
   input,
   output,
   signal,
 } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 
 @Component({
   selector: 'sol-search-input',
@@ -18,7 +20,7 @@ import { SolIconComponent } from '../icon/icon.component';
       <input
         class="sol-search-input__field"
         type="text"
-        [placeholder]="placeholder()"
+        [placeholder]="placeholderText()"
         [value]="value()"
         (input)="onInput($event)"
       />
@@ -27,7 +29,7 @@ import { SolIconComponent } from '../icon/icon.component';
           type="button"
           class="sol-search-input__clear"
           (click)="onClear()"
-          aria-label="Limpiar búsqueda"
+          [attr.aria-label]="clearLabel()"
         >
           <sol-icon name="x" size="sm" />
         </button>
@@ -103,10 +105,23 @@ import { SolIconComponent } from '../icon/icon.component';
   `,
 })
 export class SolSearchInputComponent {
-  readonly placeholder = input<string>('Buscar...');
+  private readonly i18n = injectSolI18n();
+
+  /** Placeholder of the field. Without a value it uses `shared.searchInput.placeholder`. */
+  readonly placeholder = input<string | undefined>(undefined);
   readonly searchChange = output<string>();
 
   readonly value = signal('');
+
+  readonly placeholderText = computed(() => {
+    this.i18n.activeLang();
+    return this.placeholder() ?? this.i18n.translate('shared.searchInput.placeholder');
+  });
+
+  readonly clearLabel = computed(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('shared.searchInput.clear');
+  });
 
   onInput(event: Event): void {
     const val = (event.target as HTMLInputElement).value;

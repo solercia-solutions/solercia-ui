@@ -2,10 +2,9 @@ import {
   Component,
   ChangeDetectionStrategy,
   computed,
-  inject,
   input,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 import type { SolIconName } from '../icon/icon.component';
 
@@ -89,7 +88,7 @@ import type { SolIconName } from '../icon/icon.component';
   `,
 })
 export class SolEmptyStateComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Ícono del registry a mostrar. */
   readonly icon = input<SolIconName>('list');

@@ -11,7 +11,7 @@ import {
   type Signal,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { ThemeService } from '../../tokens';
 import { NEUTRAL_CALENDAR_COLOR, SOL_CALENDAR_COLOR } from './calendar-color';
 import {
@@ -362,7 +362,7 @@ export interface SolCalendarEventTemplateContext<T extends SolCalendarEvent = So
 export class SolCalendarGridComponent<T extends SolCalendarEvent = SolCalendarEvent> {
   private readonly colorResolver = inject(SOL_CALENDAR_COLOR);
   private readonly themeService = inject(ThemeService);
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly destroyRef = inject(DestroyRef);
 
   /** Tolera `null`/`undefined` (lección PR3/PR4/PR5): `input.required()` no garantiza un dato válido en runtime. */

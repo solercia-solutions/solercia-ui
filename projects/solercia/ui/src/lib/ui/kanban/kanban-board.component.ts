@@ -11,7 +11,7 @@ import {
   untracked,
 } from '@angular/core';
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { resolveColumnTitle, SolKanbanColumnComponent } from './kanban-column.component';
 import type { KanbanCardTemplateContext } from './kanban-card.component';
 import {
@@ -198,7 +198,7 @@ export class SolKanbanBoardComponent<T extends KanbanItem = KanbanItem> {
   readonly externalItemDropped = output<{ toColumnId: string; data: unknown }>();
 
   private readonly reorderService = inject(KanbanReorderService);
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** `protected` (no `private`): el template de este mismo componente necesita leerlo, y Angular exige acceso no-privado para bindings de plantilla. */
   protected readonly mirroredColumns = signal<KanbanColumn<T>[]>([]);

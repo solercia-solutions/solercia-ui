@@ -14,7 +14,7 @@ import { ShowcaseThemeSource } from './theme/showcase-theme-source';
  * - provideTheme() boots ThemeService, which writes the --sol-* tokens on :root.
  * - THEME_SOURCE is the host port that loads a tenant ThemeFile; with no
  *   SOL_TENANT_RESOLVER the bundled default theme ("Vértice") is used.
- * - SOL_I18N binds the host translation engine (identity by default).
+ * - SOL_I18N binds the host translation engine (English catalog by default).
  */
 export const appConfig: ApplicationConfig = {
   providers: [

@@ -3,13 +3,12 @@ import {
   ChangeDetectionStrategy,
   computed,
   forwardRef,
-  inject,
   input,
   signal,
   viewChildren,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolChipComponent, type SolChipSize } from './chip.component';
 import {
   MULTIPLE_SELECT_STRATEGY,
@@ -117,7 +116,7 @@ export interface SolChipOption {
   `,
 })
 export class SolChipGroupComponent implements ControlValueAccessor {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   /** Instancias renderizadas de `sol-chip`, en el mismo orden que `options()` — usadas por `focusChipAt` para enfocar sin depender de clases CSS internas. */
   private readonly chipViews = viewChildren(SolChipComponent);
 

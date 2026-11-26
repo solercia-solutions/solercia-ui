@@ -3,12 +3,11 @@ import {
   ChangeDetectionStrategy,
   computed,
   ElementRef,
-  inject,
   input,
   output,
   viewChild,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 
 export type SolChipRole = 'button' | 'radio' | 'checkbox';
@@ -196,7 +195,7 @@ export type SolChipSize = 'sm' | 'md';
   `,
 })
 export class SolChipComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly chipRoot = viewChild.required<ElementRef<HTMLElement>>('chipRoot');
 
   /** Stable identifier emitted by `toggled`/`removed`. */

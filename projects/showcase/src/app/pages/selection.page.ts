@@ -22,7 +22,7 @@ import { PageComponent } from '../shared/page.component';
     >
       <app-demo title="Select" description="Searchable by default; turns into a bottom sheet below mobileBreakpoint (640 px)." [code]="selectCode">
         <div class="grid">
-          <sol-select searchPlaceholder="Search…" emptyLabel="No results" label="Country" placeholder="Select a country" [options]="countries" [(ngModel)]="country" />
+          <sol-select label="Country" placeholder="Select a country" [options]="countries" [(ngModel)]="country" />
           <sol-select
             label="Skills"
             placeholder="Select skills"
@@ -31,9 +31,9 @@ import { PageComponent } from '../shared/page.component';
             searchPlaceholder="Filter skills…"
             [(ngModel)]="selectedSkills"
           />
-          <sol-select searchPlaceholder="Search…" emptyLabel="No results" label="Status" placeholder="All statuses" [options]="statuses" [showAllOption]="true" allOptionLabel="All statuses" [searchable]="false" [(ngModel)]="status" />
-          <sol-select searchPlaceholder="Search…" label="Owner" placeholder="Select an owner" [options]="[]" emptyLabel="No people found" error="Choose an owner." />
-          <sol-select searchPlaceholder="Search…" emptyLabel="No results" label="Region" [options]="countries" [disabled]="true" placeholder="Locked" />
+          <sol-select label="Status" placeholder="All statuses" [options]="statuses" [showAllOption]="true" allOptionLabel="All statuses" [searchable]="false" [(ngModel)]="status" />
+          <sol-select label="Owner" placeholder="Select an owner" [options]="[]" emptyLabel="No people found" error="Choose an owner." />
+          <sol-select label="Region" [options]="countries" [disabled]="true" placeholder="Locked" />
         </div>
         <p class="hint">Country: {{ country() || '—' }} · Skills: {{ selectedSkills().join(', ') || '—' }} · Status: {{ status() || 'all' }}</p>
       </app-demo>
@@ -120,7 +120,7 @@ export class SelectionPage {
   protected readonly alerts = signal(true);
   protected readonly isPublic = signal(false);
 
-  protected readonly selectCode = `<sol-select searchPlaceholder="Search…" emptyLabel="No results" label="Country" placeholder="Select a country" [options]="countries" [(ngModel)]="country" />
+  protected readonly selectCode = `<sol-select label="Country" placeholder="Select a country" [options]="countries" [(ngModel)]="country" />
 <sol-select label="Skills" [multiple]="true" [options]="skills" [(ngModel)]="skills" />   <!-- value: string[] -->
 <sol-select label="Status" placeholder="All statuses" [options]="statuses" [showAllOption]="true" allOptionLabel="All statuses" [searchable]="false" />
 <sol-select label="Owner" placeholder="Select an owner" [options]="[]" emptyLabel="No people found" error="Choose an owner." />

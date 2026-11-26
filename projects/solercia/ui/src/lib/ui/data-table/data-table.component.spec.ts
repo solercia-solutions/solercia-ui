@@ -95,7 +95,7 @@ describe('SolDataTableComponent — tabla de datos genérica', () => {
 
   it('renderiza un encabezado por columna más la columna de acciones', () => {
     const headers = Array.from(el().querySelectorAll('thead th')).map((th) => th.textContent?.trim());
-    expect(headers).toEqual(['Nombre', 'Correo', 'Estado', 'Acciones']);
+    expect(headers).toEqual(['Nombre', 'Correo', 'Estado', 'Actions']);
   });
 
   it('renderiza una fila por elemento con sus valores resueltos', () => {
@@ -110,7 +110,7 @@ describe('SolDataTableComponent — tabla de datos genérica', () => {
     fixture.detectChanges();
 
     const empty = el().querySelector('.sol-data-table__empty');
-    expect(empty?.textContent?.trim()).toBe('No hay datos disponibles');
+    expect(empty?.textContent?.trim()).toBe('No data available');
     expect(el().querySelectorAll('tbody tr.sol-data-table__tr').length).toBe(0);
   });
 
@@ -171,15 +171,11 @@ describe('SolDataTableComponent — tabla de datos genérica', () => {
     expect(fixture.componentInstance.pagedData().map((r) => r['name'])).toEqual(['Beto', 'Ana']);
   });
 
-  // PR7a (T49) — el default de cada texto se alinea con la clave i18n real
-  // de boki-front para que un consumidor sin override obtenga el texto
-  // correcto: `actionsLabel` ya coincidía ('Acciones', ver el primer test
-  // de este archivo); `toggleDetailsLabel` NO coincidía ('Ver detalles' vs.
-  // la clave i18n real `shared.table.toggleDetails` = 'Mostrar u ocultar el
-  // detalle de la fila') — se cierra aquí la brecha.
-  it('el default de actionsLabel/toggleDetailsLabel iguala el texto real del widget de boki-front', () => {
-    expect(fixture.componentInstance.actionsLabel()).toBe('Acciones');
-    expect(fixture.componentInstance.toggleDetailsLabel()).toBe('Mostrar u ocultar el detalle de la fila');
+  // 0.8.0 — sin override, los textos salen de las claves i18n `shared.table.*`
+  // (inglés sin catálogo del host).
+  it('sin override, actionsLabel/toggleDetailsLabel salen de las claves shared.table.*', () => {
+    expect(fixture.componentInstance.actionsText()).toBe('Actions');
+    expect(fixture.componentInstance.toggleDetailsText()).toBe('Show or hide the row details');
   });
 });
 
@@ -356,7 +352,7 @@ describe('SolDataTableComponent — actionsPosition', () => {
     const headerCells = Array.from(el().querySelectorAll('thead tr:first-child th')).map((th) =>
       th.textContent?.trim(),
     );
-    expect(headerCells).toEqual(['Nombre', 'Correo', 'Estado', 'Acciones']);
+    expect(headerCells).toEqual(['Nombre', 'Correo', 'Estado', 'Actions']);
 
     const firstRowCells = el().querySelectorAll('tbody tr.sol-data-table__tr:first-child > *');
     expect(firstRowCells[firstRowCells.length - 1].className).toContain('sol-data-table__td--actions');
@@ -368,7 +364,7 @@ describe('SolDataTableComponent — actionsPosition', () => {
     const headerCells = Array.from(el().querySelectorAll('thead tr:first-child th')).map((th) =>
       th.textContent?.trim(),
     );
-    expect(headerCells).toEqual(['Acciones', 'Nombre', 'Correo', 'Estado']);
+    expect(headerCells).toEqual(['Actions', 'Nombre', 'Correo', 'Estado']);
 
     const firstRowCells = el().querySelectorAll('tbody tr.sol-data-table__tr:first-child > *');
     expect(firstRowCells[0].className).toContain('sol-data-table__td--actions');

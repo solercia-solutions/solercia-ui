@@ -3,9 +3,8 @@ import {
   ChangeDetectionStrategy,
   input,
   computed,
-  inject,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 
 type SpinnerSize = 'sm' | 'md' | 'lg';
 
@@ -72,7 +71,7 @@ type SpinnerSize = 'sm' | 'md' | 'lg';
   `,
 })
 export class SolSpinnerComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Size preset for the spinner. */
   size = input<SpinnerSize>('md');

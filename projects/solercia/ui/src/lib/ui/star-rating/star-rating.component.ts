@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 
 export type SolStarRatingSize = 'sm' | 'md' | 'lg';
@@ -97,7 +97,7 @@ const MAX_STARS = 5;
   `,
 })
 export class SolStarRatingComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Calificación de 0 a 5. `null` = sin dato: se pintan 5 estrellas vacías. */
   readonly value = input<number | null>(null);
@@ -120,10 +120,15 @@ export class SolStarRatingComponent {
 
   protected readonly filledPercent = computed(() => (this.safeValue() / MAX_STARS) * 100);
 
-  /** Un decimal y coma decimal, como se escribe en español. */
-  protected readonly formattedValue = computed(() =>
-    this.safeValue().toFixed(1).replace('.', ','),
-  );
+  /** Un decimal con el separador del idioma activo (`4.5` en inglés, `4,5` en español). */
+  protected readonly formattedValue = computed(() => {
+    const lang = this.i18n.activeLang() || 'en';
+    try {
+      return new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(this.safeValue());
+    } catch {
+      return this.safeValue().toFixed(1);
+    }
+  });
 
   protected readonly ariaLabel = computed(() => {
     const rating = this.formattedValue();
@@ -136,7 +141,7 @@ export class SolStarRatingComponent {
     // ese caso se detecta y se cae a un texto propio en vez de anunciarle la
     // clave cruda a un lector de pantalla.
     return translated === 'shared.starRating.label'
-      ? `${rating} de ${MAX_STARS}`
+      ? `${rating} of ${MAX_STARS}`
       : translated;
   });
 }

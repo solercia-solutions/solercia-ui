@@ -4,12 +4,11 @@ import {
   computed,
   effect,
   forwardRef,
-  inject,
   input,
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 
 /**
@@ -215,7 +214,7 @@ import { SolIconComponent } from '../icon/icon.component';
   `,
 })
 export class SolNumberInputComponent implements ControlValueAccessor {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   readonly min = input<number>(0);
   readonly max = input<number>(Number.MAX_SAFE_INTEGER);

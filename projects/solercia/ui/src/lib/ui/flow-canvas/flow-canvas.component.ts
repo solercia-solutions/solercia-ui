@@ -5,7 +5,6 @@ import {
   TemplateRef,
   computed,
   effect,
-  inject,
   input,
   output,
   signal,
@@ -13,7 +12,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { computeValidConnectionTargets } from './flow-canvas-connect';
 import { computeEdgeMidpoint, computeEdgePathD } from './flow-canvas-edge-geometry';
 import { computeAutoLayoutPositions, countEdgeIds, countNodeIds, safeTrackKey } from './flow-canvas-layout';
@@ -649,7 +648,7 @@ function clampPosition(position: SolFlowCanvasPosition): SolFlowCanvasPosition {
   `,
 })
 export class SolFlowCanvasComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
 
   /** Tolera `null`/`undefined` (lección PR3/PR4 del resto de la lib): un input no garantiza un valor no-nulo en runtime. */
   readonly nodes = input<SolFlowCanvasNode[] | null | undefined>([]);

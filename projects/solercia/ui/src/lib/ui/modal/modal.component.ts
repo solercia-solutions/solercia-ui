@@ -1,12 +1,18 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  ElementRef,
+  HostListener,
+  computed,
+  effect,
   input,
   output,
-  computed,
-  HostListener,
+  viewChild,
 } from '@angular/core';
 import { SolIconComponent } from '../icon/icon.component';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
+import { bodyScrollLock } from '../overlay/body-scroll-lock';
+import { createFocusTrap } from '../overlay/focus-trap';
 import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-interactions';
 
 @Component({
@@ -21,17 +27,25 @@ import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-i
         (click)="onBackdropClick()"
       >
         <div
+          #panel
           class="sol-modal-content"
           [class]="panelClasses()"
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-labelledby]="title() ? titleId : null"
+          [attr.aria-label]="title() ? null : ariaLabel() || null"
+          tabindex="-1"
           (click)="$event.stopPropagation()"
         >
           <header class="sol-modal-header">
-            <h2 class="sol-modal-title">{{ title() }}</h2>
+            @if (title()) {
+              <h2 [id]="titleId" class="sol-modal-title">{{ title() }}</h2>
+            }
             @if (closeable()) {
               <button
                 type="button"
                 class="sol-modal-close"
-                aria-label="Cerrar"
+                [attr.aria-label]="closeLabel()"
                 (click)="close()"
               >
                 <sol-icon name="x" size="md" />
@@ -82,6 +96,7 @@ import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-i
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 1rem;
       padding: 1rem 1.5rem;
       border-bottom: 1px solid var(--sol-border-color-default, #e5e7eb);
     }
@@ -93,7 +108,12 @@ import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-i
       color: var(--sol-color-text-primary, #111827);
     }
 
+    .sol-modal-content:focus {
+      outline: none;
+    }
+
     .sol-modal-close {
+      margin-inline-start: auto;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -150,6 +170,9 @@ import { shouldCloseOnBackdrop, shouldCloseOnEscape } from '../overlay/overlay-i
   `,
 })
 export class SolModalComponent {
+  private static nextId = 0;
+  private readonly i18n = injectSolI18n();
+
   /** Whether the modal is open. */
   open = input<boolean>(false);
 
@@ -165,14 +188,47 @@ export class SolModalComponent {
   /** Whether clicking the backdrop closes the modal. */
   closeOnBackdrop = input<boolean>(false);
 
+  /** Accessible name of the dialog when there is no `title` (ignored when a title is set). */
+  ariaLabel = input<string>('');
+
   /** Emitted when the modal requests to be closed. */
   closed = output<void>();
 
   /** Computed CSS class for the panel size. */
   panelClasses = computed(() => `sol-modal-content sol-modal-${this.size()}`);
 
-  // Escape/backdrop delegan al helper compartido con sol-drawer (11-h, T01) —
-  // mismo comportamiento observable, sin duplicar el "gating" en cada overlay.
+  /** Unique id consumed by `aria-labelledby`. */
+  readonly titleId = `sol-modal-title-${SolModalComponent.nextId++}`;
+
+  /** Accessible label of the close button (`shared.modal.close`). */
+  readonly closeLabel = computed(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('shared.modal.close');
+  });
+
+  private readonly panelEl = viewChild<ElementRef<HTMLElement>>('panel');
+
+  constructor() {
+    // Same lifecycle as sol-drawer: while the panel is mounted, the background scroll is
+    // locked and focus is trapped inside; on close (or destroy) both are released and
+    // focus returns to the element that was focused before opening.
+    effect(onCleanup => {
+      const panel = this.panelEl()?.nativeElement ?? null;
+      if (!panel) return;
+
+      const trigger = document.activeElement as HTMLElement | null;
+      bodyScrollLock.lock();
+      const trap = createFocusTrap(panel);
+      trap.activate(trigger);
+
+      onCleanup(() => {
+        trap.deactivate();
+        bodyScrollLock.unlock();
+      });
+    });
+  }
+
+  // Escape and backdrop share the gating helpers of sol-drawer.
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
     if (shouldCloseOnEscape(this.open(), this.closeable())) {

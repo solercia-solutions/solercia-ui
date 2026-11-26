@@ -12,7 +12,7 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolAvatarComponent } from '../avatar/avatar.component';
 import { SolIconComponent, type SolIconName } from '../icon/icon.component';
 import { SolSpinnerComponent } from '../spinner/spinner.component';
@@ -517,7 +517,7 @@ const I18N_PREFIX = 'shared.scopeSwitcher';
   `,
 })
 export class SolScopeSwitcherComponent<TData = unknown> {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // ── Entradas ────────────────────────────────────────────────────────────────

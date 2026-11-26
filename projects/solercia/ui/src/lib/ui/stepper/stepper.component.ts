@@ -7,7 +7,7 @@ import {
   input,
   output,
 } from '@angular/core';
-import { SOL_I18N } from '../../i18n/sol-i18n';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 import { SolIconComponent } from '../icon/icon.component';
 
 /**
@@ -302,7 +302,7 @@ export type SolStepperNavigation = 'linear' | 'free';
   `,
 })
 export class SolStepperComponent {
-  private readonly i18n = inject(SOL_I18N);
+  private readonly i18n = injectSolI18n();
   private readonly host = inject(ElementRef<HTMLElement>);
 
   /** Pasos a renderizar, en orden. */

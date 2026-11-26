@@ -17,6 +17,7 @@ import {
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { SolIconComponent } from '../icon/icon.component';
 import { SolFloatingPanelDirective } from '../overlay/floating-panel.directive';
+import { injectSolI18n } from '../../i18n/inject-sol-i18n';
 
 export interface SolSelectOption {
   value: string;
@@ -82,7 +83,7 @@ function foldText(text: string): string {
         (blur)="onBlur()"
       >
         <span class="sol-select__display" [class.sol-select__display--placeholder]="!displayText()">
-          {{ displayText() || placeholder() }}
+          {{ displayText() || placeholderText() }}
         </span>
         <sol-icon name="chevron-down" variant="fill" class="sol-select__arrow" [class.sol-select__arrow--open]="isOpen()" />
       </button>
@@ -114,8 +115,8 @@ function foldText(text: string): string {
                 aria-expanded="true"
                 [attr.aria-controls]="panelId"
                 [attr.aria-activedescendant]="activeOptionId()"
-                [attr.aria-label]="searchPlaceholder()"
-                [placeholder]="searchPlaceholder()"
+                [attr.aria-label]="searchPlaceholderText()"
+                [placeholder]="searchPlaceholderText()"
                 [value]="searchTerm()"
                 (input)="onSearchInput($event)"
               />
@@ -125,8 +126,8 @@ function foldText(text: string): string {
           <!-- Select all / none for multi -->
           @if (multiple()) {
             <div class="sol-select__bulk-actions">
-              <button type="button" class="sol-select__bulk-btn" (click)="selectAll()">Todos</button>
-              <button type="button" class="sol-select__bulk-btn" (click)="selectNone()">Ninguno</button>
+              <button type="button" class="sol-select__bulk-btn" (click)="selectAll()">{{ selectAllText() }}</button>
+              <button type="button" class="sol-select__bulk-btn" (click)="selectNone()">{{ selectNoneText() }}</button>
             </div>
           }
 
@@ -162,7 +163,7 @@ function foldText(text: string): string {
             }
           </div>
           @if (filteredOptions().length === 0) {
-            <div class="sol-select__empty" role="status">{{ emptyLabel() }}</div>
+            <div class="sol-select__empty" role="status">{{ emptyText() }}</div>
           }
         </div>
       }
@@ -443,7 +444,7 @@ function foldText(text: string): string {
 })
 export class SolSelectComponent implements ControlValueAccessor {
   /** Placeholder text when nothing is selected. */
-  readonly placeholder = input<string>('Selecciona...');
+  readonly placeholder = input<string | undefined>(undefined);
   /** Label displayed above the select. */
   readonly label = input<string>('');
   /** Error message below. */
@@ -456,16 +457,16 @@ export class SolSelectComponent implements ControlValueAccessor {
   readonly multiple = input<boolean>(false);
   /** Options array — use this instead of ng-content for searchable/multi. */
   readonly options = input<SolSelectOption[]>([]);
-  /** Show a "Todos" / clear option in single mode. */
+  /** Show an "All" / clear option in single mode. */
   readonly showAllOption = input<boolean>(false);
-  /** Label for the "all" option in single mode. */
-  readonly allOptionLabel = input<string>('Todos');
+  /** Label for the "all" option in single mode (default `shared.select.all`). */
+  readonly allOptionLabel = input<string | undefined>(undefined);
   /** Accessible name of the trigger when no `label` or wrapping `<label>` gives one. */
   readonly ariaLabel = input<string>('');
   /** Placeholder (and accessible name) of the search input. */
-  readonly searchPlaceholder = input<string>('Buscar...');
-  /** Message when the search matches nothing. */
-  readonly emptyLabel = input<string>('Sin resultados');
+  readonly searchPlaceholder = input<string | undefined>(undefined);
+  /** Message when the search matches nothing (default `shared.select.empty`). */
+  readonly emptyLabel = input<string | undefined>(undefined);
   /** Controlled value in single mode: use it with `(valueChange)` instead of a form binding. */
   readonly value = input<string | null | undefined>(undefined);
 
@@ -510,6 +511,20 @@ export class SolSelectComponent implements ControlValueAccessor {
   readonly triggerId = `sol-select-trigger-${this.uid}`;
 
   private readonly injector = inject(Injector);
+  private readonly i18n = injectSolI18n();
+
+  // Visible texts: an explicit input always wins (even ''); otherwise the shared.select.* key.
+  readonly placeholderText = computed(() => this.text(this.placeholder(), 'shared.select.placeholder'));
+  readonly searchPlaceholderText = computed(() => this.text(this.searchPlaceholder(), 'shared.select.searchPlaceholder'));
+  readonly emptyText = computed(() => this.text(this.emptyLabel(), 'shared.select.empty'));
+  readonly allOptionText = computed(() => this.text(this.allOptionLabel(), 'shared.select.all'));
+  readonly selectAllText = computed(() => this.text(undefined, 'shared.select.selectAll'));
+  readonly selectNoneText = computed(() => this.text(undefined, 'shared.select.selectNone'));
+
+  private text(override: string | undefined, key: string): string {
+    this.i18n.activeLang();
+    return override ?? this.i18n.translate(key);
+  }
 
   readonly filteredOptions = computed(() => {
     const term = foldText(this.searchTerm());
@@ -522,7 +537,7 @@ export class SolSelectComponent implements ControlValueAccessor {
   readonly navItems = computed<SolSelectOption[]>(() => {
     const filtered = this.filteredOptions();
     return !this.multiple() && this.showAllOption()
-      ? [{ value: '', label: this.allOptionLabel() }, ...filtered]
+      ? [{ value: '', label: this.allOptionText() }, ...filtered]
       : filtered;
   });
 
@@ -543,7 +558,7 @@ export class SolSelectComponent implements ControlValueAccessor {
     if (this.multiple()) {
       const selected = this.multiValues();
       if (selected.size === 0) return '';
-      if (selected.size === this.options().length) return 'Todos';
+      if (selected.size === this.options().length) return this.allOptionText();
       const labels = this.options()
         .filter(o => selected.has(o.value))
         .map(o => o.label);
